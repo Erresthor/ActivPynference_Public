@@ -25,6 +25,32 @@ class VB_agent:
             self.MDP_list = mdp.run_for_N_generations(NumGens)
             self.trained= True
     
+    def fractionned_train(self,mdp,NumGens):
+        self.NumGens = NumGens
+        if (not(self.trained)):
+            MDP_list_1 = mdp.run_for_N_generations(int(NumGens/16))
+            
+            new_mdp = MDP_list_1[-1].copy()
+            new_mdp.D_[0] = 1 - new_mdp.D_[0]
+            MDP_list_2 = MDP_list_1 + new_mdp.run_for_N_generations(int(NumGens/16)+int(NumGens/8))
+            
+            new_mdp = MDP_list_2[-1].copy()
+            new_mdp.D_[0] = 1 - new_mdp.D_[0]
+            MDP_list_2 = MDP_list_2 + new_mdp.run_for_N_generations(int(NumGens/4))
+
+            new_mdp = MDP_list_2[-1].copy()
+            new_mdp.D_[0] = 1 - new_mdp.D_[0]
+            MDP_list = MDP_list_2 + new_mdp.run_for_N_generations(int(NumGens/2))
+#            
+#            new_mdp = MDP_list_3[-1].copy()
+#            new_mdp.D_[0] = 1 - new_mdp.D_[0]
+#            MDP_list_4 = new_mdp.run_for_N_generations(int(NumGens/4))
+#            
+            
+            self.trained= True 
+            self.MDP_list = MDP_list
+            print(len(self.MDP_list))
+    
     def show(self):
         assert (self.trained),"Nothing to show : this agent hasn't trained"
         Ng = self.NumGens
@@ -44,7 +70,7 @@ class VB_agent:
         Dopamine = np.zeros((Ng*Ni*T,))
 
         
-        for i in range(Ng):
+        for i in range(len(self.MDP_list)):
             
             Chosen_first_action[i] = self.MDP_list[i].u[1,0]
             Chosen_second_action[i] = self.MDP_list[i].u[1,1]
@@ -53,13 +79,18 @@ class VB_agent:
             Context_state_at_t0[i] = 1-self.MDP_list[i].xn[0][-1,0,0,0,0] + 2
             True_context_state[i] = self.MDP_list[i].s[0,0] + 2
             
-            print(self.MDP_list[i].wn.shape)
+            #print(self.MDP_list[i].b_[0])
+#            print(self.MDP_list[i].d_[0])
+#            print(np.round(self.MDP_list[i].Q[0],4))
 #            print(self.MDP_list[i].X[0].shape)
 #            print(self.MDP_list[i].Q[0])
             Outcome[i] = np.max(self.MDP_list[i].o[1,:])
             
+            #print(self.MDP_list[i].Q[0])
             Precision[i*Ni*T:(i+1)*Ni*T] = self.MDP_list[i].wn*(self.MDP_list[i].wn>0)
             Dopamine[i*Ni*T:(i+1)*Ni*T] = self.MDP_list[i].dn*(self.MDP_list[i].dn>0)
+            
+        plt.close('all')
         fig,ax = plt.subplots()
         
         Action_ticks = ['Inactive','Hint','Left','Right']
@@ -74,15 +105,22 @@ class VB_agent:
         
         plt.figure()
         basic_autoplot(Precision)
-        
+#        
         plt.figure()
         basic_autoplot(Dopamine)
         #plt.scatter(X,Outcome,label='Outcome')
         #plt.yticks([0,1,2],['Undecided', 'Win' ,'Loss'],size="small")
         #plt.show()
         
+        
+        for i in range(Ng):
+            if (Outcome[i]==1):
+                outco = 'WIN'
+            else :
+                outco = 'LOST'
+            print("Experience " + str(i+1) + " --> " + str(outco))
         print(str(100*(1-np.sum(Outcome-1)/Ng)) + " % of wins")
 
 agent = VB_agent()
-agent.train(explore_exploit_model(0.8,pWin=1,pHA=1,rs=3,la=1),30)
+agent.fractionned_train(explore_exploit_model(1,pWin=1,pHA=0.9,rs=3,la=1),1000)
 agent.show()

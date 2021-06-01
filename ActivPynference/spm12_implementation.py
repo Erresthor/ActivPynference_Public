@@ -626,16 +626,24 @@ class MDP :
                 #print(index)
                 vec[0,index] = 1
                 O[modality][:,t] = vec
-                
-           
-                
+            
+            
+            
+            # END OF GENERATIVE PROCESS !!
+            #-------------------------------------------------------------------------------------------------
+            
+
+
+            
+            
+            #GENERATIVE MODEL !!
+            #------------------------------------------------------------------------------------------------
+            
             # Likelihood of hidden states
             L.append(1)
             for modality in range (Nmod):
                 L[t] = L[t] * spm_dot(a[modality],O[modality][:,t])
-            # END OF GENERATIVE PROCESS !!
-            #-------------------------------------------------------------------------------------------------
-                
+            
             if (isField(self.zeta)):
                 if not(isField(self.U_)) and (t>0):
                     F = nat_log(u[p,t-1])
@@ -644,12 +652,6 @@ class MDP :
             for f in range(Nf):
                 x[f] = softmax(nat_log(x[f])/self.erp,axis = 0,center = False)
                 #print(softmax(nat_log(x[f])/self.erp,axis = 0,center = True)[:,:,0])
-
-            
-            
-            #GENERATIVE MODEL !!
-            #------------------------------------------------------------------------------------------------
-            
             
             
             # % Variational updates (hidden states) under sequential policies
@@ -888,7 +890,13 @@ class MDP :
                     self.a_[modality] = self.a_[modality] + da*self.eta
                     
             if isField(self.b_)and (t>0) :
+#                print('-----------------')
+#                print(u[:,t])
+                
                 for factor in range(Nf):
+#                    print(np.round(x[factor][:,t,:],2))
+#                    print(np.round(x[factor][:,t-1,:],2))
+#                    print('*')
                     for policy in range (Np):
                         v = V[t-1,policy,factor]
                         db = u[policy,t]*np.outer(x[factor][:,t,policy],x[factor][:,t-1,policy].T)

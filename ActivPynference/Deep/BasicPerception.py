@@ -10,7 +10,8 @@ import sys
 sys.path.append('..')
 from function_toolbox import *
 from plotting_toolbox import *
-
+import matplotlib.pyplot as plt
+from miscellaneous_toolbox import clamp
 
 def softmax(X):                                                                 ###converts log probabilities to probabilities
   norm = np.sum(np.exp(X)+10**-5)
@@ -36,7 +37,7 @@ def normalise(X):                                                               
 ### Defining parameters
 ################################################################################
 
-T = 100
+T = 500
 D = np.array([0.5,0.5])
 
 ######## Defining likelihood matrices  ##########
@@ -49,12 +50,12 @@ gammaA1 = np.zeros(T)
 betaA1m = np.zeros(2)
 betaA1m[:] = [0.5,2.0]
 
+beta_1_prior = np.zeros(T)
+
 X_1_prior = np.zeros((2,T))        ### perception prior (standard vs oddball)
 X_1_prior[:,0] = [0.5,0.5]         ### perceptual state prior D1
 
 X_1_posterior = np.zeros((2,T))     ### perception posterior (standard vs oddball)
-
-T = 10
 
 O = np.zeros(T)             ### observations (standard vs oddball)
 O[int(T/5)]=1;              ### generative process determined by experimenter
@@ -90,92 +91,189 @@ betaA1 = 1
 #    
 #    print('---')
 #basic_autoplot(X_1_posterior[0,:-1])
-    
+
+
 # Basic with precision calculation
-beta = 1
+def static_precision():
+    beta_1_prior[0] = 0.1
+    precision = np.zeros((T,))
+    Ni = 1
+    L = []
+    
+    for t in range(T):  
+        s_prior = X_1_prior[:,t]
+        beta_prior = beta_1_prior[t]
+        
+        gammaA1[t] = beta_prior**(-1)
+        normalized_A1 = softmax_dim2((A1**gammaA1[t]))
+        
+        o_prior = np.dot(normalized_A1,s_prior)
+        o_posterior= O1bar[:,t]
+        
+        #Likelihood of hidden states -->
+        # Given the observations, what are the probabilities of having this as a hidden state
+        L.append(np.dot(normalized_A1,o_posterior))
+        
+        s_posterior = softmax(np.log(s_prior)+np.log(L[t]))
+        
+        
+        # for each combination of hidden states :
+        # compute (o_posterior - normalized_A1[:,combination])*posterior_belief_about_combination*log(A1[:,combination])
+        # e.g. :
+        AtC = 0
+        for i in range(2) :
+            inter = (o_posterior-normalized_A1[:,i])*s_posterior[i]*np.log(A1[:,i])
+            AtC += np.sum(inter)
+        if(AtC > beta_prior):
+            AtC = beta_prior - 1e-5
+        beta_posterior = beta_prior - AtC
+    
+        
+        if(t<T-1):
+            X_1_prior[:,t+1] = s_posterior
+            beta_1_prior[t+1] = beta_posterior
+            
+        
+    l = np.linspace(0,T,T)
+    plt.plot(l,X_1_prior[1,:])
+    plt.plot(l,beta_1_prior[:])
+    
+
+
+def dynamic_precision():
+    beta_1_prior[0] = 1
+    precision = np.zeros((T,))
+    Ni = 1
+    L = []
+    
+    B = np.array([[[0.8],[0.2]],
+                  [[0.2],[0.8]]])
+    
+    #B = np.array([[[0.7],[0.3]],
+    #              [[0.3],[0.7]]])
+    #
+    #tester = 0.999
+    #
+    #B = np.array([[[tester],[1-tester]],
+    #              [[1-tester],[tester]]])
+        
+    for t in range(T):  
+        print('-----')
+        
+        s_prior = X_1_prior[:,t]
+        beta_prior = beta_1_prior[t]
+        
+        beta_prior = 1
+        
+        gammaA1[t] = beta_prior**(-1)
+        
+        
+        limits = 4.5
+        gammaA1[t] = clamp(gammaA1[t],-limits,limits) #prevent computational anomalies during normalization
+        
+        normalized_A1 = softmax_dim2(A1**gammaA1[t])
+        A1bar = (A1**gammaA1[t])
+        o_prior = np.dot(normalized_A1,s_prior)
+        
+        
+        o_posterior= O1bar[:,t]
+        
+        #Likelihood of hidden states -->
+        # Given the observations, what are the probabilities of having this as a hidden state
+        L.append(np.dot(A1bar,o_posterior))
+        s_posterior = softmax(np.log(s_prior)+np.log(L[t]))
+        
+        # for each combination of hidden states :
+        # compute (o_posterior - normalized_A1[:,combination])*posterior_belief_about_combination*log(A1[:,combination])
+        # e.g. :
+        AtC = 0
+        for i in range(2) :
+            inter = (o_posterior-normalized_A1[:,i])*s_posterior[i]*np.log(A1[:,i])
+            AtC += np.sum(inter)
+        if(AtC > 0.5):
+            AtC = 0.5
+        beta_posterior = beta_prior - AtC
+    
+    #    if (beta_posterior < 0):
+    #        beta_posterior = 0
+    #    
+        if(t<T-1):
+            X_1_prior[:,t+1] = np.inner(B[:,:,0],s_posterior)
+            beta_1_prior[t+1] = beta_posterior
+        print(s_posterior)
+    
+    l = np.linspace(1,T,T)
+    plt.plot(l,O)
+    plt.plot(l,X_1_prior[0,:])
+    plt.plot(l,beta_1_prior)
+
+
+
+
+beta_1_prior[0] = 1
 precision = np.zeros((T,))
 Ni = 1
 L = []
-
+B = np.array([[[0.8],[0.2]],
+              [[0.2],[0.8]]])
+    
 for t in range(T):  
-    actual_obs= O1bar[:,t]
+    print('-----')
     
     s_prior = X_1_prior[:,t]
-    estimated_obs = np.dot(A1,s_prior)
+    beta_prior = beta_1_prior[t]
     
-    gammaA1[t] = beta**(-1)
-    print(gammaA1[t])
-    print(A1)
-    normalized_A = softmax_dim2((A1**gammaA1[t]))
+    beta_prior = 1
+    
+    gammaA1[t] = beta_prior**(-1)
+    
+    
+    limits = 4.5
+    gammaA1[t] = clamp(gammaA1[t],-limits,limits) #prevent computational anomalies during normalization
+    
+    normalized_A1 = softmax_dim2(A1**gammaA1[t])
+    A1bar = (A1**gammaA1[t])
+    o_prior = np.dot(normalized_A1,s_prior)
+    
+    
+    o_posterior= O1bar[:,t]
+    
+    #Likelihood of hidden states -->
+    # Given the observations, what are the probabilities of having this as a hidden state
+    L.append(np.dot(A1bar,o_posterior))
+    s_posterior = softmax(np.log(s_prior)+np.log(L[t]))
+    
+    # for each combination of hidden states :
+    # compute (o_posterior - normalized_A1[:,combination])*posterior_belief_about_combination*log(A1[:,combination])
+    # e.g. :
+    AtC = 0
+    for i in range(2) :
+        inter = (o_posterior-normalized_A1[:,i])*s_posterior[i]*np.log(A1[:,i])
+        AtC += np.sum(inter)
+    if(AtC > 0.5):
+        AtC = 0.5
+    beta_posterior = beta_prior - AtC
 
-    
-    
-    print(normalized_A)
-    print("---------------")
-    
-    
-    
-    
+#    if (beta_posterior < 0):
+#        beta_posterior = 0
 #    
-#    
-#    
-#    
-#    O1[:,t] = np.dot(A1_prec,X_1_prior[:,t]) #Observation prior
-##    print(O1[:,t])
-##    print(np.inner(A1_prec,X_1_prior[:,t]))
-##    
-#    lnA  = np.log(A1)
-#    lnA_bar = np.log(A1_prec)
-##    
-##    
-##    betaA1 = betaA1 - nat_log(np.dot(A1,O1bar[:,t]-O1[:,t]))
-##    X_1_posterior[:,t] = softmax(nat_log(X_1_prior[:,t])+nat_log(np.dot(A1_prec,O1bar[:,t])))
-##    print(X_1_posterior[:,t])
-##    print(nat_log(np.sum(np.dot(A1,O1bar[:,t]-O1[:,t]))))
-##    
-##    AtC = 0
-##    for i in range(2):                            ##loop over outcomes
-##        for j in range(2):                          ##loop over states
-##            
-##            
-##            AtC += (O1bar[i,t]-A1_prec[i,j])*X_1_posterior[j,t]*np.log(A1[i,j])   ### See "Uncertainty, epistemics and active inference" Parr, Friston.
-##    if AtC > betaA1m[0]:
-##          AtC = betaA1m[0]-10**-5
-##    print(AtC)
-##    
-###    
-###    
-####    print(betaA1)
-####    print(X_1_posterior) # Observation posterior
-####    print('-----------')
-###
-###    X_1_prior[:,t+1]= 
-##
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#
+    if(t<T-1):
+        X_1_prior[:,t+1] = np.inner(B[:,:,0],s_posterior)
+        beta_1_prior[t+1] = beta_posterior
+    print(s_posterior)
+
+l = np.linspace(1,T,T)
+plt.plot(l,O)
+plt.plot(l,X_1_prior[0,:])
+plt.plot(l,beta_1_prior)
+
+
+
+
+
+
+
+
+
+
+

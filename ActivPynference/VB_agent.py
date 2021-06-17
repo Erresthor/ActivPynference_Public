@@ -79,11 +79,6 @@ class VB_agent:
             Context_state_at_t0[i] = 1-self.MDP_list[i].xn[0][-1,0,0,0,0] + 2
             True_context_state[i] = self.MDP_list[i].s[0,0] + 2
             
-            #print(self.MDP_list[i].b_[0])
-#            print(self.MDP_list[i].d_[0])
-#            print(np.round(self.MDP_list[i].Q[0],4))
-#            print(self.MDP_list[i].X[0].shape)
-#            print(self.MDP_list[i].Q[0])
             Outcome[i] = np.max(self.MDP_list[i].o[1,:])
             
             #print(self.MDP_list[i].Q[0])

@@ -16,3 +16,10 @@ def isField(x):
         return False
     return True
 
+def clamp(x,lower,upper):
+    if (x>upper):
+        x = upper
+    elif (x<lower) :
+        x = lower
+    return x
+

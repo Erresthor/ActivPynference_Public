@@ -17,16 +17,19 @@ https://github.com/rssmith33/Active-Inference-Tutorial-Scripts/blob/main/Step_by
 import random as r
 import time 
 import numpy as np
+
+import matplotlib
+matplotlib.use('Qt5Agg')
+
+
 import matplotlib.pyplot as plt
 from function_toolbox import normalize,softmax,nat_log
 from function_toolbox import spm_wnorm,cell_md_dot,md_dot, spm_cross,spm_KL_dir,spm_psi, spm_dot
 from function_toolbox import G_epistemic_value
-
+from plotting_toolbox import basic_autoplot
 from miscellaneous_toolbox import isField
 import sys 
-
-
-
+from matplotlib.widgets import Slider, Button, RadioButtons
 
 
 class MDP_OPTIONS :
@@ -329,7 +332,7 @@ class MDP :
     def pack_model(self):
         """This function checks building blocks and initializes all basic variables needed for the experience. It is called before proceeding to the run"""
         checker = True
-        checker = checker and self.A_ and self.B_ and self.C_ and self.D_
+        checker = checker and self.A_ and self.B_ and self.D_
         assert checker,"The model has not been built properly (basic building blocks). Aborting model packing."
         checker = checker and (self.T > 0)
         assert checker,"The total simulation time cannot be <1. Aborting model packing."
@@ -495,7 +498,7 @@ class MDP :
             C[modality] = nat_log(softmax(C[modality],0))
         
         
-        V = self.V_
+        V = self.V_.astype(np.int)
         
          
         #OUTCOMES
@@ -529,11 +532,13 @@ class MDP :
         vn = []
         x = []
         X = []
+        X_archive = []
         for f in range(Nf):        
             xn.append(np.zeros((Ni,Ns[f],T,T,Np)) + 1./Ns[f])
             vn.append(np.zeros((Ni,Ns[f],T,T,Np)))
             x.append(np.zeros((Ns[f],T,Np)) + 1./Ns[f])   # Posterior expectation of all hidden states
             X.append(np.tile(np.reshape(d[f],(-1,1)),(1,T)))
+            X_archive.append(np.tile(np.reshape(d[f],(-1,1,1)),(T,T)))   # Estimation at time t of BMA states at time tau
             #X.append(np.expand_dims(d[f],1))
             for k in range(Np):
                 x[f][:,0,k] = d[f]
@@ -657,7 +662,6 @@ class MDP :
             # % Variational updates (hidden states) under sequential policies
             #%==============================================================
             S = V.shape[0] + 1
-            
             if (self.U_):
                 R = t;
             else :
@@ -674,6 +678,7 @@ class MDP :
                 
             
             for policy in p :
+
                 dF = 1 # Criterion for given policy
                 for iteration in range(Ni) :
                     
@@ -707,7 +712,6 @@ class MDP :
                                 else :
                                     px = nat_log(np.dot(np.squeeze(b[factor][:,:,V[tau-1,policy,factor]]),x[factor][:,tau-1,policy]))
                                 v = v +px + qL - qx
-                                
                                 #Empirical priors (backward messages)
                                 if (tau == R-1) :
                                     px = 0
@@ -752,7 +756,7 @@ class MDP :
             pu = 1 #Empirical prior
             qu = 1 #posterior
             Q = np.zeros((Np,)) # Actual EFE
-            
+
             if (Np>1) :
                 for policy in p:
                     # Bayesian surprise about initial conditions
@@ -803,13 +807,16 @@ class MDP :
             for factor in range(Nf):
                 for tau in range(S):
                     X[factor][:,tau] =np.dot(x[factor][:,tau,:],u[:,t])
-            
+                    X_archive[factor][:,t,tau] = X[factor][:,tau]
             reaction_time[t] = time.time() - tstart
             
             self.F[:,t] = F
             self.G[:,t] = Q
-            self.H[t] = np.dot(qu.T,self.F[p,t]) - np.dot(qu.T,(nat_log(qu) - nat_log(pu))) ;
-                
+            
+            if (Np > 1) :
+                self.H[t] = np.dot(qu.T,self.F[p,t]) - np.dot(qu.T,(nat_log(qu) - nat_log(pu))) ;
+            else :
+                self.H[t] = self.F[p,t] - (nat_log(qu) - nat_log(pu)) ;
             # TODO : check for residual uncertainty (in hierarchical schemes) + VOX mode
 #            if isfield(MDP,'factor')
 #                
@@ -979,9 +986,37 @@ class MDP :
 #        print(self.u)
 #        plt.plot(np.linspace(0,dn.shape[0],dn.shape[0]),dn)
 #        plt.show()
+        self.archive = X_archive # BMA States estimation at all times
         self.ran = True
 
-
+    def show(self):
+        T = self.T
+        
+        fig, ax = plt.subplots()
+        plt.subplots_adjust(left=0.25, bottom=0.25)
+        
+        L = np.linspace(1, T, T)
+        #print(self.o[0].shape)
+        plt.plot(L,self.o[0])
+       # plt.pause(1)
+        
+        p, = plt.plot(L,self.archive[0][1,int(T/2),:],lw=2)
+        ax.margins(x=0)
+        
+        axcolor = 'lightgoldenrodyellow'
+        axfreq = plt.axes([0.25, 0.1, 0.65, 0.03], facecolor=axcolor)
+        
+        sT = Slider(axfreq, 'Estimation at time : ',0 , T-1, valinit=int(T/2),valstep = 1)        
+        
+        def update(val):
+            p.set_ydata(self.archive[0][1,int(sT.val),:])
+            fig.canvas.draw_idle()
+        
+        
+        sT.on_changed(update)     
+        plt.ion()
+        plt.show()
+        plt.pause(5)
     def run_for_N_generations(self,N):
         r.seed(self.seed)
         mdp = self

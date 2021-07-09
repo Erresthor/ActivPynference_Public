@@ -663,7 +663,7 @@ class MDP :
             #%==============================================================
             S = V.shape[0] + 1
             if (self.U_):
-                R = t;
+                R = t
             else :
                 R = S
             F = np.zeros((Np,))
@@ -796,7 +796,7 @@ class MDP :
                         dFdg = qb - self.beta + eg
                         qb = qb - dFdg/2.
                         w[t] = 1/qb
-                    
+                    print(F[p])
                     #dopamine responses
                     n = t*Ni + iteration
                     wn[n] = w[t]
@@ -809,7 +809,9 @@ class MDP :
                     X[factor][:,tau] =np.dot(x[factor][:,tau,:],u[:,t])
                     X_archive[factor][:,t,tau] = X[factor][:,tau]
             reaction_time[t] = time.time() - tstart
-            
+        
+            print(X)
+
             self.F[:,t] = F
             self.G[:,t] = Q
             

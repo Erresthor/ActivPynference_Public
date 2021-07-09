@@ -49,6 +49,8 @@ class MDP_deep_OPTIONS :
         self.PREC_B = False     # If true, the transition precision won't be infered in all iteration
         
         self.DeepDimensions = 1 # How many layers do we simulate (1-3)
+        self.SIMULTANEOUS_MULTILEVEL_INFERENCE = True
+
 class MDP_deep :
     
     # Agent constructor
@@ -602,9 +604,9 @@ class MDP_deep :
         for f in range(Nf):        
             xn.append(np.zeros((Ni,Ns[f],T,T,Np)) + 1./Ns[f])
             vn.append(np.zeros((Ni,Ns[f],T,T,Np)))
-            x.append(np.zeros((Ns[f],T,Np)) + 1./Ns[f])   # Posterior expectation of all hidden states
-            X.append(np.tile(np.reshape(d[f],(-1,1)),(1,T)))
-            X_archive.append(np.tile(np.reshape(d[f],(-1,1,1)),(T,T)))   # Estimation at time t of BMA states at time tau
+            x.append(np.zeros((Ns[f],T,Np)) + 1./Ns[f])                     # Posterior expectation of all hidden states depending on each policy
+            X.append(np.tile(np.reshape(d[f],(-1,1)),(1,T)))                # Posterior expectation of all hiddent states given posterior on policy
+            X_archive.append(np.tile(np.reshape(d[f],(-1,1,1)),(T,T)))      # Estimation at time t of BMA states at time tau
             #X.append(np.expand_dims(d[f],1))
             for k in range(Np):
                 x[f][:,0,k] = d[f]
@@ -717,6 +719,7 @@ class MDP_deep :
             
             if (isField(self.zeta)):
                 if not(isField(self.U_)) and (t>0):
+                    print(u[p,t-1])
                     F = nat_log(u[p,t-1])
                     p = p[(F-np.max(F))>-self.zeta]                
             tstart = time.time()
@@ -729,20 +732,14 @@ class MDP_deep :
             #%==============================================================
             S = V.shape[0] + 1
             if (self.U_):
-                R = t;
+                R = t
             else :
                 R = S
             F = np.zeros((Np,))
             G = np.zeros((Np,))
             # marginal message passing (minimize F and infer posterior over states)
             #----------------------------------------------------------------------
-            
-            
-            
-            
-                #print(nat_log(np.dot(np.squeeze(b[0][:,:,V[1-1,0,0]]),x[0][:,1-1,0])))
-                
-            
+
             for policy in p :
 
                 dF = 1 # Criterion for given policy
@@ -880,9 +877,9 @@ class MDP_deep :
             self.G[:,t] = Q
             
             if (Np > 1) :
-                self.H[t] = np.dot(qu.T,self.F[p,t]) - np.dot(qu.T,(nat_log(qu) - nat_log(pu))) ;
+                self.H[t] = np.dot(qu.T,self.F[p,t]) - np.dot(qu.T,(nat_log(qu) - nat_log(pu)))
             else :
-                self.H[t] = self.F[p,t] - (nat_log(qu) - nat_log(pu)) ;
+                self.H[t] = self.F[p,t] - (nat_log(qu) - nat_log(pu))
             # TODO : check for residual uncertainty (in hierarchical schemes) + VOX mode
 #            if isfield(MDP,'factor')
 #                

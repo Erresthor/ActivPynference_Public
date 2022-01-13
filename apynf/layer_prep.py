@@ -37,7 +37,7 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from base.miscellaneous_toolbox import isField
+from base.miscellaneous_toolbox import isField, flexible_copy
 from base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax
 from parameters.policy_method import Policy_method
 from layer_precisions import init_precisions
@@ -59,7 +59,7 @@ def initialize_sizes(layer_input):
             layer_input.policy_method = Policy_method.POLICY
         elif (isField(layer_input.U_)):
             layer_input.V_ = np.zeros((T-1,)+layer_input.U_.shape)
-            layer_input.V_[0,:,:] = layer_input.U_
+            layer_input.V_[0,...] = layer_input.U_
             layer_input.policy_method = Policy_method.ACTION
         else :
             print("No  U or V as input. Assumig a passive setup")
@@ -221,6 +221,30 @@ def initialize_fields(layer_input):
                 c_prior[modality] = np.tile(c_prior[modality],(1,T))
         C[modality] = nat_log(softmax(C[modality],0))
 
+
+    global_efficacy_center = True
+    if not(isField(layer_input.efficacy)):
+        layer_input.efficacy = flexible_copy(layer_input.C_)
+    for modality in range(Nmod):
+        if (layer_input.efficacy[modality].shape[-1] == 1) :
+            layer_input.efficacy[modality] = np.tile(layer_input.efficacy[modality],(1,T))
+        # We can have negative weights. To guarantee coherence of mark evaluation, we center the efficacy so that 0 represents the worst roi
+        # Please not that we can follow to approaches : 
+        # - Global : 0 is set for the lowest efficacy (negative) value ON THE WHOLE TEMPORAL RANGE [0,T-1] --> Weights from one timestep to another are correlated
+        # - Local  : 0 is set for the lowest efficacy (negative) value AT THE GIVEN TEMPORAL POINT t in [0, T-1] --> Weights only have a relationship to other weights at the same timestep
+        if (global_efficacy_center):
+            if (np.min(layer_input.efficacy[modality]) < 0) :
+                layer_input.efficacy[modality] = layer_input.efficacy[modality] - np.min(layer_input.efficacy[modality])
+
+        else :
+            for t in range(T):
+                if (np.min(layer_input.efficacy[modality][:,T]) < 0) :
+                    layer_input.efficacy[modality][:,T] = layer_input.efficacy[modality][:,T] - np.min(layer_input.efficacy[modality][:,T])
+    
+
+
+
+
     if (layer_input.policy_method == Policy_method.POLICY) :
         V = layer_input.V_.astype(np.int)
         layer_input.V = V
@@ -367,6 +391,8 @@ def initialize_fields(layer_input):
     layer_input.dn = None          # Simulated dopamine response
     layer_input.rt = np.zeros((T,))          # Simulated reaction times
     
+    
+
     init_precisions(layer_input)
 
 def prep_layer(input_layer):

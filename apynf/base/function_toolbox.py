@@ -49,7 +49,7 @@ def softmax_dim2(X):                                                            
     Y = (np.exp(X)+10**-5)/norm
     return Y
 
-def normalize(X,axis=0,epsilon=1e-10):                                                               ###normalises a matrix of probabilities
+def normalize(X,axis=0,epsilon=1e-15):                                                               ###normalises a matrix of probabilities
     if(type(X) == list):
         x =[]
         for i in range(len(X)):

@@ -139,7 +139,7 @@ class NF_model_displayer :
         image_path = os.getcwd() + "\\apynf\\NF_model\\head.png"
         illustration = Image.open(image_path)
         ill_x,ill_y = illustration.size
-        prop = 0.5
+        prop = 0.7
         new_x = int(prop*x_size)
         new_y = int((new_x/ill_x)*ill_y)
         illustration =  illustration.resize((new_x,new_y),Image.ANTIALIAS)
@@ -176,5 +176,5 @@ class NF_model_displayer :
 
 if (__name__ == "__main__"):
     # model = NF_model(3)
-    model = NF_model_displayer(5,6)
-    model.show((900,700))
+    model = NF_model_displayer(5,5)
+    model.show((1200,700))

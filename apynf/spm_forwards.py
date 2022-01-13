@@ -50,10 +50,10 @@ import numpy as np
 from types import SimpleNamespace
 
 from base.function_toolbox import normalize,spm_dot, nat_log,softmax
-from base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions
+from base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions,flexible_toString,flexible_print,flexible_copy
 from base.state_tree import tree_node,state_tree
 
-def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node) :
+def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node,t0 = 0,verbose = False) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -87,6 +87,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node) :
     if (t==T-1):
         # Search over, calculations make no sense here as no actions remain to be chosen
         return normalize(np.ones(G.shape)), P
+        
 
     Q = []
     for action in range(U.shape[0]) :
@@ -105,11 +106,35 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node) :
                 # G[factor] =                              ambiguity              +                 risk
                 G[action] = G[action] + np.dot(Q[action].T,A_ambiguity[modality].flatten()) - np.dot(qo.T,nat_log(qo)-po)
                 # Bayesian surprise about parameters (= novelty)
-                G[action] = G[action] + np.dot(qo.T,np.dot(flatten_last_n_dimensions(Nf,A_novelty[modality]),Q[action]))
+                G[action] = G[action] - np.dot(qo.T,np.dot(flatten_last_n_dimensions(Nf,A_novelty[modality]),Q[action]))
     # Q = q(s|pi) at time t
     # P = q(s) at time t
     # P_archive = q(s) at time t --> N 
     # u = q(pi) at time t
+
+    condition = (t<10) and (verbose) and True
+    if (t==t0)and (condition):
+        print("---------------------------------------------------------------------")
+        print("t = " + str(t) + "  || t0 = " + str(t0))
+        print("P = " + flexible_toString(P[t]))
+        print("Q = \n" + flexible_toString(Q))
+        print()
+        print("A_novelty = \n" + flexible_toString(A_novelty[0]))
+        print("A_amiguity = \n" + flexible_toString(A_ambiguity[0]))
+        print("G : " + flexible_toString(G))
+        for action in range(U.shape[0]):
+            print("    ##### " + str(action)+" #####")
+            # If things were simple :
+            print("      bayesian_risk[" + str(action) + "] = " + flexible_toString(np.dot(qo.T,po)))
+            print("      ---")
+            print("      ambiguity[" + str(action) + "]     = " + flexible_toString(np.dot(Q[action].T,A_ambiguity[modality].flatten())))
+            print("      risk[" + str(action) + "]          = " + flexible_toString(np.dot(qo.T,nat_log(qo)-po)))
+            print("      novelty[" + str(action) + "]       = " + flexible_toString(np.dot(qo.T,np.dot(flatten_last_n_dimensions(Nf,A_novelty[modality]),Q[action]))))
+        # print("Ambiguity :")
+        # for action in range(U.shape[0]):
+        #     print("    G[" + str(action) + "] = " + str(G[action]))
+        # print("Risk")
+
     plausible_threshold = 1.0/16.0
     possibilities_depending_on_action = []
     if (t<N): # t within temporal horizon
@@ -143,7 +168,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node) :
                     #prior over subsequent action under this hidden state
                     #----------------------------------------------------------
                     P[t+1] = Q[action]
-                    F,useless = spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t+1,T,N,child_node)
+                    F,useless = spm_forwards(flexible_copy(O),P,U,A,B,C,E,A_ambiguity,A_novelty,t+1,T,N,child_node,t0=t0)
 
                     possibilities_depending_on_action[action] += 1
                     

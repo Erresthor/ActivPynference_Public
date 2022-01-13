@@ -49,7 +49,7 @@ from spm_forwards import *
 from spm_backwards import *
 from layer_prep import prep_layer
 from layer_precisions import *
-from layer_learn import learn_from_experience
+from layer_learn import *
 
 from base.function_toolbox import normalize,softmax,nat_log,precision_weight
 from base.function_toolbox import spm_wnorm,cell_md_dot,md_dot, spm_cross,spm_KL_dir,spm_psi, spm_dot
@@ -80,15 +80,24 @@ class mdp_layer_options :
     def __init__(self):
         self.T_horizon = 1
         self.update_frequency = 1 # ]0,1] --> At most, you can be updated once every loop, at worst, only once in total
+                                    # To be implemented
         
+        self.learn_during_experience = False
+
+        self.memory_decay = MemoryDecayType.NO_MEMORY_DECAY
+        self.decay_half_time = 1
+
         self.Ni = 16
 
 class mdp_layer :
     # Agent constructor
     def __init__(self,in_seed = 0):
+        self.verbose = False
+
+        
         self.seed = in_seed
 
-        self.name = '<default name>'
+        self.name = 'default name'
         self.options = mdp_layer_options()
         self.parent = None
         self.child = None
@@ -170,6 +179,8 @@ class mdp_layer :
         self.dn = None          # Simulated dopamine response
         self.rt = None          # Simulated reaction times
 
+        self.efficacy = None    # How to grade the experience 
+
         self.tree = []          #Expectation matrices
         self.trees = []         #Trees
 
@@ -194,8 +205,8 @@ class mdp_layer :
         Ni = self.options.Ni
         t = self.t
         T = self.T
-        msg = "Gathering GT values at time "  + str(self.t+1) +" / " + str(self.T) + " (layer " + str(self.level) + " ) ..."
-        print(msg,end=' ')
+        # msg = "Gathering GT values at time "  + str(self.t+1) +" / " + str(self.T) + " (layer " + str(self.level) + " ) ..."
+        # print(msg,end=' ')
 
         # Fetch precisions :  ---------------------------------------------------------------------------------------------------------------------------------------
         policy_precision = 1.0              # Prior for policy selection
@@ -298,7 +309,7 @@ class mdp_layer :
             print("We already have a complete observation sequence :  no need to generate it.")
         else :
 
-            print("------------------------------------------------")
+            #print("------------------------------------------------")
 
 
             # We're missing all or part of the outcomes. To generate those, we need to simulate ground truth hidden states.
@@ -362,7 +373,7 @@ class mdp_layer :
 
         # END OF GENERATIVE PROCESS !!
         #-------------------------------------------------------------------------------------------------
-        print("Success !")
+        #print("Success !")
 
     # POLICY DRIVEN LOOP
 
@@ -717,8 +728,8 @@ class mdp_layer :
             current_node = current_node.children_nodes[0]
         # current_node contains the last state estimation (at t - 1)
         # print(self.Q)
-        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T,t+N),current_node)
-
+        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T,t+N),current_node,t0=t,verbose=self.verbose)
+        #print(G)
         tree = state_tree(origin_node)
         origin_node.compute_subsequent_state_prob()
         
@@ -763,8 +774,11 @@ class mdp_layer :
         
         return time.time() - t0 , (tree.matrix_of_state_expectations(0,T)),tree
 
-
-
+    def real_time_learn(self,ratio=0.5):
+        """ Custom function to allow the agent to learn 'on the fly' at a reduced learning rate small eta seta = eta*reduction_factor"""
+        if (self.options.learn_during_experience):
+            learn_during_experience(self,ratio)
+            #learn_during_experience(self,ratio)
 
     def tick(self):
         """ The layer gathers all data from parent & children states and performs inference"""
@@ -774,56 +788,65 @@ class mdp_layer :
         if(t<T):
             # print(np.round(self.x[0],2))
             self.get_ground_truth_values()
-            print("------------------")
-            print(str(t+1) + " / " + str(T))
-            print(self.policy_method)
-            print("------------------")
+            # print("------------------")
+            # print(str(t+1) + " / " + str(T))
+            # print("------------------")
             if(self.policy_method == Policy_method.POLICY):
-                print("Policy driven loop engaged")
+                #print("Policy driven loop engaged")
                 state_inference_time = self.perform_state_inference()          
                 policy_inference_time = self.perform_policy_inference()
                 action_selection_time = self.perform_action_selection()
                 self.rt[t] = state_inference_time + policy_inference_time
                 self.t = self.t + 1
             elif (self.policy_method == Policy_method.ACTION):
-                print("Action driven loop engaged")
+                #print("Action driven loop engaged")
                 total_time, tree_matrix ,tree = self.action_driven_loop()
                 self.rt[t] = total_time
-                self.t = self.t + 1
+                
+                self.real_time_learn()
+
                 self.tree.append(tree_matrix)
                 self.trees.append(tree)
+
+                self.t = self.t + 1
         else :
             print("No actions were conducted this round (time exceeded trial horizon)")
 
-    def postrun(self) :
-        learn_from_experience(self)
 
-    def run(self,times = 1):
+    def postrun(self) :
+        learn_from_experience(self,mem_dec_type=self.options.memory_decay,t05=self.options.decay_half_time)
+        #learn_from_experience(self,mem_dec_type=MemoryDecayType.STATIC)
+        #learn_from_experience(self,mem_dec_type=MemoryDecayType.PROPORTIONAL)
+
+    def run(self):
         run_comps = []
-        for i in range(times):
-            self.prep_trial()
-            for t in range(self.T):
-                self.tick()
-            self.postrun()
-            run_comps.append(self.return_run_components())
+        self.prep_trial()
+        for t in range(self.T):
+            self.tick()
+        self.postrun()
+        run_comps.append(self.return_run_components())
         return run_comps
     
-    def run_generator(self,times=1):
-        for i in range(times):
-            self.prep_trial()
-            for t in range(self.T):
-                self.tick()
-            self.postrun()
-            yield (self.return_run_components())
+    def run_generator(self):
+        self.prep_trial()
+        for t in range(self.T):
+            self.tick()
+            if (t<self.T-1):
+                yield (self.return_run_components())
+        self.postrun()
+        yield (self.return_run_components())
+            
 
     def return_run_components(self):
         return_container = SimpleNamespace()
 
         # Results
         return_container.Q = flexible_copy(self.Q)
-        return_container.O = flexible_copy(self.O)
+        return_container.o = flexible_copy(self.o)
+
         return_container.state_expectation = flexible_copy(self.tree)
         return_container.trees = self.trees
+        
         return_container.s = flexible_copy(self.s)    
         # Matrices
         return_container.a_ = flexible_copy(self.a_)
@@ -845,32 +868,20 @@ class mdp_layer :
 
         return return_container
 
+    def return_void_state_space(self,populate = None):
+        if (isNone(self.Ns)):
+            return None
+        else :
+            shap = tuple(self.Ns)
+            arr =np.zeros(shap)
+            if (populate==None):
+                return arr
+            else :
+                arr[populate] = 1.0
+                return arr
+
+
+
 
 if __name__ == "__main__":
-    eem = explore_exploit_model(5,.8)
-    eem.name = "Basic model"
-
-    layer = mdp_layer(eem.seed)
-    layer.name = "Layer model"
-    layer.a_ = eem.a_
-    layer.A_ = eem.A_
-    layer.b_ = eem.b_
-    layer.B_ = eem.B_
-    layer.D_ = eem.D_
-    layer.d_ = eem.d_
-    layer.C_ = eem.C_
-    layer.T = 3
-    layer.V_ = eem.V_
-    layer.precisions.policy.prior = np.array([1.0])
-    layer.precisions.policy.to_infer = True
-
-
-    print("----------------------------------------------")
-    print("        MODEL " + str(layer.name) )
-    print()
-    print("seed: " + str(layer.seed))
-    print("----------------------------------------------")
-        
-    layer.prep_trial()
-    for i in range(layer.T):
-        layer.tick()
+    print("Hello there")

@@ -41,17 +41,48 @@ from base.miscellaneous_toolbox import isField
 from base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax , spm_cross
 from parameters.policy_method import Policy_method
 from base.function_toolbox import spm_kron,spm_margin,spm_dekron
+from enum import Enum
 
-def a_learning(layer,t):
+class MemoryDecayType(Enum):
+    NO_MEMORY_DECAY = 0
+    PROPORTIONAL = 1
+    STATIC = 2
+
+
+def update_rule(old_matrix,new_matrix,t05):
+    if (t05 == 0):
+        return old_matrix + new_matrix
+    else :
+        return old_matrix*np.exp(-(np.log(2)/t05)) + new_matrix
+    
+def update_rule(old_matrix,new_matrix,t05):
+    w = 1e-10
+    if (t05 == 0):
+        return old_matrix + new_matrix
+    else :
+        returner = old_matrix*np.exp(-(np.log(2)/t05)) + new_matrix 
+
+        return old_matrix*np.exp(-(np.log(2)/t05)) + new_matrix + w*(np.ones(old_matrix.shape))
+
+
+def a_learning(layer,t,eta=None,mem_dec_type = MemoryDecayType.PROPORTIONAL,t05 = 0):
     Nmod = layer.Nmod
     Nf = layer.Nf
     T = layer.T
 
-
-    remain_percentage = 0.9
-    k = np.exp((1/T)*np.log(remain_percentage))
+    if(eta==None):
+        eta = layer.parameters.eta
 
     
+
+    if(mem_dec_type== MemoryDecayType.PROPORTIONAL):
+        t05 = (T/2)  # Memory loss factor : guarantee that at the end of the experiment , only remain_percentage % of initial knowledge remain
+    elif (mem_dec_type==MemoryDecayType.STATIC):
+        a_remain = 1
+        t05 = t05*a_remain
+    elif(mem_dec_type==MemoryDecayType.NO_MEMORY_DECAY) :
+        t05 = 0
+
     for modality in range(Nmod):
         da = (layer.O[modality][:,t])
         if(layer.policy_method==Policy_method.ACTION):
@@ -62,16 +93,29 @@ def a_learning(layer,t):
         #print(spm_dekron(da,tuple(layer.a_[modality].shape)))
         da = (np.reshape(da,layer.a_[modality].shape))
         da = da*(layer.a_[modality]>0)
-        layer.a_[modality] = k*layer.a_[modality] + da*layer.parameters.eta
 
-def b_learning(layer,t):
+
+        layer.a_[modality] = update_rule(layer.a_[modality],da*eta,t05)
+        #layer.a_[modality] = k*layer.a_[modality] + da*eta
+
+def b_learning(layer,t,eta=None,mem_dec_type = MemoryDecayType.PROPORTIONAL,t05 = 0):
     Nf = layer.Nf
     Np = layer.Np
     T = layer.T
 
-    remain_percentage = 0.9
-    k = np.exp((1/T)*np.log(remain_percentage))
+    if(eta==None):
+        eta = layer.parameters.eta 
+    
+    
 
+    if(mem_dec_type== MemoryDecayType.PROPORTIONAL):
+        t05 = (T/2)  # Memory loss factor : guarantee that at the end of the experiment , only remain_percentage % of initial knowledge remain
+    elif (mem_dec_type==MemoryDecayType.STATIC):
+        b_remain = 1
+        t05 = t05*b_remain
+    elif(mem_dec_type==MemoryDecayType.NO_MEMORY_DECAY) :
+        t05 = 0
+    
     # Custom implementation of b learning :
     def output_action_probability_density(chosen_actions,b):
         output = []
@@ -114,7 +158,8 @@ def b_learning(layer,t):
     for factor in range (Nf):
         db[factor] = db[factor]*(layer.b_[factor]>0)
         db[factor] = db[factor]/np.sum(db[factor])
-        layer.b_[factor] =  k*layer.b_[factor] + layer.parameters.eta*db[factor]
+        #layer.b_[factor] =  k*layer.b_[factor] + eta*db[factor]
+        layer.b_[factor] = update_rule(layer.b_[factor],eta*db[factor],t05)
 
 def c_learning(layer,t):
     for modality in range(Nmod):
@@ -136,8 +181,8 @@ def e_learning(layer):
     T = layer.T
     layer.e_ = layer.e_ + layer.u[:,T-1]*layer.eta
 
-def learn_from_experience(layer,reinitialise_afterwards = False):
-    print("Wow this was insightful : i'm gonna learn from that !")
+def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05=100):
+    #print("Wow this was insightful : i'm gonna learn from that !")
     Nmod = layer.Nmod
     No = layer.No
 
@@ -156,10 +201,10 @@ def learn_from_experience(layer,reinitialise_afterwards = False):
     # LEARNING :
     for t in range(T):
         if isField(layer.a_): 
-            a_learning(layer, t)
+            a_learning(layer, t,mem_dec_type=mem_dec_type,t05=t05)
                 
         if isField(layer.b_)and (t>0) :
-            b_learning(layer, t)
+            b_learning(layer, t,mem_dec_type=mem_dec_type,t05=t05)
                     
         if isField(layer.c_) :
             c_learning(layer, t)
@@ -169,6 +214,69 @@ def learn_from_experience(layer,reinitialise_afterwards = False):
         
     if isField(layer.e_) : # Update agent habits
         layer.e_ = layer.e_ + layer.u[:,T-1]*layer.eta
+    
+    # # Negative freeee eneergiiiies
+    # for modality in range (Nmod):
+    #     if isField(layer.a_):
+    #         layer.Fa.append(-spm_KL_dir(layer.a_[modality],layer.a_prior[modality]))
+    #     if isField(layer.c_) :
+    #         layer.Fc.append(- spm_KL_dir(layer.c_[modality],layer.c_prior[modality]))
+    
+    # for factor in range(Nf):
+    #     if isField(layer.b_):
+    #         layer.Fb.append(-spm_KL_dir(layer.b_[factor],layer.b_prior[factor]))
+    #     if isField(layer.d_):
+    #         layer.Fd.append(-spm_KL_dir(layer.d_[factor],layer.d_prior[factor]))
+    
+    # if (Np>1):
+    #     dn = 8*np.gradient(layer.wn) + layer.wn/8.0
+    # else :
+    #     dn = None
+    #     wn = None
+    
+    # Xn = []
+    # Vn = []
+    # # BMA Hidden states
+    # for factor in range(Nf):
+    #     Xn.append(np.zeros((Ni,Ns[factor],T,T)))
+    #     Vn.append(np.zeros((Ni,Ns[factor],T,T)))
+        
+    #     for t in range(T):
+    #         for policy in range(Np):
+    #             Xn[factor][:,:,:,t] = Xn[factor][:,:,:,t] + np.dot(xn[factor][:,:,:,t,policy],u[policy,t])
+    #             Vn[factor][:,:,:,t] = Vn[factor][:,:,:,t] + np.dot(vn[factor][:,:,:,t,policy],u[policy,t])
+    # print("Learning and encoding ended without errors.")
+    
+    # if isField(layer.U_):
+    #     u = u[:,:-1]
+    #     un =  un[:,:-Ni]
+
+def learn_during_experience(layer,ratio = 0.5):
+    #print("Wow this was insightful : i'm gonna learn from that !")
+    Nmod = layer.Nmod
+    No = layer.No
+
+    Nf = layer.Nf
+    Ns = layer.Ns 
+
+    Np = layer.Np
+    Nu = layer.Nu
+
+    Ni = layer.options.Ni
+    current_t = layer.t
+    T = layer.T
+
+    N = layer.options.T_horizon
+
+    # LEARNING :
+    if isField(layer.a_): 
+        a_learning(layer, current_t,layer.parameters.eta*ratio,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,t05=0) # We learn at a reduced rate during experience, and without loss of information
+            
+    if isField(layer.b_)and (current_t>0) :
+        b_learning(layer, current_t,layer.parameters.eta*ratio,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,t05=0)  # We learn at a reduced rate during experience, and without loss of information
+    
+    # We choose not to update either c, d or e at this step. D can very well be updated later
+    # C and E are very "global" parameters. Changing them on the fly could provoke noisy behaviour.
     
     # # Negative freeee eneergiiiies
     # for modality in range (Nmod):

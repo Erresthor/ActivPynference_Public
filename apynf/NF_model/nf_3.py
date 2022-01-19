@@ -462,14 +462,8 @@ def custom_run(datapath,K,
     print(lay.u)
 
 
-def main(foldername:str,noiselevel:float,T:int=1500,same:int = 10):
+def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
     path = "/mnt/data/Come_A/data"
-
-    # foldername = str(foldername)
-    # noiselevel = float(noiselevel)
-    # T = int(T)
-    # same = int(same)
-
 
     complete_foldername = os.path.join(path,foldername)
 
@@ -488,11 +482,13 @@ def main(foldername:str,noiselevel:float,T:int=1500,same:int = 10):
 
 
 if (__name__ == "__main__"):
-    if (len(sys.argv)>3):
-        main(sys.argv[1],sys.argv[2],T=sys.argv[3],same=sys.argv[4])
-    else :
-        main(sys.argv[1],sys.argv[2])
-    #main("neuro_test_4",L[run],T=1500,same=10)
+    foldername = str(sys.argv[1])
+    noiselevel = float(sys.argv[2])
+    T = int(sys.argv[3])
+    same = int(sys.argv[4])
+    sham = (str(sys.argv[5]).lower()=="true")
+
+    main(foldername,noiselevel,T=T,same=same,sham=sham)
 
 
 # if (__name__ == "__main__"):

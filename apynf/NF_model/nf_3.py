@@ -476,7 +476,7 @@ def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
             print(run_name  + "  already exists. Skipping this simulation.")
         else:
             print("Executing simulation " + str(k) + " / " + str(same) + " for nl = " + str(noiselevel) + " at " + run_name)
-            custom_run(run_name, 1500,anyplot=False,noiselevel = L[run])
+            custom_run(run_name, 1500,anyplot=False,noiselevel = noiselevel)
         
         print('-------------------------------------')
 

@@ -1,4 +1,6 @@
+#!/bin/python
 # -*- coding: utf-8 -*-
+
 """
 Created on Tue Aug 3 10:55:21 2021
 
@@ -458,43 +460,39 @@ def custom_run(datapath,K,
         input()
     
     print(lay.u)
-    
+
+
+def main(foldername,noiselevel,T=1500,same = 10):
+    path = "/mnt/data/Come_A/data"
+
+    complete_foldername = os.path.join(path,foldername)
+
+    for k in range(same):
+        run_name = os.path.join(str(round(noiselevel,2)), str(k))
+
+        complete_run_name = os.path.join(complete_foldername,run_name)
+
+        if (os.path.isdir(run_name)) :
+            print(run_name  + "  already exists. Skipping this simulation.")
+        else:
+            print("Executing simulation " + str(k) + " / " + str(same) + " for nl = " + str(noiselevel) + " at " + run_name)
+            custom_run(run_name, 1500,anyplot=False,noiselevel = L[run])
+        
+        print('-------------------------------------')
+
+
 if (__name__ == "__main__"):
-    N = 50
-    L = np.linspace(0,0.7,N)
-
-    limit = 0.49
-
-
-
-    for run in range(N):
-        for k in range(10):
-            run_name = "D:\\data\\neuromodels\\noise_run_2\\" + str(round(L[run],2)) + "_" + str(k) +"\\"
-            print('-------------------------------------')
-            print(k)
-            if (os.path.isdir(run_name)) :
-                print(run_name  + "  already exists. Skipping this simulation.")
-            else:
-                print(run_name)
-                custom_run(run_name, 300,anyplot=False,noiselevel = L[run])
-            print('-------------------------------------')
-            
-    
-
-    # for k in range(10):
-    #     run_name = "D:\\data\\neuromodels\\noise_run_2\\" + str("random_") + str(k) +"\\"
-    #     custom_run(run_name, 300,anyplot=False,noiselevel = 1,sham=True)
+    if (len(sys.argv)>3):
+        main(sys.argv[1],sys.argv[2],T=sys.argv[3],same=sys.argv[4])
+    else :
+        main(sys.argv[1],sys.argv[2])
+    #main("neuro_test_4",L[run],T=1500,same=10)
 
 
-    
-    #simple_run_2("D:\\data\\neuromodels\\003_100\\",5000,anyplot=True)
-    #custom_run("D:\\data\\neuromodels\\001\\",100,total_savepoints=1,anyplot=True)
-    # #lay.run()
-        # a = np.array([[0 , 0],
-        #               [0 , 1],
-        #               [1 , 0],
-        #               [0 , 0],
-        #               [0 , 0]])
+# if (__name__ == "__main__"):
+#     N = 50
+#     L = np.linspace(0,1,N)
 
-        # print(dist_to_index(a))
-        # print(index_to_dist(np.array([4,2]), a))
+
+#     for run in range(N):
+#         main("neuro_test_4",L[run],T=1500,same=10)

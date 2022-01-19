@@ -74,9 +74,9 @@ def flexible_print(object,round = 2):
 
 
 def index_to_dist(index,array_example):
-        returner = np.zeros(array_example.shape)
-        returner[index] = 1
-        return returner
+    returner = np.zeros(array_example.shape)
+    returner[index] = 1
+    return returner
 
 def dist_to_index(array,axis=0):
     """ Return the index of the maximum along the given axis"""

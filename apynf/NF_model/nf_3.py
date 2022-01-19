@@ -462,8 +462,14 @@ def custom_run(datapath,K,
     print(lay.u)
 
 
-def main(foldername,noiselevel,T=1500,same = 10):
+def main(foldername:str,noiselevel:float,T:int=1500,same:int = 10):
     path = "/mnt/data/Come_A/data"
+
+    # foldername = str(foldername)
+    # noiselevel = float(noiselevel)
+    # T = int(T)
+    # same = int(same)
+
 
     complete_foldername = os.path.join(path,foldername)
 

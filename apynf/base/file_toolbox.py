@@ -13,6 +13,9 @@ import matplotlib.pyplot as plt
 from types import SimpleNamespace
 import pickle
 
+def root_path():
+    return os.path.abspath(os.sep)
+
 def save_flexible(obj,to_path):
     if not os.path.exists(os.path.dirname(to_path)):
         try:

@@ -35,7 +35,7 @@ from base.function_toolbox import spm_dot,spm_kron
 from layer_postrun import evaluate_run
 from layer_learn import MemoryDecayType
 from pynf_functions import *
-
+from file_toolbox import root_path
 from layer_sumup import *
 
 
@@ -463,7 +463,9 @@ def custom_run(datapath,K,
 
 
 def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
-    path = "/mnt/data/Come_A/data"
+    
+    
+    path = os.path.join(root_path(),"/mnt/data/Come_A/data/")
 
     complete_foldername = os.path.join(path,foldername)
 
@@ -476,7 +478,7 @@ def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
             print(run_name  + "  already exists. Skipping this simulation.")
         else:
             print("Executing simulation " + str(k) + " / " + str(same) + " for nl = " + str(noiselevel) + " at " + run_name)
-            custom_run(run_name, 1500,anyplot=False,noiselevel = noiselevel)
+            custom_run(run_name, T,anyplot=False,noiselevel = noiselevel)
         
         print('-------------------------------------')
 

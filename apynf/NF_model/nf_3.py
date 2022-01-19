@@ -469,6 +469,7 @@ def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
 
     complete_foldername = os.path.join(path,foldername)
 
+    print(complete_foldername)
     for k in range(same):
         run_name = os.path.join(str(round(noiselevel,2)), str(k))
 
@@ -478,7 +479,7 @@ def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
             print(run_name  + "  already exists. Skipping this simulation.")
         else:
             print("Executing simulation " + str(k) + " / " + str(same) + " for nl = " + str(noiselevel) + " at " + run_name)
-            custom_run(run_name, T,anyplot=False,noiselevel = noiselevel)
+            custom_run(complete_run_name, T,anyplot=False,noiselevel = noiselevel)
         
         print('-------------------------------------')
 

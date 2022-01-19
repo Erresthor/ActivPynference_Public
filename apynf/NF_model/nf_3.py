@@ -15,7 +15,6 @@ import random as r
 import os.path
 
 from scipy import stats
-from mayavi import mlab
 import plotly.graph_objects as go
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

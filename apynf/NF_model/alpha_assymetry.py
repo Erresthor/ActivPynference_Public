@@ -24,7 +24,7 @@ from base.miscellaneous_toolbox import flexible_copy , isField , index_to_dist, 
 from base.function_toolbox import normalize
 from mdp_layer import mdp_layer
 from neurofeedback_base import NF_model_displayer
-from base.plotting_toolbox import multi_matrix_plot
+from base.plotting_toolbox import multi_matrix_plot,multi_3dmatrix_plot,matrix_plot
 from base.file_toolbox import load_flexible,save_flexible
 import matplotlib.pyplot as plt
 
@@ -56,192 +56,82 @@ plt.rc('figure', titlesize=SMALL_SIZE)  # fontsize of the figure title
 #
 def nf_2_model(rs,la):
 
-    initial_state = 2
+    initial_state_1 = 2
+    initial_state_2 = 2
+
     # Priors about initial states
     # Prior probabilities about initial states in the generative process
     D_ =[]
     # Context state factor
-    D_.append(np.array([0,0,0,0,0])) # Alpha wave in the right part of the brain
-    D_[0][initial_state] = 1
-
-    D_.append(np.array([0,0,0,0,0])) # Alpha wave in the left part of the brain
-    D_[0][initial_state] = 1
-    
+    D_.append(np.array([0,0,0,0,0])) # Attentional state
+    D_[0][initial_state_1] = 1
+    D_.append(np.array([0,0,0,0,0])) # Attentional state
+    D_[1][initial_state_2] = 1
 
     # Prior beliefs about initial states in the generative process
     d_ =[]
     # Mental states
-    d_.append(np.array([0.001,0.001,0.996,0.001,0.001])) # Alpha right belief
-    d_.append(np.array([0.001,0.001,0.996,0.001,0.001])) # Alpha left belief
+    d_.append(np.array([0.2,0.2,0.2,0.2,0.2])) # Alpha right belief
+    d_.append(np.array([0.2,0.2,0.2,0.2,0.2])) # Alpha left belief
 
     Nf = 2
-    Ns = [D_[0].shape[0],D_[1].shape[0]] #(Number of states)
+    Ns = [5,5] #(Number of states)
     No = [5]
 
-    # Observations : just the states 
+    # Observations : corresponding indicator
     A_ = []
-
-
-
+    
     # ALPHA ASSYMETRY MARKERS
     # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
-    A_obs_mental = np.zeros((No[0],Ns[0],Ns[1]))
+    A_0 = np.zeros((No[0],Ns[0],Ns[1]))
     pa = 1
 
+    # Ideal observation ensures 1-1 correspondance between observation and hidden state (here the attentionnal level)
+    A_0[0,:,:] = np.array([[1   ,0   ,0   ,0   ,0   ],
+                           [0   ,1   ,0   ,0   ,0   ],
+                           [0   ,0   ,1   ,0   ,0   ],
+                           [0   ,0   ,0   ,1   ,0   ],
+                           [0   ,0   ,0   ,0   ,1   ]])
 
-    # Observation is lowest when the two sides of the brain display the exact same activity
-    A_obs_mental[0,:,:] = np.array([[1   ,0   ,0   ,0   ,0   ],
-                                    [0   ,1   ,0   ,0   ,0   ],
-                                    [0   ,0   ,1   ,0   ,0   ],
-                                    [0   ,0   ,0   ,1   ,0   ],
-                                    [0   ,0   ,0   ,0   ,1   ]])
-    
-    # Observation is low when the two sides of the brain display close activity  (diff = 1)
-    A_obs_mental[1,:,:] = np.array([[0   ,1   ,0   ,0   ,0   ],
-                                    [1   ,0   ,1   ,0   ,0   ],
-                                    [0   ,1   ,0   ,1   ,0   ],
-                                    [0   ,0   ,1   ,0   ,1   ],
-                                    [0   ,0   ,0   ,1   ,0   ]])
+    A_0[1,:,:] = np.array([[0   ,1   ,0   ,0   ,0   ],
+                           [1   ,0   ,1   ,0   ,0   ],
+                           [0   ,1   ,0   ,1   ,0   ],
+                           [0   ,0   ,1   ,0   ,1   ],
+                           [0   ,0   ,0   ,1   ,0   ]])
 
-    # Observation is medium when the two sides of the brain display distinct activity  (diff = 2)
-    A_obs_mental[2,:,:] = np.array([[0   ,0   ,1   ,0   ,0   ],
-                                    [0   ,0   ,0   ,1   ,0   ],
-                                    [1   ,0   ,0   ,0   ,1   ],
-                                    [0   ,1   ,0   ,0   ,0   ],
-                                    [0   ,0   ,1   ,0   ,0   ]])
-    
-    # Observation is high when the two sides of the brain display very distinct activity (diff = 3)
-    A_obs_mental[3,:,:] = np.array([[0   ,0   ,0   ,1   ,0   ],
-                                    [0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [1   ,0   ,0   ,0   ,0   ],
-                                    [0   ,1   ,0   ,0   ,0   ]])
-    
-    # Observation is highest when the two sides of the brain display opposite activities (diff = 5)
-    A_obs_mental[4,:,:] = np.array([[0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [1   ,0   ,0   ,0   ,0   ]])
+    A_0[2,:,:] = np.array([[0   ,0   ,1   ,0   ,0   ],
+                           [0   ,0   ,0   ,1   ,0   ],
+                           [1   ,0   ,0   ,0   ,1   ],
+                           [0   ,1   ,0   ,0   ,0   ],
+                           [0   ,0   ,1   ,0   ,0   ]])
+
+    A_0[3,:,:] = np.array([[0   ,0   ,0   ,1   ,0   ],
+                           [0   ,0   ,0   ,0   ,1   ],
+                           [0   ,0   ,0   ,0   ,0   ],
+                           [1   ,0   ,0   ,0   ,0   ],
+                           [0   ,1   ,0   ,0   ,0   ]])
+
+    A_0[4,:,:] = np.array([[0   ,0   ,0   ,0   ,1   ],
+                           [0   ,0   ,0   ,0   ,0   ],
+                           [0   ,0   ,0   ,0   ,0   ],
+                           [0   ,0   ,0   ,0   ,0   ],
+                           [1   ,0   ,0   ,0   ,0   ]])
+    A_ = [A_0]
 
 
-
-    # ALPHA ASSYMETRY MARKERS - RIGHT PREFERED
-    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
-    A_alpha_assy_right = np.zeros((No[0],Ns[0],Ns[1]))
-    pa = 1
-
-
-    # Observation is lowest when the two sides of the brain display the exact same activity, 
-    # or when the activity in the right part of the brain is lower
-    A_alpha_assy_right[0,:,:] = np.array([[1   ,0   ,0   ,0   ,0   ],
-                                    [1   ,1   ,0   ,0   ,0   ],
-                                    [1   ,1   ,1   ,0   ,0   ],
-                                    [1   ,1   ,1   ,1   ,0   ],
-                                    [1   ,1   ,1   ,1   ,1   ]])
-    
-    # Observation is low when the two sides of the brain display close activity  (diff = 1)
-    A_alpha_assy_right[1,:,:] = np.array([[0   ,1   ,0   ,0   ,0   ],
-                                    [0   ,0   ,1   ,0   ,0   ],
-                                    [0   ,0   ,0   ,1   ,0   ],
-                                    [0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ]])
-
-    # Observation is medium when the two sides of the brain display distinct activity  (diff = 2)
-    A_alpha_assy_right[2,:,:] = np.array([[0   ,0   ,1   ,0   ,0   ],
-                                    [0   ,0   ,0   ,1   ,0   ],
-                                    [0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ]])
-    
-    # Observation is high when the two sides of the brain display very distinct activity (diff = 3)
-    A_alpha_assy_right[3,:,:] = np.array([[0   ,0   ,0   ,1   ,0   ],
-                                    [0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ]])
-    
-    # Observation is highest when the two sides of the brain display opposite activities (diff = 5)
-    A_alpha_assy_right[4,:,:] = np.array([[0   ,0   ,0   ,0   ,1   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ],
-                                    [0   ,0   ,0   ,0   ,0   ]])
-
-
-
-
-    # ALPHA ASSYMETRY MARKERS - LEFT PREFERED
-    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
-    A_alpha_assy_left = np.zeros((No[0],Ns[0],Ns[1]))
-    pa = 1
-
-
-    # Observation is lowest when the two sides of the brain display the exact same activity, 
-    # or when the activity in the right part of the brain is lower
-    A_alpha_assy_left[0,:,:] = np.array([[1   ,1   ,1   ,1   ,1   ],
-                                         [0   ,1   ,1   ,1   ,1   ],
-                                         [0   ,0   ,1   ,1   ,1   ],
-                                         [0   ,0   ,0   ,1   ,1   ],
-                                         [0   ,0   ,0   ,0   ,1   ]])
-    
-    # Observation is low when the two sides of the brain display close activity  (diff = 1)
-    A_alpha_assy_left[1,:,:] = np.array([[0   ,0   ,0   ,0   ,0   ],
-                                         [1   ,0   ,0   ,0   ,0   ],
-                                         [0   ,1   ,0   ,0   ,0   ],
-                                         [0   ,0   ,1   ,0   ,0   ],
-                                         [0   ,0   ,0   ,1   ,0   ]])
-
-    # Observation is medium when the two sides of the brain display distinct activity  (diff = 2)
-    A_alpha_assy_left[2,:,:] = np.array([[0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [1   ,0   ,0   ,0   ,0   ],
-                                         [0   ,1   ,0   ,0   ,0   ],
-                                         [0   ,0   ,1   ,0   ,0   ]])
-    
-    # Observation is high when the two sides of the brain display very distinct activity (diff = 3)
-    A_alpha_assy_left[3,:,:] = np.array([[0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [1   ,0   ,0   ,0   ,0   ],
-                                         [0   ,1   ,0   ,0   ,0   ]])
-    
-    # Observation is highest when the two sides of the brain display opposite activities (diff = 5)
-    A_alpha_assy_left[4,:,:] = np.array([[0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [0   ,0   ,0   ,0   ,0   ],
-                                         [1   ,0   ,0   ,0   ,0   ]])
-
-    # A_obs_mental[:,:,1] = np.random.random((5,5))
-    A_ = [A_obs_mental]
     a_ = []
     for mod in range (len(A_)):
         a_.append(np.copy(A_[mod]))
     a_[0] = np.ones((a_[0].shape))*0.1
-    for i in range(5):
-        a_[0][i,i] = 10
+
 
     # Transition matrixes between hidden states ( = control states)
     B_ = []
     #a. Transition between context states --> The agent cannot act so there is only one :
     nu = 5
 
-
-
-    B_left = np.zeros((Ns[0],Ns[0],nu))
-    B_right = np.zeros((Ns[0],Ns[0],nu))
-    
-    # Line = where we're going
-    # Column = where we're from
-
-    B_left[:,:,0] = np.array([ [1,0,0,0,0],         # Stay at the same activity
-                                        [0,1,0,0,0],
-                                        [0,0,1,0,0],
-                                        [0,0,0,1,0],
-                                        [0,0,0,0,1]])
-
-    B_left[:,:,1] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Try to move to highrt activity
+    B_0 = np.zeros((Ns[0],Ns[0],nu))
+    B_left[:,:,1] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Try to move to higher activity
                               [1  ,0  ,0  ,0  ,0  ],
                               [0  ,1  ,0  ,0  ,0  ],
                               [0  ,0  ,1  ,0  ,0  ],
@@ -274,43 +164,41 @@ def nf_2_model(rs,la):
                                 [0,0,0,0,1]])
 
     B_right[:,:,1] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Try to move to highrt activity
-                              [1  ,0  ,0  ,0  ,0  ],
-                              [0  ,1  ,0  ,0  ,0  ],
-                              [0  ,0  ,1  ,0  ,0  ],
-                              [0  ,0  ,0  ,1  ,1 ]])
+                               [1  ,0  ,0  ,0  ,0  ],
+                               [0  ,1  ,0  ,0  ,0  ],
+                               [0  ,0  ,1  ,0  ,0  ],
+                               [0  ,0  ,0  ,1  ,1  ]])
     
     B_right[:,:,2] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Move to higher activity (fast)
-                              [0  ,0  ,0  ,0  ,0  ],
-                              [1  ,0  ,0  ,0  ,0  ],
-                              [0  ,1  ,0  ,0  ,0  ],
-                              [0  ,0  ,1  ,1  ,1 ]])
+                               [0  ,0  ,0  ,0  ,0  ],
+                               [1  ,0  ,0  ,0  ,0  ],
+                               [0  ,1  ,0  ,0  ,0  ],
+                               [0  ,0  ,1  ,1  ,1  ]])
     
     B_right[:,:,3] = np.array([[1  ,1  ,0  ,0  ,0  ],         # Move to lower activity
-                              [0  ,0  ,1  ,0  ,0  ],
-                              [0  ,0  ,0  ,1  ,0  ],
-                              [0  ,0  ,0  ,0  ,1  ],
-                              [0  ,0  ,0  ,0  ,0 ]])
+                               [0  ,0  ,1  ,0  ,0  ],
+                               [0  ,0  ,0  ,1  ,0  ],
+                               [0  ,0  ,0  ,0  ,1  ],
+                               [0  ,0  ,0  ,0  ,0  ]])
     
     B_right[:,:,4] = np.array([[1  ,1  ,1  ,0  ,0  ],         # Move to lower activity (fast)
-                              [0  ,0  ,0  ,1  ,0  ],
-                              [0  ,0  ,0  ,0  ,1  ],
-                              [0  ,0  ,0  ,0  ,0  ],
-                              [0  ,0  ,0  ,0  ,0 ]])
-    B_.append(B_right,B_left)
+                               [0  ,0  ,0  ,1  ,0  ],
+                               [0  ,0  ,0  ,0  ,1  ],
+                               [0  ,0  ,0  ,0  ,0  ],
+                               [0  ,0  ,0  ,0  ,0  ]])
+    B_.append(B_left,B_right)
 
     b_ = []
     for fac in range (len(B_)):
         b_.append(np.copy(B_[fac])*100)
     b_[0] = np.ones((b_[0].shape))*1
 
-
-    No = [A_[0].shape[0]]
         
-    C_mental = np.array([[la],
-                        [0.5*la],
-                        [0],
-                        [0.5*rs],
-                        [rs]])
+    C_mental = np.array([[la    ],
+                         [0.5*la],
+                         [0     ],
+                         [0.5*rs],
+                         [rs    ]])
     C_ = [C_mental]
     
     
@@ -452,8 +340,9 @@ def custom_run(datapath,K,
                 else : 
                     return 0
 
-
             return meas_func
+        
+
         mental_phy = phy(state_dist)
 
         noise_intensity = noiselevel
@@ -587,27 +476,59 @@ def custom_run(datapath,K,
     print(lay.u)
     
 if (__name__ == "__main__"):
-    N = 50
-    L = np.linspace(0,1,N)
-
-    limit = 0.49
-
-
-
-    for run in range(N):
-        for k in range(10):
-            run_name = "D:\\data\\neuromodels\\noise_run_3\\" + str(round(L[run],2)) + "\\" + str(k) +"\\"
-            print('-------------------------------------')
-            print(k)
-            if (os.path.isdir(run_name)) :
-                print(run_name  + "  already exists. Skipping this simulation.")
-            else:
-                print(run_name)
-                custom_run(run_name, 1500,anyplot=False,noiselevel = L[run])
-            print('-------------------------------------')
-            
     
+    
+    A = np.array([[0,1,2,3,4],
+                  [1,0,1,2,3],
+                  [2,1,0,1,2],
+                  [3,2,1,0,1],
+                  [4,3,2,1,0]])
 
+    B = np.array([[0],
+                  [0],
+                  [0],
+                  [1],
+                  [0]])
+
+    C = np.array([[0],
+                  [0],
+                  [1],
+                  [0],
+                  [0]])
+    
+    B_right = np.zeros((5,5,5))
+    B_right[:,:,0] = np.array([ [1,0,0,0,0],         # Stay at the same activity
+                                [0,1,0,0,0],
+                                [0,0,1,0,0],
+                                [0,0,0,1,0],
+                                [0,0,0,0,1]])
+
+    B_right[:,:,1] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Try to move to highrt activity
+                              [1  ,0  ,0  ,0  ,0  ],
+                              [0  ,1  ,0  ,0  ,0  ],
+                              [0  ,0  ,1  ,0  ,0  ],
+                              [0  ,0  ,0  ,1  ,1 ]])
+    
+    B_right[:,:,2] = np.array([[0  ,0  ,0  ,0  ,0  ],         # Move to higher activity (fast)
+                              [0  ,0  ,0  ,0  ,0  ],
+                              [1  ,0  ,0  ,0  ,0  ],
+                              [0  ,1  ,0  ,0  ,0  ],
+                              [0  ,0  ,1  ,1  ,1 ]])
+    
+    B_right[:,:,3] = np.array([[1  ,1  ,0  ,0  ,0  ],         # Move to lower activity
+                              [0  ,0  ,1  ,0  ,0  ],
+                              [0  ,0  ,0  ,1  ,0  ],
+                              [0  ,0  ,0  ,0  ,1  ],
+                              [0  ,0  ,0  ,0  ,0 ]])
+    
+    B_right[:,:,4] = np.array([[1  ,1  ,1  ,0  ,0  ],         # Move to lower activity (fast)
+                              [0  ,0  ,0  ,1  ,0  ],
+                              [0  ,0  ,0  ,0  ,1  ],
+                              [0  ,0  ,0  ,0  ,0  ],
+                              [0  ,0  ,0  ,0  ,0 ]])
+
+    multi_matrix_plot([B,C],colmap='viridis',vmax=1)
+    plt.show()
     # for k in range(10):
     #     run_name = "D:\\data\\neuromodels\\noise_run_2\\" + str("random_") + str(k) +"\\"
     #     custom_run(run_name, 300,anyplot=False,noiselevel = 1,sham=True)

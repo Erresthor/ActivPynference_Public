@@ -19,7 +19,8 @@ import plotly.graph_objects as go
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
-sys.path.insert(0, parentdir) 
+sys.path.insert(0, parentdir)
+
 from base.spm12_implementation import MDP 
 from base.miscellaneous_toolbox import flexible_copy , isField , index_to_dist, dist_to_index
 from base.function_toolbox import normalize
@@ -213,9 +214,9 @@ def nf_2_model(rs,la):
     layer.T = 10
 
     layer.options.T_horizon = 2
-    layer.options.learn_during_experience = True
+    layer.options.learn_during_experience = False
     layer.options.memory_decay = MemoryDecayType.STATIC #MemoryDecayType.NO_MEMORY_DECAY #MemoryDecayType.STATIC
-    layer.options.decay_half_time = 1000
+    layer.options.decay_half_time = 10000
 
 
     layer.Ni = 16
@@ -484,14 +485,16 @@ def main(foldername:str,noiselevel,T:int=1500,same:int = 10,sham=False):
 
 
 if (__name__ == "__main__"):
-    foldername = str(sys.argv[1])
-    noiselevel = float(sys.argv[2])
-    T = int(sys.argv[3])
-    same = int(sys.argv[4])
-    sham = (str(sys.argv[5]).lower()=="true")
+    if (len(sys.argv)>1) : 
+        foldername = str(sys.argv[1])
+        noiselevel = float(sys.argv[2])
+        T = int(sys.argv[3])
+        same = int(sys.argv[4])
+        sham = (str(sys.argv[5]).lower()=="true")
 
-    main(foldername,noiselevel,T=T,same=same,sham=sham)
-
+        main(foldername,noiselevel,T=T,same=same,sham=sham)
+    else : 
+        custom_run("D:\\data\\neuromodels\\indivrun\\indivrun2\\", 5000,anyplot=True,noiselevel = 0.5)
 
 # if (__name__ == "__main__"):
 #     N = 50

@@ -35,19 +35,16 @@ def matrix_plot(fig,matrix,i=1,name="Figure"):
     return fig
 
 
-def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
+def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray',vmax=1):
     m = matlist[0].shape[2]
     fig,axes = plt.subplots(nrows = len(matlist),ncols= m)
-
-    cmap = cm
-
     counter = 1
     for i in range(len(matlist)):
         for factor in range(m):
             axi = axes[i,factor]
 
             dims = matlist[i].ndim
-            im = axi.imshow(matlist[i][:,:,factor],interpolation='nearest',cmap=colmap,vmin=0,vmax=1)
+            im = axi.imshow(matlist[i][:,:,factor],interpolation='nearest',cmap=colmap,vmin=0,vmax=vmax)
             
             if (not(isNone(namelist))):
                 axi.title.set_text(namelist[i]+"_"+str(factor))
@@ -70,7 +67,7 @@ def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
 
     fig.show()
 
-def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
+def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray',vmax=1):
     fig,axes = plt.subplots(nrows = len(matlist))
 
     cmap = cm
@@ -80,7 +77,7 @@ def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
         axi = axes[i]
 
         dims = matlist[i].ndim
-        im = axi.imshow(matlist[i],interpolation='nearest',cmap=colmap,vmin=0,vmax=1)
+        im = axi.imshow(matlist[i],interpolation='nearest',cmap=colmap,vmin=0,vmax=vmax)
         
         if (not(isNone(namelist))):
             axi.title.set_text(namelist[i])
@@ -100,12 +97,12 @@ def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
 
     fig.show()
 
-def multi_matrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
+def multi_matrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray',vmax=1):
     try :
-        multi_3dmatrix_plot(matlist,namelist=namelist,xlab=xlab,ylab=ylab,colmap=colmap)
+        multi_3dmatrix_plot(matlist,namelist=namelist,xlab=xlab,ylab=ylab,colmap=colmap,vmax=vmax)
     except Exception as e_3d:
         try :
-            multi_2dmatrix_plot(matlist,namelist=namelist,xlab=xlab,ylab=ylab,colmap=colmap)
+            multi_2dmatrix_plot(matlist,namelist=namelist,xlab=xlab,ylab=ylab,colmap=colmap,vmax=vmax)
         except Exception as e_2d:
             print("Multiple errors !")
             print("3D matrix print error ------------------------------------")

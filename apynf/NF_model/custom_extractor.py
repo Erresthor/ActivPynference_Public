@@ -36,7 +36,7 @@ def smooth(y, box_pts):
     y_smooth = np.convolve(y, box, mode='same')
     return y_smooth
 
-datapath  = "D:\\data\\neuromodels\\003_100\\"
+datapath  = "D:\\data\\neuromodels\\indivrun\\indivrun2\\"
 
 K = 0
 

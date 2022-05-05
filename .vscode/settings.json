@@ -1,5 +1,12 @@
 {
     "python.pythonPath": "D:\\OUTILS\\Python\\python.exe",
-    "python.autoComplete.extraPaths": ["D:\\repositories\\ActivPynference_Public\\apynf","D:\\repositories\\ActivPynference_Public\\apynf\\base"],
+    "python.autoComplete.extraPaths": [
+        "D:\\repositories\\ActivPynference_Public\\apynf",
+        "D:\\repositories\\ActivPynference_Public\\apynf\\base"
+    ],
+    "python.analysis.extraPaths": [
+        "D:\\repositories\\ActivPynference_Public\\apynf",
+        "D:\\repositories\\ActivPynference_Public\\apynf\\base"
+    ],
    // "python.pythonPath": "C:\\Users\\cjsan\\AppData\\Local\\Programs\\Python\\Python37-32\\python.exe"
 }

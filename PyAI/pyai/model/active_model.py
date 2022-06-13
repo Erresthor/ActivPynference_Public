@@ -81,6 +81,7 @@ class ActiveModel():
 
         layer.T = flexible_copy(self.T)
 
+        layer.options = self.layer_options
         layer.options.T_horizon               = self.layer_options.T_horizon
         layer.options.learn_during_experience = self.layer_options.learn_during_experience
         layer.options.memory_decay            = self.layer_options.memory_decay
@@ -104,8 +105,8 @@ class ActiveModel():
         layer.U_ = flexible_copy(self.U)
 
         layer.s_ = flexible_copy(self.s_)
-        layer.s_ = flexible_copy(self.o_)
-        layer.s_ = flexible_copy(self.u_)
+        layer.o_ = flexible_copy(self.o_)
+        layer.u_ = flexible_copy(self.u_)
 
         layer.gen = 0
         
@@ -177,40 +178,51 @@ class ActiveModel():
 
 
 
-    def run_trial(self,trial_counter,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None):
+    def run_trial(self,trial_counter,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,overwrite=False):
         """Initialize sample_size generators with the same rules.
             Possibility to introduce parrallel processing here ? """
         self.save_model()
-        savebool = self.save_manager.save_this_instance(trial_counter)
+        savebool = self.save_manager.save_this_trial(trial_counter)
         for k in range(len(self.layer_list)):
-            print("Model " + str(k))
-            print("----")
+            print("(Model " + str(k)+ " )")
             lay = self.layer_list[k]
 
-            for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation):
-                t = ol[1]  # To get the actual timestep 
-                updated_layer = ol[0]
-                if ((t in self.saveticks)and(savebool)) :
-                    print("----------------  SAVING  ----------------")
-                    self.save_manager.save_process(updated_layer,trial_counter,k,t)
-            if (savebool):
-                self.save_manager.save_process(updated_layer,trial_counter,k,'f')
-                # Save the trial AFTER the learning step !
-                
-            print(" - Observations --> " + str(self.layer_list[k].o))
-            print(" - Actual states --> " + str(self.layer_list[k].s))
-            print(" - Belief about states --> \n" + str(np.round(self.layer_list[0].X,1)) + "\n")
-            print(" - Chosen actions --> " + str(self.layer_list[k].u))
-        
+            # CHECK : does this trial already exist ?
+            # Ask the save manager :
+            
+            run_next_trial = False 
+            if(not(overwrite)):
+                existbool = self.save_manager.check_exists(k,trial_counter,'f',lay)
+                if (existbool):
+                    print("Trial " + str(trial_counter) +" for instance " + str(k)+ " already exists.")
+                else :
+                    run_next_trial = True
+            else :
+                run_next_trial = True
+            
+            if run_next_trial :
+                for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation):
+                    t = ol[1]  # To get the actual timestep 
+                    updated_layer = ol[0]
+                    if ((t in self.saveticks)and(savebool)) :
+                        print("----------------  SAVING  ----------------")
+                        self.save_manager.save_process(updated_layer,trial_counter,k,t)
+                if (savebool):
+                    self.save_manager.save_process(updated_layer,trial_counter,k,'f')
+                    # Save the trial AFTER the learning step !
+                    
+                print(" - Observations --> " + str(self.layer_list[k].o))
+                print(" - Actual states --> " + str(self.layer_list[k].s))
+                print(" - Belief about states --> \n" + str(np.round(self.layer_list[k].X,1)) + "\n")
+                print(" - Chosen actions --> " + str(self.layer_list[k].u))
+            
         # print(" - State perception --> " + str(self.layer_list[0].a_[0]))
         # for k in range(self.layer_list[0].b_[0].shape[-1]):
         #     print(" - Action perception --> " + str(self.layer_list[0].b_[0][:,:,k]))
 
-    def run_n_trials(self,n,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None):
+    def run_n_trials(self,n,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,overwrite=False):
         for k in range(n):
-            print("----")
-            print("Trial " + str(k))
-            
-            self.run_trial(k,state_transition_rule,obs_perception_rule,initial_state,initial_observation)
-            print(self.layer_list[0].d_)
-
+            print("---------------")
+            print("Trial " + str(k) + " .")
+            print("---------------")
+            self.run_trial(k,state_transition_rule,obs_perception_rule,initial_state,initial_observation,overwrite=overwrite)

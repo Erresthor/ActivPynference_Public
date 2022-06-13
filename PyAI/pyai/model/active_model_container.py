@@ -23,10 +23,12 @@ class ActiveModelSaveContainer():
         self.T = layer.T
 
         # Results
+        self.X = flexible_copy(layer.X)
         self.Q = flexible_copy(layer.Q)
         self.o = flexible_copy(layer.o)
         self.u = flexible_copy(layer.u)
         self.s = flexible_copy(layer.s)  
+        self.U_post = flexible_copy(layer.u_posterior)
 
         # Matrices
         self.a_ = flexible_copy(layer.a_) 
@@ -55,9 +57,11 @@ class ActiveModelSaveContainer():
             "trial":self.trial,
             "T":self.T,
             "Q":flexible_to_list(self.Q),
+            "X":flexible_to_list(self.X),
             "o":flexible_to_list(self.o),
             "u":flexible_to_list(self.u),
             "s":flexible_to_list(self.s),
+            "Upost":flexible_copy(self.U_post),
             
             "a":flexible_to_list(self.a_),
             "A":flexible_to_list(self.A_),

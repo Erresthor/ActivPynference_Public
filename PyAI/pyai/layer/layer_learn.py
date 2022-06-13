@@ -59,11 +59,51 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100):
         t05 = 0.0
 
 
-    eps = 1e-5
+    eps = 1e-7
     if (t05 <= eps):
         return old_matrix + new_matrix
     else :
-        return old_matrix*np.exp(-(np.log(2)/t05)) + new_matrix
+        k = 1
+        multiplier = np.exp(-(np.log(2)/t05))
+        epsilon = k*(multiplier)
+        min_value = 1
+        return_knowledge_matrix = old_matrix
+        return_knowledge_matrix[return_knowledge_matrix>min_value] = return_knowledge_matrix[return_knowledge_matrix>min_value] - (return_knowledge_matrix[return_knowledge_matrix>min_value]-min_value)*(1-epsilon)
+        return_knowledge_matrix[return_knowledge_matrix<min_value] = min_value # Just in case ?
+
+        return_knowledge_matrix = return_knowledge_matrix + new_matrix
+
+        # # Problem with memory decay :
+        # # If a specific distribution is NOT impossible BUT very low weigths
+        # # (eg. a = [1e-5, 1e-9, 1e-9, 1e-9, 1e-9])
+        # # the multiplier can cause some terms to go to 0 due to computational approxs
+        # # (eg. a = [1e-5,    0,    0,    0,     0])
+        # # This is not that much of a problem usually (if no paradigm changes)
+        # # but if the multiplier keeps affecting the only remaining term, the distribution will become :
+        # # (eg. a = [   0,    0,    0,    0,     0])
+        # # Leading to a renormalization and a spike in uncertainty and error --> unwanted behaviour
+        # # Therefore, we want to prevent such a behaviour by checking if any term should get to 0 
+        # # If it is the case, we do not apply the multiplier to this line anymore ? No
+        # # We keep the same relative weights and multiply their "strength" by a fixed factor K : "auto-reupper"
+        # K = 2
+        # epsilon = 1e-15 # same value used in normalize function. If below, normalize shows unwanted behaviour
+        # is_too_low = (np.sum(return_knowledge_matrix,axis=-1)<=epsilon) 
+        # # A distribution is too low if the sum of its terms is below eps
+        
+        # is_too_low = (np.min(return_knowledge_matrix,axis=-1)<=epsilon)&((np.min(return_knowledge_matrix,axis=-1)>0))
+        # # A distribution is too low if the minimum of its non null terms is below eps
+        # # If there is a weight below the threshold, the entire line is multiplied by K to prevent it from going below reinitialization thresh
+        # # The "0" solution is a dirty trick to account for certain matrices that shouldn't be updated.
+        
+        # #print(np.min(return_knowledge_matrix,axis=-1))
+        # return_knowledge_matrix[is_too_low,:] = return_knowledge_matrix[is_too_low,:]*K
+        
+        # # Check line by line if only one 
+        return  return_knowledge_matrix
+
+
+
+
 
 def a_learning(layer,t,mem_dec_type = MemoryDecayType.PROPORTIONAL,t05 = 100):
     Nmod = layer.Nmod
@@ -83,7 +123,7 @@ def a_learning(layer,t,mem_dec_type = MemoryDecayType.PROPORTIONAL,t05 = 100):
         da = (np.reshape(da,layer.a_[modality].shape))
         da = da*(layer.a_[modality]>0)
 
-        layer.a_[modality] = update_rule(layer.a_[modality],da*eta,mem_dec_type,T)
+        layer.a_[modality] = update_rule(layer.a_[modality],da*eta,mem_dec_type,T,t05)
         #layer.a_[modality] = k*layer.a_[modality] + da*eta
 
 def b_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
@@ -93,16 +133,7 @@ def b_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100)
     T = layer.T
 
     eta = layer.parameters.eta 
-    
-    
 
-    if(mem_dec_type== MemoryDecayType.PROPORTIONAL):
-        t05 = (T/2)  # Memory loss factor : guarantee that at the end of the experiment , only remain_percentage % of initial knowledge remain
-    elif (mem_dec_type==MemoryDecayType.STATIC):
-        b_remain = 1
-        t05 = t05*b_remain
-    elif(mem_dec_type==MemoryDecayType.NO_MEMORY_DECAY) :
-        t05 = 0
     
     # Custom implementation of b learning :
     def output_action_probability_density(chosen_actions,b):
@@ -141,7 +172,7 @@ def b_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100)
     for factor in range (Nf):
         db[factor] = db[factor]*(layer.b_[factor]>0)
         db[factor] = db[factor]/np.sum(db[factor])
-        layer.b_[factor] = update_rule(layer.b_[factor],eta*db[factor],mem_dec_type,T)
+        layer.b_[factor] = update_rule(layer.b_[factor],eta*db[factor],mem_dec_type,T,t05)
 
 def c_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
     Nf = layer.Nf
@@ -176,7 +207,7 @@ def d_learning(layer,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
     for factor in range(Nf):
         i = layer.d_[factor]>0
         #layer.d_[factor][i] = layer.d_[factor][i] + dek[factor][i]*layer.parameters.eta 
-        layer.d_[factor][i] = update_rule(layer.d_[factor][i],layer.parameters.eta*dek[factor][i],mem_dec_type,T)
+        layer.d_[factor][i] = update_rule(layer.d_[factor][i],layer.parameters.eta*dek[factor][i],mem_dec_type,T,t05)
 
 def e_learning(layer,t05 = 100):
     T = layer.T
@@ -197,19 +228,19 @@ def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05 = 
     
     # LEARNING :
     for t in range(T):
-        if isField(layer.a_): 
+        if isField(layer.a_)and(layer.options.learn_a): 
             a_learning(layer, t,mem_dec_type=mem_dec_type,t05 = t05)
                 
-        if isField(layer.b_)and (t>0) :
+        if isField(layer.b_)and (t>0) and(layer.options.learn_b):
             b_learning(layer, t,mem_dec_type,t05 = t05)
                     
-        if isField(layer.c_) :
+        if isField(layer.c_)and(layer.options.learn_c) :
             c_learning(layer, t,mem_dec_type,t05 = t05)
         
-    if isField(layer.d_) : #Update initial hidden states beliefs
+    if isField(layer.d_)and(layer.options.learn_d) : #Update initial hidden states beliefs
         d_learning(layer,mem_dec_type,t05 = t05)
         
-    if isField(layer.e_) : # Update agent habits
+    if isField(layer.e_) and(layer.options.learn_e): # Update agent habits
         e_learning(layer,t05 = t05)
     
     # # Negative freeee eneergiiiies

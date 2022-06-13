@@ -53,34 +53,17 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax
 from ..base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions,flexible_toString,flexible_print,flexible_copy
 from ..visi_lib.state_tree import tree_node,state_tree
 
-def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = False) :
+def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,current_node,t0 = 0,verbose = False) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
+    States given observations P(t)                         Overall EFE for next action at time t: G
+        |                                                                  / \ 
+        |                                                                   |
+       \_/                                                                  |
+    Tree of possible states following                       Resulting EFE for each policy choice
+    plausible policies P(up to t+N)      --------------->          is summed from t+N to t : G
 
-    Environment rules (A,B,C,E,A_ambiguity,A_novelty)                         Overall EFE for next action at time t: G
-    States given observations at time t : P(t)                       Predictive weighted distribution of states at time t1 given EFE
-        |                                                                                         / \ 
-        |                                                                                          |
-       \_/                                                                                         |
-    Tree of possible states and obs following                                        Resulting EFE for each policy choice
-    plausible policies P(up to t+N)             ---------------------------->          is summed from t+N to t : G
-                                                (reccurent use of spm_forwards)        EFE is calculated as a risk term (exploit)
-                                                                                        and an ambiguity term (explore)
-    Note : ambiguity regarding future OBSERVATIONS ? Not hidden states --> not adapted for uncertain A ?
-                        Correlated to but not directly linked to hidden state uncertainty
-                        THe agent strives to reduce uncertainty regarding the feedback, but
-                        does not want to reduce uncertainty regarding current hidden state
-                        --> If A is unknown and B is known, there will be no incentive towards current
-                        hidden state uncertainty reduction ?
-
-                        "Ambiguous states are those that have an uncertain mapping to
-                        observations. The greater these quantities, the less likely
-                        it is that the associated policy will be chosen."
-                                Generalised free energy and active inference
-                                Thomas Parr  · Karl J. Friston
-
-    
     O = O
     P = Q
     A = self.a
@@ -99,8 +82,9 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
         L = L * spm_dot(A[modality],O[modality])
     # P is the posterior over hidden states based on priors
     P[t] =normalize(L.flatten()*P[t])
+    current_node.states = np.copy(P[t])
 
-    if (t==T):
+    if (t==T-1):
         # Search over, calculations make no sense here as no actions remain to be chosen
         return normalize(np.ones(G.shape)), P
         
@@ -152,13 +136,16 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
         # print("Risk")
 
     plausible_threshold = 1.0/16.0
+    possibilities_depending_on_action = []
     if (t<N): # t within temporal horizon
         u = softmax(G)
         k = (u<plausible_threshold)
         u[k] = 0
         G[k] = -1000
         K = np.zeros((Q[0].shape))
-        for action in range(U.shape[0]) :           
+        for action in range(U.shape[0]) :
+            possibilities_depending_on_action.append(0)
+            
 
             if (u[action]>=plausible_threshold):
                 indexes = np.where(Q[action]>plausible_threshold)[0]
@@ -167,27 +154,55 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
                     indexes = np.where(Q[action]>1/Q[action].size)[0]
                 indexes = tuple(indexes)
                 for index in indexes :
+                    # Initialize a node to follow this exploratory path
+                    child_node = tree_node(False,t)
+                    child_node.action_density = 1.0 # In case we don't update this value
+                    child_node.data = action
+                    current_node.add_child_node(child_node)
+
+                    #print("              index : " + str(index) + "-----------------")
+                    #print("                          "+str(possibilities_depending_on_action))
                     for modality in range (Nmod):
                         O[modality] = flatten_last_n_dimensions(Nf,A[modality])[:,index]
 
                     #prior over subsequent action under this hidden state
                     #----------------------------------------------------------
                     P[t+1] = Q[action]
-                    F,useless = spm_forwards(flexible_copy(O),P,U,A,B,C,E,A_ambiguity,A_novelty,t+1,T,N,t0=t0)
+                    F,useless = spm_forwards(flexible_copy(O),P,U,A,B,C,E,A_ambiguity,A_novelty,t+1,T,N,child_node,t0=t0)
+
+                    possibilities_depending_on_action[action] += 1
                     
                     if not(isNone(F)):  
-                        # If the next timestep is not the last, update efe marginalized over subsequent action
-                        # Structure could be optimized, but will do for now
+                                    # If the next timestep is not the last, update efe marginalised over subsequent action
+                                    # Structure could be optimized, but will do for now
                         K[index] = np.inner(softmax(F),F)
                     #print("                           --->")
                     #print("                          "+str(possibilities_depending_on_action))
                 indexes_L = list(indexes)
                 G[action] = G[action] + np.dot(K[indexes_L],Q[action][indexes_L])
-        u = softmax(G)
-        R = 0
-        for action in range(U.shape[0]):
-            R = R + u[action]*Q[action]
-        P[t+1] = R
+
+    u = softmax(G)
+    R = 0
+    for action in range(U.shape[0]):
+        R = R + u[action]*Q[action]
+    P[t+1] = R
+
+    if (t<N) and (len(current_node.children_nodes)>0):
+        counter = 0
+        for action in range(U.shape[0]) :
+            
+            number_of_futures = possibilities_depending_on_action[action]
+            for branch in range(number_of_futures):
+                current_node.children_nodes[counter].action_density = u[action]*Q[action][Q[action]>plausible_threshold][branch] # One action can lead to several "branches" representing resulting states with various weight. 
+                                                                                                                                # To calculate those weight, we use Q[action]. Because we didn't normalize Q[Q>thresh], it could lead to
+                                                                                                                                # Problems with the assert statement below, but it'll do for now
+                current_node.children_nodes[counter].data = action                                                                                                        
+                counter += 1
+        somme = 0
+        for childnode in current_node.children_nodes :
+            somme += childnode.action_density
+        assert (somme-1)<1e-6, "Sum of conditionnal probabilities in children nodes should equal to 1. Actual value : " + str(somme)
+    
     return G,P
 
 

@@ -47,6 +47,7 @@ from .spm_backwards import spm_backwards
 from .layer_prep import prep_layer
 from .layer_precisions import *
 from .layer_learn import *
+from .electrophysiological_responses import generate_electroph_responses
 
 from ..base.function_toolbox import normalize,softmax,nat_log,precision_weight
 from ..base.function_toolbox import spm_wnorm,cell_md_dot,md_dot, spm_cross,spm_KL_dir,spm_psi, spm_dot
@@ -81,6 +82,12 @@ class mdp_layer_options :
         self.decay_half_time = 1
 
         self.Ni = 16
+
+        self.learn_a = True
+        self.learn_b = True
+        self.learn_c = False
+        self.learn_d = True
+        self.learn_e = False
 
 class mdp_layer :
     # Agent constructor
@@ -184,9 +191,6 @@ class mdp_layer :
         self.dn = None          # Simulated dopamine response
         self.rt = None          # Simulated reaction times
 
-        self.tree = []          #Expectation matrices
-        self.trees = []         #Trees
-
         self.o = None   # Sequence of observed outcomes
         self.s = None   # Sequence of true states
         self.u = None   # Chosen Actions
@@ -194,6 +198,10 @@ class mdp_layer :
         self.K = None   # Chosen action combination index
         
         
+        self.w = None # Posterior belief precision
+
+
+
         # Free energies container for model elements
         self.FE_dict = {
             'Fa':[],
@@ -753,21 +761,27 @@ class mdp_layer :
         for mod in range(Nmod):
             reduced_O.append(self.O[mod][:,t])
 
-        origin_node = tree_node(time=-1) # Initial belief about states
-        origin_node.states = np.copy(self.Q[0])
-        origin_node.action_density = 1.0
-        # Nodes for timesteps that actually happened
-        current_node = origin_node
-        for ti in range(t):
-            current_node.add_child(self.Q[ti],1.0)
-            current_node.children_nodes[0].data = self.u[:,ti]
-            current_node = current_node.children_nodes[0]
-        # current_node contains the last state estimation (at t - 1)
-
-        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T,t+N),current_node,t0=t,verbose=self.verbose)
-        #print(G)
-        tree = state_tree(origin_node)
-        origin_node.compute_subsequent_state_prob()
+        # origin_node = tree_node(time=-1) # Initial belief about states
+        # origin_node.states = np.copy(self.Q[0])
+        # origin_node.action_density = 1.0
+        # # Nodes for timesteps that actually happened
+        # current_node = origin_node
+        # for ti in range(t):
+        #     current_node.add_child(self.Q[ti],1.0)
+        #     current_node.children_nodes[0].data = self.u[:,ti]
+        #     current_node = current_node.children_nodes[0]
+        # # current_node contains the last state estimation (at t - 1)
+        # #G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T,t+N),current_node,t0=t,verbose=self.verbose)
+        # tree = state_tree(origin_node)
+        # origin_node.compute_subsequent_state_prob()     
+        
+        # The maximum horizon is the last timestep : T-1
+        # Else, it is just the current time + temporal horizon :
+        # If t horizon = 0, N = t, no loop
+        # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
+        # If t horizon = 2, N = t+2, there are two nested instances of recursive search
+        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T-1,t+N),t0=t,verbose=self.verbose)
+        
         
 
         for i in range(t+1):
@@ -776,6 +790,8 @@ class mdp_layer :
             de_compressed = spm_dekron(qx,tuple(Ns))
             for factor in range(Nf):
                 self.S[factor][:,i,t] = de_compressed[factor]
+
+        
 
         for factor in range(Nf):
             for policy in range(Np):
@@ -786,14 +802,18 @@ class mdp_layer :
             self.X[factor][:,t] = self.S[factor][:,t,t]
 
         # posterior_over_policy & precision
-        if (t<T-1) :
-            self.u_posterior[:,t] = softmax(G)
-            self.precisions.policy.beta[0,t] = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t]))
+        self.u_posterior[:,t] = softmax(G)
+        self.precisions.policy.beta[0,t] = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t]))
+        
+        w = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t]))
+        self.w[t] = w # Policy precision
 
         # Action selection :
         if (t<T-1):
             Ru = softmax(self.parameters.alpha * nat_log(self.u_posterior[:,t]))
             randomfloat = r.random()
+            # print(self.u_posterior)
+            # print(Ru)
             #print(np.cumsum(action_posterior_intermediate,axis=factor))
             ind = np.argwhere(randomfloat <= np.cumsum(Ru,axis=0))[0]
             #ind est de taille n où n est le nombre de transitions à faire :
@@ -807,7 +827,7 @@ class mdp_layer :
                 Pu[action_coordinate] = Pu[action_coordinate] + Ru[action_sequence]
             self.u[:,t][self.u[:,t]<0] = self.U[self.K[t],:]
             #print(b, np.cumsum(action_posterior_intermediate,axis=1),ind[0]) 
-        return time.time() - t0 , (tree.matrix_of_state_expectations(0,T)),tree
+        return time.time() - t0
 
     def real_time_learn(self,ratio=0.5):
         """ Custom function to allow the agent to learn 'on the fly' at a reduced learning rate small eta seta = eta*reduction_factor"""
@@ -835,22 +855,21 @@ class mdp_layer :
                 self.t = self.t + 1
             elif (self.policy_method == Policy_method.ACTION):
                 #print("Action driven loop engaged")
-                total_time, tree_matrix ,tree = self.action_driven_loop()
+                total_time= self.action_driven_loop()
                 self.rt[t] = total_time
                 
                 self.real_time_learn()
-
-                self.tree.append(tree_matrix)
-                self.trees.append(tree)
 
                 self.t = self.t + 1
         else :
             print("No actions were conducted this round (time exceeded trial horizon)")
 
 
-    def postrun(self,learn_aft = True) :
+    def postrun(self,learn_aft = True,generate_electrophi_responses=False) :
         if(learn_aft):
             learn_from_experience(self,mem_dec_type=self.options.memory_decay,t05=self.options.decay_half_time)
+        if(generate_electrophi_responses):
+            generate_electroph_responses(self)
         #learn_from_experience(self,mem_dec_type=MemoryDecayType.STATIC)
         #learn_from_experience(self,mem_dec_type=MemoryDecayType.PROPORTIONAL)
 
@@ -879,9 +898,6 @@ class mdp_layer :
         # Results
         return_container.Q = flexible_copy(self.Q)
         return_container.o = flexible_copy(self.o)
-
-        return_container.state_expectation = flexible_copy(self.tree)
-        return_container.trees = self.trees
         
         return_container.s = flexible_copy(self.s)    
         # Matrices

@@ -32,11 +32,9 @@ def matrix_plot(fig,matrix,i=1,name="Figure"):
 
 
 def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
+    assert matlist[0].ndim >2," Matrix dimension <= 2"
     m = matlist[0].shape[2]
-    
-    assert matlist[0].ndim >1," Matrix dimension > 2"
-    
-    fig,axes = plt.subplots(nrows = len(matlist),ncols= m)
+    fig,axes = plt.subplots(nrows = len(matlist),ncols= m,squeeze=False)
 
     cmap = cm
 
@@ -49,14 +47,17 @@ def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
 
             dims = matlist[i].ndim
             im = axi.imshow(matlist[i][:,:,factor],interpolation='nearest',cmap=colmap,vmin=0,vmax=1)
-            
+
             if (not(isNone(namelist))):
                 font = {'family': 'serif',
                     'color':  'darkred',
                     'weight': 'normal',
                     'size': 6
                 }
-                axi.set_title(namelist[i] + " (" + str(factor) + ")",fontdict=font)
+                if(type(namelist[i])==np.ndarray):
+                    axi.set_title(namelist[i][factor],fontdict=font)
+                else :
+                    axi.set_title(namelist[i] + " (" + str(factor) + ")",fontdict=font)
 
     legend_holder = int(len(matlist)/2.0)
     for i in range(len(matlist)):
@@ -83,23 +84,19 @@ def multi_3dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
     fig.colorbar(im, cax=cbar_ax)
 
     #fig.show()
-
     return fig,axes
     
 def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
-    
-    assert matlist[0].ndim >1," Matrix dimension > 2"
+    assert matlist[0].ndim >1," Matrix dimension <= 1"
     
     fig,axes = plt.subplots(nrows = len(matlist))
     cmap = cm
-
     counter = 1
     for i in range(len(matlist)):
         axi = axes[i]
-
         dims = matlist[i].ndim
         im = axi.imshow(matlist[i],interpolation='nearest',cmap=colmap,vmin=0,vmax=1)
-        
+
         if (not(isNone(namelist))):
             font = {'family': 'serif',
                     'color':  'darkred',
@@ -132,12 +129,13 @@ def multi_2dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colm
 def multi_1dmatrix_plot(matlist,namelist=None,xlab="x-label",ylab="y-label",colmap='gray'):
     fig,axes = plt.subplots(nrows = len(matlist),figsize=(20,10))
     
+    assert matlist[0].ndim >0," Matrix dimension = 0, wtf bro ?"
+    
     cmap = cm
 
     counter = 1
     for i in range(len(matlist)):
         axi = axes[i]
-
         dims = matlist[i].ndim
         
         matlisti = np.expand_dims(matlist[i],0)

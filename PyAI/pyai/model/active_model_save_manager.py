@@ -18,8 +18,8 @@ class ActiveSaveManager():
     def __init__(self,T,trial_savepattern=1,intermediate_savepattern=0,modelname="default",folder_name=None):
         self.model_name = modelname
         self.folder_name = folder_name
-        self.trial_savepattern = trial_savepattern
-        self.intermediate_save_pattern = intermediate_savepattern
+        self.trial_savepattern = trial_savepattern # For AFTER TRIAL saves
+        self.intermediate_save_pattern = intermediate_savepattern # For WITHIN TRIAL saves
         self.T = T
 
     def update_model_name(self,model_name):
@@ -39,8 +39,30 @@ class ActiveSaveManager():
         name = os.path.join(model_folder,instance_string,parrallel_counter_string + "_" + t_counter_string)
         return name
     
+    def open_trial_container(model_folder,instance,trial,timestep):
+        name = ActiveSaveManager.generate_save_name(model_folder,instance,trial,timestep)
+        return ActiveModelSaveContainer.load_active_model_container(name)
+    
+    def check_exists(self,instance,trial,timestep_code,layer_pointer):
+        fullsave = ActiveSaveManager.generate_save_name(os.path.join(self.folder_name,self.model_name),instance,trial,timestep_code)
+        exist_bool = os.path.exists(fullsave)
+
+        if(exist_bool):
+            try :
+                existing_container = ActiveModelSaveContainer.load_active_model_container(fullsave)
+                
+                # Update priors
+                layer_pointer.a_ = flexible_copy(existing_container.a_)
+                layer_pointer.b_ = flexible_copy(existing_container.b_)
+                layer_pointer.c_ = flexible_copy(existing_container.c_)
+                layer_pointer.d_ = flexible_copy(existing_container.d_)
+                layer_pointer.e_ = flexible_copy(existing_container.e_)
+            except :
+                exist_bool = False
+        return exist_bool
+
     def save_process(self,layer,trial_counter,parrallel_counter,t):
-        assert isField(self.folder_name),"Please provide a folder name to the active save manager."
+        assert isField(self.folder_name),"Please provide a folder name to the active save manager if you want to save the trials."
         model_folder = os.path.join(self.folder_name,self.model_name)
         
         wholename = ActiveSaveManager.generate_save_name(model_folder,parrallel_counter,trial_counter,t)
@@ -50,11 +72,12 @@ class ActiveSaveManager():
         print("Saving to : " + container.path)
         container.quicksave()
 
-    def save_this_instance(self,instance):
-        assert type(instance)==int, "Instance should be an integer ..."
-        if (instance==0):
+    def save_this_trial(self,trial):
+        """Returns True if this trial should be saved, and False if not. Change the outcome using the ActiveSaveManager trial_savepattern !"""
+        assert type(trial)==int, "Instance should be an integer ..."
+        if (trial==0):
             return True
-        return (instance%self.trial_savepattern==0)
+        return (trial%self.trial_savepattern==0)
 
     def list_of_intermediate_ticks(self):
         """Depending on the savepattern, the saved ticks is the list of ticks the save manager will save in each run. Example : if a  trial is made of 5 tmstps, a possible output would be [0,2,4]"""
@@ -111,17 +134,3 @@ class ActiveSaveManager():
             return savelist
         else :
             print("Save pattern type ( " + str(savepattertype) + " )  not recognized ... Aborting.")
-
-    def get_results_loader(self):
-        
-        model_folder = os.path.join(self.folder_name,self.model_name) 
-
-        def loader(model_instance,trial,timestep):
-            try :
-                path = ActiveSaveManager.generate_save_name(model_folder,model_instance,trial,timestep)
-                container = ActiveModelSaveContainer.load_active_model_container(path)
-                return container
-            except : 
-                return None
-
-        return loader

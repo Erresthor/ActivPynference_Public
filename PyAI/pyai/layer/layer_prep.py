@@ -325,7 +325,7 @@ def initialize_fields(layer_input):
     #history of posterior over action
     layer_input.u_posterior_n = np.zeros((Np,Ni*T))             
     #posterior over action
-    layer_input.u_posterior = np.zeros((Np,T-1))                
+    layer_input.u_posterior = np.zeros((Np,T))                
     
     # >>> Chosen Action
     u_temp = np.full((Nf,T-1),-1)  
@@ -363,7 +363,12 @@ def initialize_fields(layer_input):
     layer_input.G = np.zeros((layer_input.Np,layer_input.T))
     layer_input.H = np.zeros((layer_input.T,))     
     
+
+
+
+    layer_input.w = np.zeros((T,))  # Policy precision w
     layer_input.wn = None          # Neuronal encoding of policy precision
+
     layer_input.dn = None          # Simulated dopamine response
     layer_input.rt = np.zeros((T,))          # Simulated reaction times
     

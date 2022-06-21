@@ -1,244 +1,57 @@
-from genericpath import isfile
-from ipaddress import collapse_addresses
-from locale import normalize
-from turtle import color
+from pickle import FALSE
 import numpy as np
 import os
+import PIL
 import matplotlib.pyplot as plt
-import imageio,PIL
 import statistics as stat
-
+from pyai.base.file_toolbox import save_flexible,load_flexible
+from pyai.model.metrics import flexible_entropy,flexible_kl_dir
 
 from pyai.layer.layer_learn import MemoryDecayType
 from pyai.base.miscellaneous_toolbox import isField
-from pyai.base.plotting_toolbox import multi_matrix_plot
 from pyai.base.function_toolbox import normalize
-from pyai.base.matrix_functions import matrix_distance_list
+from pyai.base.matrix_functions import matrix_distance_list,argmean
+
 from pyai.model.active_model import ActiveModel
-
 from pyai.model.active_model_save_manager import ActiveSaveManager
+from pyai.model.active_model_container import ActiveModelSaveContainer
 
-import pyai.model.model_visualizer as vizu
-from pyai.model.model_visualizer import load_containers_in_folder,open_model_container
+from pyai.model.model_visualizer import belief_matrices_plots,generate_model_sumup,general_performance_plot,trial_plot_figure
 
-def colorfunc(colorlist,t,interp = 'linear'):
-        n = len(colorlist)
-        if (interp=='linear'):
-            for i in range(n):
-                current_color_prop = (float(i)/(n - 1))
-                next_color_prop = (float(i+1)/(n-1))
-                if ((t>=current_color_prop) and (t<=next_color_prop)):
-                    ti = (t - current_color_prop)/(next_color_prop-current_color_prop)
-                    return colorlist[i+1]*ti + colorlist[i]*(1-ti)
-
-def custom_colormap(colormap,in_array,interpolation='linear') :
-    """Not very elegant + only designed for 3D matrices :>(  """
-    output_array = np.zeros(in_array.shape+colormap[0].shape)
-    for x in range(in_array.shape[0]):
-        for y in range(in_array.shape[1]):
-            output_array[x,y,:] = colorfunc(colormap,in_array[x,y],interp=interpolation)
+def nf_model(modelname,savepath,prop_poubelle = 0.0,
+                        learn_a = True,prior_a_ratio = 3,prior_a_strength=3,
+                        learn_b=True,prior_b_ratio = 0.0,prior_b_strength=1,
+                        learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000):
     
-    return output_array
-        
+    def base_prior_generator(true_matrix,strength_of_false,strength_of_true,eps=1e-8):
+        prior = np.zeros(true_matrix.shape)
+        ones = np.ones(true_matrix.shape)
 
-def draw_a_3D_image(matrix,intermatrix_size=0,colormap=[np.array([55,0,55,255]),np.array([0,255,255,255])]): # input in [0,1]
-    matrix_shape = matrix.shape
-    x = matrix_shape[0]
-    y = matrix_shape[1]
-    z = matrix_shape[2]
-       
-    pre_y = y*z + intermatrix_size*(z - 1)
-    pre_x = x
+        false_vals_mask = true_matrix<eps
+        prior[false_vals_mask] = prior[false_vals_mask] + strength_of_false*ones[false_vals_mask]
+
+        true_vals_mask = true_matrix>=eps
+        prior[true_vals_mask] = prior[true_vals_mask] + strength_of_true*ones[true_vals_mask]
+
+        return prior
     
-    colsize = colormap[0].shape[0]
-    output_array = np.zeros((pre_x,pre_y,colsize))  # RGB / RGBA
+    def gaussian_prior_generator(true_matrix,sigma,eps=1e-8):
+        return None # TBI
     
-    low = 0
-    high = x
-    for zi in range(z):
-        expanded_dims_mat = np.zeros((x,y,4))
-        expanded_dims_mat[:,:,0] = 255*matrix[:,:,zi]
-        expanded_dims_mat[:,:,1] = 0
-        expanded_dims_mat[:,:,2] = 255*matrix[:,:,zi]
-        expanded_dims_mat[:,:,3] = 255
-        expanded_dims_mat = custom_colormap(colormap,matrix[:,:,zi],'linear')
-        
-        output_array[:,low:high,:] = expanded_dims_mat
     
-        if(high<pre_y-1)and(intermatrix_size>0) :
-            # draw intermatrix
-            output_array[:,high:high+intermatrix_size,:] = 255*np.array([1,1,1,0])
-        
-        low = high + intermatrix_size
-        high = low + x
-        
-    return  PIL.Image.fromarray(output_array.astype(np.uint8))
-
-    
-def generate_model_sumup(modelname,savepath,modality_indice = 0 ,factor_indice = 0,adims=(800,800),bdims=(1500,325,1),colmap = [ np.array([0,0,0,255]) , np.array([95,95,180,255]) , np.array([255,239,10,255]) , np.array([255,100,100,255])]) :
-    loadpath = os.path.join(savepath,modelname)
-    width,height = adims[0],adims[1]
-    bwidth,bheight,lim = bdims[0],bdims[1],bdims[2]
-    A_list = []
-    B_list = []
-    D_list = []
-    for file in os.listdir(loadpath):
-        print(file)
-        complete_path = os.path.join(loadpath,file)
-        is_file = (os.path.isfile(complete_path))
-        is_dir = (os.path.isdir(complete_path))
-        
-        if (is_file) :
-            # This is a MODEL file : let's open it
-            model = ActiveModel.load_model(loadpath)
-
-        if (is_dir) :
-            if (file == "_RESULTS"):
-                #ignore this file 
-                break
-            A_list.append([])
-            B_list.append([])
-            D_list.append([])
-            # This is trial results (layer instance)
-            layer_instance = int(file)
-            for newfile in os.listdir(complete_path):
-                L = newfile.split("_")
-                trial_counter = int(L[0])
-                timestep_counter = int(L[1])
-                cont = open_model_container(loadpath,layer_instance,trial_counter,timestep_counter)
-                
-                
-                # A is matrix of dimensions outcomes x num_factors_for_state_factor_0 x num_factors_for_state_factor_1 x ... x num_factors_for_state_factor_n
-                # draw a 3D image is not made for matrix with dimensions >= 4. As a general rule, we take the initial dimensions of the matrix and pick the 0th 
-                # Indices of excess dimensions :
-                
-                
-                try :
-                    while (cont.a_[modality_indice].ndim > 3):
-                        cont.a_[modality_indice] = cont.a_[modality_indice][...,0]
-                    a_image = draw_a_3D_image(normalize(np.expand_dims(cont.a_[0],-1)), lim,colormap =colmap)
-                except :
-                    while (cont.A_[modality_indice].ndim > 3):
-                        cont.A_[modality_indice] = cont.a_[modality_indice][...,0]
-                    a_image = draw_a_3D_image(normalize(np.expand_dims(cont.A_[0],-1)), lim,colormap =colmap)
-                a_resized = a_image.resize((width,height),PIL.Image.Resampling.NEAREST)
-                A_list[-1].append(a_resized)
-                
-
-                try :
-                    b_image = draw_a_3D_image(normalize(cont.b_[factor_indice]),lim,colormap=colmap)
-                except :
-                    b_image = draw_a_3D_image(normalize(cont.B_[factor_indice]),lim,colormap=colmap)
-                b_resized = b_image.resize((bwidth,bheight),PIL.Image.Resampling.NEAREST)
-                B_list[-1].append(b_resized)
-                
-                
-                try :
-                    d_image = draw_a_3D_image(np.expand_dims(np.expand_dims(normalize(cont.d_[factor_indice]),-1),-1), lim,colormap =colmap)
-                except :
-                    d_image = draw_a_3D_image(np.expand_dims(np.expand_dims(normalize(cont.D_[factor_indice]),-1),-1), lim,colormap =colmap)
-                d_resized = d_image.resize((width,height),PIL.Image.Resampling.NEAREST)
-                D_list[-1].append(d_resized)
-
-    
-    # SAVING THE RESULTS FOR THE FIRST INSTANCE
-    # GIF -->
-    result_savepath = os.path.join(savepath,modelname,"_RESULTS")
-    if not os.path.exists(result_savepath):
-        try:
-            os.makedirs(result_savepath)
-        except OSError as exc: # Guard against race condition
-            raise
-
-    fi = min(75,len(B_list[0]))  # The first frames shown on a slower pace to get better understanding of learning dynamics
-    
-    savepath_gif = os.path.join(result_savepath,"b__" + str(modelname) + ".gif")
-    B_list[0][0].save(savepath_gif,append_images=B_list[0][1:],save_all=True,duration=30,loop=0)
-    savepath_gif = os.path.join(result_savepath,"first"+str(fi)+"_b__" + str(modelname) + ".gif")
-    B_list[0][0].save(savepath_gif,append_images=B_list[0][1:fi],save_all=True,duration=150,loop=0)
-
-    savepath_gif = os.path.join(result_savepath,"a__" + str(modelname) + ".gif")
-    A_list[0][0].save(savepath_gif, format = 'GIF',append_images=A_list[0][1:],save_all=True,duration=30,loop=0)
-    savepath_gif = os.path.join(result_savepath,"first"+str(fi)+"_a__" + str(modelname) + ".gif")
-    A_list[0][0].save(savepath_gif, format = 'GIF',append_images=A_list[0][1:fi],save_all=True,duration=150,loop=0)
-
-
-    # Save final results for the first instance :
-    savepath_img = os.path.join(result_savepath,"first_a__" + str(modelname) + ".png")
-    A_list[0][0].save(savepath_img)
-    savepath_img = os.path.join(result_savepath,"final_a__" + str(modelname) + ".png")
-    A_list[0][-1].save(savepath_img)
-    savepath_img = os.path.join(result_savepath,"first_b__" + str(modelname) + ".png")
-    B_list[0][0].save(savepath_img)
-    savepath_img = os.path.join(result_savepath,"final_b__" + str(modelname) + ".png")
-    B_list[0][-1].save(savepath_img)
-
-    #Save scale for the first instance :
-    savepath_img = os.path.join(result_savepath,"colorscale__" + str(modelname) + ".png")
-    N = 500
-    img_array = np.linspace(0,1,N)
-    img = np.zeros((100,) + img_array.shape + (4,))
-    for k in range(N):
-        color_array = colorfunc(colmap,img_array[k])
-        img[:,k,:] = color_array
-    print(img.shape)
-    img = PIL.Image.fromarray(img.astype(np.uint8))
-    img.resize((800,100))
-    img.save(savepath_img)
-
-
-    B = model.B[factor_indice]
-    try :
-        b = model.b[factor_indice]
-        b_ = cont.b_[factor_indice]
-    except :
-        b = B
-        b_ = B
-
-    A = model.A[modality_indice]
-    try :
-        a = model.a[modality_indice]
-        a_ = cont.a_[modality_indice]
-    except :
-        a = A
-        a_ = A
-        
-    D = model.D[factor_indice]
-    try :
-        d = model.d[factor_indice]
-        d_ = cont.d_[factor_indice]
-    except :
-        d = D
-        d_ = D
-
-    multi_matrix_plot([normalize(B),normalize(b),normalize(b_)],["Real B","Prior b","Learnt b"],"FROM states","TO states")
-    savepath_img = os.path.join(result_savepath,"sumup_B__" + str(modelname) + ".png")
-    plt.savefig(savepath_img,bbox_inches='tight',dpi=1000)
-    plt.close()
-
-    multi_matrix_plot([normalize(A),normalize(a),normalize(a_)], ["Real A","Prior a","Learnt a"],"State (cause)","Observation (consequence)")
-    savepath_img = os.path.join(result_savepath,"sumup_A__" + str(modelname) + ".png")
-    plt.savefig(savepath_img,bbox_inches='tight',dpi=1000)
-    plt.close()
-
-    multi_matrix_plot([normalize(D),normalize(d),normalize(d_)], ["Real D","Prior d","Learnt d"], "Initial belief","State")
-    savepath_img = os.path.join(result_savepath,"sumup_D__" + str(modelname) + ".png")
-    plt.savefig(savepath_img,bbox_inches='tight',dpi=1000)
-    plt.close()
-
-
-def nf_model(modelname,savepath):
     Nf = 1
 
     initial_state = 0
     D_ =[]
-    D_.append(np.array([0,0,0,0,0])) #[Terrible state, neutral state , good state, great state, excessive state]
+    D_.append(np.array([1,1,0,0,0])) #[Terrible state, neutral state , good state, great state, excessive state]
     #D_[0][initial_state] = 1
     D_ = normalize(D_)
 
     d_ =[]
     #d_.append(np.array([0.996,0.001,0.001,0.001,0.001])) #[Terrible state, neutral state , good state, great state, excessive state]
     d_.append(np.zeros(D_[0].shape))
+    #d_ = D_
+
 
     # State Outcome mapping and beliefs
     # Prior probabilities about initial states in the generative process
@@ -249,24 +62,31 @@ def nf_model(modelname,savepath):
     A_ = []
 
     # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
-    pa = 1.0
+    pa = 1
     A_obs_mental = np.array([[pa  ,0.5-0.5*pa,0         ,0         ,0   ],
                             [1-pa,pa        ,0.5-0.5*pa,0         ,0   ],
                             [0   ,0.5-0.5*pa,pa        ,0.5-0.5*pa,0   ],
                             [0   ,0         ,0.5-0.5*pa,pa        ,1-pa],
                             [0   ,0         ,0         ,0.5-0.5*pa,pa  ]])
+    # A_obs_mental = np.array([[0,0,0,0,1],
+    #                         [0,0,0,1,0],
+    #                         [0,0,1,0,0],
+    #                         [0,1,0,0,0],
+    #                         [1,0,0,0,0]])
     A_ = [A_obs_mental]
 
 
 
-    prior_ratio = 3 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
-    prior_strength = 2.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
+    # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
+    # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
         
     a_ = []
-    a_.append(np.ones((A_[0].shape))*prior_strength)
-    a_[0] = a_[0] + (prior_ratio-1.0)*prior_strength*A_[0]
-    # for i in range(5):
-    #     a_[0][i,i] = 1
+    a_.append(np.ones((A_[0].shape))*prior_a_strength)
+    a_[0] = a_[0] + (prior_a_ratio-1.0)*prior_a_strength*A_[0]
+
+    a_[0] = np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(A_[0].shape[0])
+    #a_[0] = np.eye(5)
+
 
     # Transition matrixes between hidden states ( = control states)
     pb = 1
@@ -322,8 +142,14 @@ def nf_model(modelname,savepath):
     # b_[0][3,:,:] = 0.25
     # b_[0][4,:,:] = 0.3
 
-    b_[0] = 1.0*b_[0] - 0.0*B_[0]
+    #b_[0] = 1.0*b_[0] - 0.0*B_[0]
+    
+    b_ = []
+    b_.append(np.ones((B_[0].shape))*prior_b_strength)
+    b_[0] = b_[0] + (prior_b_ratio-1.0)*prior_b_strength*B_[0]
 
+
+    #b_ = B_
     # for i in range(B_[0].shape[-1]):
     #     b_[0][:,:,i][B_[0][:,:,i]>0.5] += 10
 
@@ -332,10 +158,10 @@ def nf_model(modelname,savepath):
     la = -2
     rs = 2
     C_mental = np.array([[2*la],
-                        [0.5*la],
-                        [0],
-                        [0.5*rs],
-                        [2*rs]])
+                        [la],
+                        [rs],
+                        [3*rs],
+                        [14*rs]])
     C_ = [C_mental]
 
     NU = nu + npoubelle
@@ -355,73 +181,32 @@ def nf_model(modelname,savepath):
 
     T = 10
     savemanager = ActiveSaveManager(T,trial_savepattern=1,intermediate_savepattern=0)
+                                    # Trial related save , timestep related save
     nf_model = ActiveModel(savemanager,modelname,savepath)
     nf_model.T = T
     nf_model.A = A_
     nf_model.a = a_
+    #nf_model.a = A_
     nf_model.B = B_
     nf_model.b = b_
     nf_model.C = C_
     nf_model.D = D_
     nf_model.d = d_
     nf_model.U = U_
+
+    nf_model.layer_options.learn_a = learn_a
+    nf_model.layer_options.learn_b = learn_b
+    nf_model.layer_options.learn_d = learn_d
+
     nf_model.layer_options.T_horizon = 2
     nf_model.layer_options.learn_during_experience = False
-    nf_model.layer_options.memory_decay = MemoryDecayType.NO_MEMORY_DECAY #MemoryDecayType.NO_MEMORY_DECAY
-    nf_model.layer_options.decay_half_time = 1000000000
+    
+    nf_model.layer_options.memory_decay = mem_dec_type
+    nf_model.layer_options.decay_half_time = mem_dec_halftime
 
     return nf_model
 
-
-savepath = os.path.join("C:",os.sep,"Users","annic","OneDrive","Bureau","Phd","ActivPynference_Public - New","results","pandas_df")
-modelname = "test_free_energy_dataframe"
-model = nf_model(modelname,savepath)
-
-L = 1
-N = 150
-model.initialize_n_layers(L)
-#model.run_n_trials(N)
-
-modality_indice = 0
-factor_indice = 0
-
-# generate_model_sumup(modelname,savepath,modality_indice,factor_indice)
-
- 
-def generate_a_dataframe(modelname,savepath,modality_indice = 0 ,factor_indice = 0) :
-    loadpath = os.path.join(savepath,modelname)
-    
-    for file in os.listdir(loadpath):
-        print(file)
-        complete_path = os.path.join(loadpath,file)
-        is_file = (os.path.isfile(complete_path))
-        is_dir = (os.path.isdir(complete_path))
-        
-        if (is_file) :
-            # This is a MODEL file : let's open it
-            model = ActiveModel.load_model(loadpath)
-
-        if (is_dir) :
-            if (file == "_RESULTS"):
-                #ignore this file 
-                break
-            
-            # This is trial results (layer instance)
-            layer_instance = int(file)
-            for newfile in os.listdir(complete_path):
-                L = newfile.split("_")
-                trial_counter = int(L[0])
-                timestep_counter = int(L[1])
-                cont = open_model_container(loadpath,layer_instance,trial_counter,timestep_counter)
-                
-                
-                # A is matrix of dimensions outcomes x num_factors_for_state_factor_0 x num_factors_for_state_factor_1 x ... x num_factors_for_state_factor_n
-                # draw a 3D image is not made for matrix with dimensions >= 4. As a general rule, we take the initial dimensions of the matrix and pick the 0th 
-                # Indices of excess dimensions :
-                print(cont.as_dict())
-                print(cont.return_dataframe())
-
-def evaluate_container(container,metric='2'):
+def evaluate_container(container,matrix_metric='2'):
     """ Calculate non-array indicators to store in a pandas framework for further analysis and vizualization."""
     trial = container.trial
     T = container.T
@@ -451,7 +236,10 @@ def evaluate_container(container,metric='2'):
         optimal_state = min(init_actual_state+t,max_size) 
                     # Specific to action sequence learning problems : the optimal is the correct succession of states up to the best state ( 0 -> 1 -> ... -> max_size)
         actual_state = container.s[factor,t] 
-        mean_errors_state += abs(optimal_state-actual_state)/max_size
+        if(optimal_state==0):
+            mean_errors_state += 0
+        else :
+            mean_errors_state += abs(optimal_state-actual_state)/optimal_state
         
         if (t<T-1):
             optimal_action = best_actions(actual_state)
@@ -466,29 +254,56 @@ def evaluate_container(container,metric='2'):
     
     
     # Matrix distances (not that useful ?)
-    A_mean_distance = stat.mean(matrix_distance_list(container.A_,normalize(container.a_),metric=metric))
-    B_mean_distance = stat.mean(matrix_distance_list(container.B_,normalize(container.b_),metric=metric))
-    C_mean_distance = stat.mean(matrix_distance_list(container.C_,normalize(container.c_),metric=metric))
-    D_mean_distance = stat.mean(matrix_distance_list(container.D_,normalize(container.d_),metric=metric))
+    A_mean_distance = stat.mean(matrix_distance_list(container.A_,normalize(container.a_),metric=matrix_metric))
+    B_mean_distance = stat.mean(matrix_distance_list(container.B_,normalize(container.b_),metric=matrix_metric))
+    C_mean_distance = stat.mean(matrix_distance_list(container.C_,normalize(container.c_),metric=matrix_metric))
+    D_mean_distance = stat.mean(matrix_distance_list(container.D_,normalize(container.d_),metric=matrix_metric))
     if (isField(container.E_)):
-        E_mean_distance = stat.mean(matrix_distance_list(container.E_,normalize(container.e_),metric=metric))
+        E_mean_distance = stat.mean(matrix_distance_list(container.E_,normalize(container.e_),metric=matrix_metric))
     else :
         E_mean_distance = 0
     # We can give a simple normalization relying on the fact that for normalized distribution matrices,
     # d_2(a,b) <= sqrt(2*number_of_columns) [In practice, d_2(a,b) < sqrt(2*number_of_columns)/2]    
     
-    # KL dirs (calculated in the respective free energies :D)
+    # KL dirs (calculated in the respective free energies :D) of matrices compared to their prior values (same trial)
     free_energy_a = container.FE['Fa']
     free_energy_b = container.FE['Fb']
     free_energy_c = container.FE['Fc']
     free_energy_d = container.FE['Fd']
     free_energy_e = container.FE['Fe']
-    print(free_energy_a,free_energy_b,free_energy_c,free_energy_d,free_energy_e)
+
+    # KL dirs w.r.t the true process matrices : 
+    # print(normalize(container.a_))
+    # print(container.A_)
+    # print(flexible_kl_dir(container.a_,container.A_,option='centered'))
+    a_dir = stat.mean(flexible_kl_dir(normalize(container.a_),container.A_,option='centered'))
+    b_dir = stat.mean(flexible_kl_dir(normalize(container.b_),container.B_,option='centered'))
+    d_dir = stat.mean(flexible_kl_dir(normalize(container.d_),container.D_,option='centered'))
+
+    #print(free_energy_a,free_energy_b,free_energy_c,free_energy_d,free_energy_e)
     
-    
+    factor = 0.5
+    try :
+        #mean_uncertainty_a = mean_uncertainty(container.a_,factor)
+        mean_uncertainty_a = flexible_entropy(container.a_)
+    except :
+        mean_uncertainty_a = [0 for i in range(len(container.A_))]
+    try :
+        #mean_uncertainty_b = mean_uncertainty(container.b_,factor)
+        mean_uncertainty_b = flexible_entropy(container.b_)
+    except :
+        mean_uncertainty_b = [0 for i in range(len(container.B_))]
+    try :
+        #mean_uncertainty_d = mean_uncertainty(container.d_,factor)
+        mean_uncertainty_d = flexible_entropy(container.d_)
+    except :
+        mean_uncertainty_d = [0 for i in range(len(container.D_))]
+
+    mean_error_percept = 0
     output_dict = {
-        'mean_error_state':mean_errors_state,
-        'mean_error_behaviour':mean_error_behaviour,
+        'mean_perception_error' : mean_error_percept,
+        'mean_error_state':mean_errors_state, # Global error cmpred to global optimal succession of states
+        'mean_error_behaviour':mean_error_behaviour, # Local error cmpred to optimal action
         'fe_a':free_energy_a,
         'fe_b':free_energy_b,
         'fe_c':free_energy_c,
@@ -498,40 +313,472 @@ def evaluate_container(container,metric='2'):
         'b_dist':B_mean_distance,
         'c_dist':C_mean_distance,
         'd_dist':D_mean_distance,
-        'e_dist':E_mean_distance
+        'e_dist':E_mean_distance,
+        'a_dir':a_dir,
+        'b_dir':b_dir,
+        'd_dir':d_dir,
+        'a_uncertainty': mean_uncertainty_a,
+        'b_uncertainty': mean_uncertainty_b,
+        'd_uncertainty': mean_uncertainty_d
     }
-    return output_dict
+    return output_dict    
+
+
+
+def general_performance_indicators(savepath,modelname,instance_number=0):
+    def number_of_trials_in_instance_folder(path):
+        counter = 0
+        for file in os.listdir(path):
+            instance = int(file.split("_")[0])
+            counter = counter + 1
+        return counter
+
+    trials = []
+    Ka = []
+    Kb = []
+    Kd = []
+    a_err = []
+    b_err = []
+    error_states = []
+    error_behaviour = []
+    instance_string = f'{instance_number:03d}'
+    instance_folder = os.path.join(savepath,modelname,instance_string)
+    total_trials = number_of_trials_in_instance_folder(instance_folder)
+    for trial in range(total_trials):
+        cont = ActiveSaveManager.open_trial_container(os.path.join(savepath,modelname),instance_number,trial,'f')
+        eval_cont = evaluate_container(cont)
+        trials.append(trial) 
+        a_err.append(eval_cont['a_dir'])
+        b_err.append(eval_cont['b_dir'])
+        Ka = Ka + eval_cont['a_uncertainty']
+        Kb = Kb + eval_cont['b_uncertainty']
+        Kd = Kd + eval_cont['d_uncertainty']
+
+        error_states.append(eval_cont['mean_error_state'])
+        error_behaviour.append(eval_cont['mean_error_behaviour'])
+    return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour
+ 
+def all_indicators(modelname,savepath) : 
+    """Return all the performance indicators implemented for a given model accross all layer instances
+    TODO : reimplement using the "general performance indicators" function !"""
     
-cont = open_model_container(os.path.join(savepath,modelname),0,45,'f')
-print(evaluate_container(cont))
+    loadpath = os.path.join(savepath,modelname)
+
+    A_list = []
+    B_list = []
+    D_list = []
+    
+    Ka = []
+    Kb = []
+    Kd = []
+    a_err = []
+    b_err = []
+    error_states = []
+    error_behaviour = []         
+    model = ActiveModel.load_model(loadpath)
+
+    for file in os.listdir(loadpath):
+        complete_path = os.path.join(loadpath,file)
+        is_file = (os.path.isfile(complete_path))
+        is_dir = (os.path.isdir(complete_path))
+
+        if (is_dir) :
+            if ("_RESULTS" in file) or ("_MODEL" in file):
+                #ignore this file 
+                print("Ignoring file " + file)
+                continue
+            print("Adding file  : "+ file + " to the mean trial.")
+            A_list.append([])
+            B_list.append([])
+            D_list.append([])
+
+            Ka.append([])
+            Kb.append([])
+            Kd.append([])
+            a_err.append([])
+            b_err.append([])
+            error_states.append([])
+            error_behaviour.append([])
+
+            # This is trial results (layer instance)
+            layer_instance = int(file)
 
 
-# #load_containers_in_folder(loadpath)
-# cont = open_model_container(loadpath,0,150,9)
-# print(cont.a_)
+            len_dir = len(os.listdir(complete_path)) # All the trials
 
-# mod = ActiveModel.load_model(loadpath)
-# print(mod.a)
+            for newfile in os.listdir(complete_path): # Newfile is the sumup for all trials
+                L = newfile.split("_")
+                if (L[-1] != 'f') :
+                    continue
+                
+                trial_counter = int(L[0])
+                timestep_counter = 'f'
+                cont = ActiveSaveManager.open_trial_container(loadpath,layer_instance,trial_counter,timestep_counter)
+                
+                
+                # A is matrix of dimensions outcomes x num_factors_for_state_factor_0 x num_factors_for_state_factor_1 x ... x num_factors_for_state_factor_n
+                # draw a 3D image is not made for matrix with dimensions >= 4. As a general rule, we take the initial dimensions of the matrix and pick the 0th 
+                # Indices of excess dimensions :
+                    
+                try :
+                    a_mat = cont.a_
+                except :
+                    a_mat = cont.A_
+                A_list[-1].append(a_mat)
 
-# #vizu.show_figures(mod,cont)
+                try :
+                    b_mat = cont.b_
+                except :
+                    b_mat = cont.B_
+                B_list[-1].append(b_mat)
 
-# for file in os.listdir(loadpath):
-#     print(file)
-#     complete_path = os.path.join(loadpath,file)
-#     is_file = (os.path.isfile(complete_path))
-#     is_dir = (os.path.isdir(complete_path))
-#     if (is_file) :
-#         # This is a MODEL file : let's open it
-#         model = ActiveModel.load_model(loadpath)
-#     if (is_dir) :
-#         # This is trial results (layer instance)
-#         layer_instance = int(file)
-#         for newfile in os.listdir(complete_path):
-#             #print(newfile)
-#             L = newfile.split("_")
-#             trial_counter = int(L[0])
-#             timestep_counter = int(L[1])
-#             #print(layer_instance,trial_counter,timestep_counter)
-#             cont = open_model_container(loadpath,layer_instance,trial_counter,timestep_counter)
-#             print(normalize(cont.a_))
-#print((cnt.a_[0]*255).astype(int))
+                try :
+                    d_mat = cont.d_
+                except :
+                    d_mat = cont.D_
+                D_list[-1].append(d_mat)
+
+                eval_cont = evaluate_container(cont)
+                a_err[-1].append(eval_cont['a_dir'])
+                b_err[-1].append(eval_cont['b_dir'])
+
+                Ka[-1] = Ka[-1] + eval_cont['a_uncertainty']
+                Kb[-1] = Kb[-1] + eval_cont['b_uncertainty']
+                Kd[-1] = Kd[-1] + eval_cont['d_uncertainty']
+                error_states[-1].append(eval_cont['mean_error_state'])
+                error_behaviour[-1].append(eval_cont['mean_error_behaviour'])
+    Ka_arr = np.array(Ka)
+    Kb_arr = np.array(Kb)
+    Kd_arr = np.array(Kd)
+    a_err_arr = np.array(a_err)
+    b_err_arr = np.array(b_err)
+    error_states_arr = np.array(error_states)
+    error_behaviour_arr = np.array(error_behaviour)
+    return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr
+
+def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr):
+    def mean_over_first_dim(list_of_list_of_matrices):
+        def flexible_sum(list_of_matrices_1,list_of_matrices_2):
+            assert len(list_of_matrices_1)==len(list_of_matrices_2),"List should be equal dimensions before summing"
+            r = []
+            for k in range(len(list_of_matrices_1)) :
+                r.append(list_of_matrices_1[k] + list_of_matrices_2[k])
+            return r
+        
+        r = [0 for i in range(len(list_of_list_of_matrices[0]))]
+        cnt = 0
+        for list_of_matrices in list_of_list_of_matrices :
+            r = flexible_sum(r, list_of_matrices)
+            cnt = cnt + 1.0
+
+        # Mean :
+        for k in range(len(list_of_list_of_matrices[0])):
+            r[k] = r[k]/cnt
+        
+        return r
+
+    mean_A = []
+    mean_B = []
+    mean_D = []
+    total_instances = len(A_list)
+    for t in range(len(A_list[0])): # Iterating through timesteps
+        a_at_t = []
+        b_at_t = []
+        d_at_t = []
+        for k in range(len(A_list)):
+            a_at_t.append(normalize(A_list[k][t]))
+            b_at_t.append(normalize(B_list[k][t]))
+            d_at_t.append(normalize(D_list[k][t]))
+
+        mean_A.append(mean_over_first_dim(a_at_t))
+        mean_B.append(mean_over_first_dim(b_at_t))
+        mean_D.append(mean_over_first_dim(d_at_t))
+
+    Ka_arr = np.mean(Ka_arr,axis=0)
+    Kb_arr = np.mean(Kb_arr,axis=0)
+    Kd_arr = np.mean(Kd_arr,axis=0)
+    a_err_arr = np.mean(a_err_arr,axis=0)
+    b_err_arr = np.mean(b_err_arr,axis=0)
+    error_states_arr = np.mean(error_states_arr,axis=0)
+    error_behaviour_arr = np.mean(error_behaviour_arr,axis=0)
+
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances
+
+def mean_indicators_model(modelname,savepath) :
+    """Generate the mean trial by selecting the mean value accross all instances for every matrix and error estimators    """
+    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr = all_indicators(modelname,savepath)
+    return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr)
+
+
+
+def generate_instances_figures(savepath,modelname,instance_list,gifs=False,mod_ind=0,fac_ind=0):
+    generate_model_sumup(modelname,savepath,gifs,mod_ind,fac_ind)
+    for inst in instance_list:
+        general_performance_figure(savepath,modelname,inst)
+
+def general_performance_figure(savepath,modelname,instance_number=0) :
+    trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour = general_performance_indicators(savepath,modelname,instance_number)
+    save_string = f'{instance_number:03d}'
+    figtitle = modelname +" - Instance " + str(instance_number) + " performance sumup"
+    general_performance_plot(savepath,modelname,save_string,trials,a_err,b_err,Ka,Kb,error_states,error_behaviour,smooth_window = 5,show=False,figtitle=figtitle)
+
+def generate_mean_behaviour_figures(savepath,modelname,show=True):
+    mean_A,mean_B,mean_D,a_err,b_err,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,tot_instances = mean_indicators_model(modelname,savepath)
+    n = a_err.shape[0]
+    trials = np.linspace(0,n,n)
+    general_performance_figure(savepath,modelname,"GLOBAL",trials,a_err,b_err,Ka_arr,Kb_arr,error_states_arr,error_behaviour_arr,smooth_window=5,figtitle=modelname+" - performance sumup over " + str(tot_instances) + " instance(s)",show=True)
+    belief_matrices_plots(modelname,savepath,mean_A,mean_B,mean_D,plot_gifs=True)
+
+
+def trial_plot(plotfile,plotmean=False,action_labels="alphabet",title=None):
+    hidden_state_factor = 0
+    perc_modality = 0
+
+    cont = ActiveModelSaveContainer.load_active_model_container(plotfile)
+    eval_cont = evaluate_container(cont)
+
+    T = cont.T
+    
+    obs = cont.o[perc_modality,:]
+    states = cont.s[hidden_state_factor,:]
+    acts = cont.u[hidden_state_factor,:]
+    beliefs = cont.X[hidden_state_factor]
+    u_post = cont.U_post
+
+    # BEGIN ! --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
+    try :
+        a_mat = cont.a_[perc_modality]
+    except:
+        a_mat = cont.A_[perc_modality]
+    while (a_mat.ndim < 3):
+        a_mat = np.expand_dims(a_mat,-1)
+    
+
+    try :
+        b_mat = cont.b_[hidden_state_factor]
+    except :
+        b_mat = cont.B_[hidden_state_factor]
+    
+
+    figure = trial_plot_figure(T,beliefs,u_post,
+                obs,states,acts,
+                a_mat,b_mat,
+                plotmean=plotmean,action_labels=action_labels,title=title)
+    figure.show()
+    
+
+def run_a_trial():
+    # ENVIRONMENT
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","lessgo")
+    modelname = "initial_results_test_10a_4isbest"
+
+    # SIMULATING TRAINING
+    model = nf_model(modelname,savepath,prop_poubelle=0.3,prior_a_ratio=10,prior_a_strength=2,prior_b_ratio=1,prior_b_strength=1)
+    Ninstances = 10
+    trials_per_instances = 250
+    model.initialize_n_layers(Ninstances)
+    overwrite = False
+    model.run_n_trials(trials_per_instances,overwrite=overwrite)
+
+    # FIGURES AND ANALYSIS
+    instance_list = [i for i in range(Ninstances)]
+    modality_indice = 0
+    factor_indice = 0
+    gifs=True
+    generate_instances_figures(savepath,modelname,instance_list,gifs=gifs,mod_ind=modality_indice,fac_ind=factor_indice)
+
+    generate_mean_behaviour_figures(savepath,modelname,show=True)
+
+
+    # DISPLAY TRIALS 
+    model_folder = os.path.join(savepath,modelname)
+    for instance in range(Ninstances) :
+        for trial in [trials_per_instances-1] :
+            full_file_name = ActiveSaveManager.generate_save_name(model_folder,instance,trial,'f')
+            trial_plot(full_file_name,title="Trial " + str(trial) + " sum-up (instance " + str(instance) + " )")
+    input()
+
+def movingaverage(interval, window_size):
+    window= np.ones(int(window_size))/float(window_size)
+    return np.convolve(interval, window, 'same')
+
+def run_models(models_dictionnary,Ntrials,Ninstances,overwrite = False):
+    max_n = len(models_dictionnary)
+    cnter = 0.0
+    for key in models_dictionnary: 
+        print("MODEL : " + key)
+        model_options = models_dictionnary[key]
+        a_learn = model_options[0]
+        a_acc = model_options[1]
+        a_str = model_options[2]
+        b_learn = model_options[3]
+        b_acc = model_options[4]
+        b_str = model_options[5]
+        d_learn = model_options[6]
+        memory_decay_type = model_options[7]
+        memory_decay_halftime = model_options[8]
+
+        modelname = key
+
+        # SIMULATING TRAINING
+        model = nf_model(modelname,savepath,prop_poubelle=0.0,prior_a_ratio=a_acc,prior_a_strength=a_str,learn_a=a_learn,
+                                                            prior_b_ratio=b_acc,prior_b_strength=b_str,learn_b=b_learn,
+                                                            learn_d=d_learn,
+                                                            mem_dec_type=memory_decay_type,mem_dec_halftime=memory_decay_halftime)
+        model.initialize_n_layers(Ninstances)
+        trial_times = [0.01]
+        model.run_n_trials(Ntrials,overwrite=overwrite,global_prop = [cnter,max_n],list_of_last_n_trial_times=trial_times)
+        cnter = cnter + 1
+
+def sliding_window_mean(list_input,window_size = 5):
+        list_output = []
+        N = len(list_input)
+        for trial in range(N):
+            mean_value = 0
+            counter = 0
+            for k in range(trial - window_size,trial + window_size + 1):
+                if(k>=0):
+                    try :
+                        mean_value += list_input[k]
+                        counter += 1
+                    except :
+                        a = 0
+                        #Nothing lol
+            list_output.append(mean_value/counter)
+        return list_output
+
+
+
+savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
+models_dictionnary = {
+    "a_ac1p5_str1_b_ac1_str1":[True,1.5,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac3_str1_b_ac1_str1":[True,3,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac5_str1_b_ac1_str1":[True,5,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac10_str1_b_ac1_str1":[True,10,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac15_str1_b_ac1_str1":[True,15,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac25_str1_b_ac1_str1":[True,25,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac50_str1_b_ac1_str1":[True,50,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
+    "a_ac200_str1_b_ac1_str1":[True,200,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
+}
+
+def generate_a_dictionnary(a_priors,b_priors) :
+    new_dict = {}
+    for ka in range(a_priors.shape[0]):
+        for kb in range(b_priors.shape[0]):
+            modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
+            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
+            new_dict[modelname] = modelchar
+    return new_dict
+
+
+
+prior_value_a = np.array([1.0,1.2,1.5,1.8,2.0,2.4,2.8,3.0,5.0,15.0,50.0,200.0])
+#prior_value_a = np.array([1.0,1.2,1.5,2.0,5.0,15.0])
+models_dictionnary = (generate_a_dictionnary(prior_value_a,prior_value_a))
+Ninstances = 10
+Ntrials = 500
+overwrite = False
+run_models(models_dictionnary,Ntrials,Ninstances,overwrite=overwrite)
+
+# Multimodel plot :
+all_beh_err = []
+all_stat_err = []
+all_a_err = []
+all_b_err = []
+
+# cnt = 0
+# for key in models_dictionnary:
+#     print(key)
+#     mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances = mean_indicators_model(key,savepath)
+#     all_beh_err.append(error_behaviour_arr)
+#     all_stat_err.append(error_states_arr)
+#     all_a_err.append(a_err_arr)
+#     all_b_err.append(b_err_arr)
+
+t = np.arange(0,Ntrials,1)
+# arr  = (np.array(all_stat_err))
+
+savenam = os.path.join(savepath,"output_array.my_arr")
+# save_flexible(arr,savenam)
+
+arr = load_flexible(savenam)
+# print(arr.shape)
+# for i in range(len(models_dictionnary)):
+#     y = arr[i,:]
+#     if y.shape[0]>Ntrials:
+#         y = y[:Ntrials]
+#     plt.scatter(t,y,s=1)
+
+# # Single value of a or b
+
+# for i in range(len(models_dictionnary)):
+#     y = arr[i,:]
+#     t = np.arange(0,Ntrials,1)
+#     y_av = sliding_window_mean(list(y),4)
+#     y_av = np.array(y_av)
+#     if y_av.shape[0]>Ntrials:
+#         y_av = y_av[:Ntrials]
+    
+#     my_key = list(models_dictionnary)[i]
+#     list_of_key =  (my_key.split("_"))
+#     a_acc = float(list_of_key[1].strip("ac"))/10
+#     b_acc = float(list_of_key[4].strip("ac"))/10
+#     print(a_acc,b_acc)
+#     prior_value = models_dictionnary[list(models_dictionnary)[i]][1]
+#     if (a_acc == 1.0) or (a_acc==1.5):
+#         plt.plot(t,y_av,label="Good Prior Biais =  " + str(prior_value) + " b_acc = " + str(b_acc))
+
+# plt.legend()
+# plt.xlabel("Trials")
+# plt.ylabel("State error w.r.t optimal")
+# plt.title("How does prior influence overall performance")
+# plt.grid(True)
+# plt.show()
+
+# 3D plot
+
+
+the_t = 100
+xs = []
+ys = []
+zs = []
+
+icnt = 0
+jcnt = 0
+J = prior_value_a.shape[0]
+plot_this = np.zeros((J,J))
+
+for i in range(len(models_dictionnary)):
+    y = arr[i,:]
+    t = np.arange(0,Ntrials,1)
+    y_av = sliding_window_mean(list(y),10)
+    y_av = np.array(y_av)
+    if y_av.shape[0]>Ntrials:
+        y_av = y_av[:Ntrials]
+    
+    my_key = list(models_dictionnary)[i]
+    list_of_key =  (my_key.split("_"))
+    a_acc = float(list_of_key[1].strip("ac"))/10
+    b_acc = float(list_of_key[4].strip("ac"))/10
+    #if (a_acc < 50)and(b_acc<50):
+    xs.append(a_acc)
+    ys.append(b_acc)
+    zs.append(y_av[the_t])
+    plot_this[icnt,jcnt] = y_av[the_t]
+
+    icnt = icnt+1
+    if (icnt>=J):
+        icnt = 0
+        jcnt = jcnt+1
+
+
+
+from matplotlib import cm
+print(plot_this)
+zs = np.array(zs)
+X,Y = np.meshgrid(prior_value_a,prior_value_a)
+fig = plt.figure()
+ax = fig.add_subplot(projection='3d')
+ax.scatter(xs, ys, zs, cmap='Greens')
+ax.plot_surface(X,Y,plot_this,linewidth=0,cmap=cm.coolwarm, antialiased=False)
+plt.show()

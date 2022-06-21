@@ -25,11 +25,11 @@ def save_flexible(obj,to_path):
             if exc.errno != errno.EEXIST:
                 raise
     with (open(to_path,'wb')) as f:
-        
-        if (type(obj)==np.ndarray):
-            np.save(to_path,object,True,True)
-        else :
-            pickle.dump(obj,f)
+        pickle.dump(obj,f)
+        # if (type(obj)==np.ndarray):
+        #     np.save(to_path,object,True,True)
+        # else :
+        #     pickle.dump(obj,f)
 
 def load_matrix(to_path):
     with(open(to_path,'rb')) as f :

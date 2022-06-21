@@ -200,10 +200,7 @@ def d_learning(layer,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
     L = spm_backwards(layer.O, layer.Q, layer.a, layer.b_kron, layer.K,layer.T)
 
     dek = spm_dekron(L, layer.Ns)
-    
-    print("###########################")
-    print(dek)
-    print("###########################")
+
     for factor in range(Nf):
         i = layer.d_[factor]>0
         #layer.d_[factor][i] = layer.d_[factor][i] + dek[factor][i]*layer.parameters.eta 

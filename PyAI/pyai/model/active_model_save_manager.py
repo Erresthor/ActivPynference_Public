@@ -1,6 +1,5 @@
 import os,sys
 import string
-from pyexpat import model
 from enum import Enum
 import random as r
 import time 
@@ -15,7 +14,9 @@ from.active_model_container import ActiveModelSaveContainer
 
 
 class ActiveSaveManager():
-    def __init__(self,T,trial_savepattern=1,intermediate_savepattern=0,modelname="default",folder_name=None):
+    def __init__(self,T,trial_savepattern=1,intermediate_savepattern=0,modelname="default",folder_name=None,verbose=False):
+        self.verbose = verbose
+
         self.model_name = modelname
         self.folder_name = folder_name
         self.trial_savepattern = trial_savepattern # For AFTER TRIAL saves
@@ -69,7 +70,8 @@ class ActiveSaveManager():
         
         container = ActiveModelSaveContainer(wholename,layer,trial_counter)
         container.layer_instance = parrallel_counter
-        print("Saving to : " + container.path)
+        if (self.verbose):
+            print("Saving to : " + container.path)
         container.quicksave()
 
     def save_this_trial(self,trial):

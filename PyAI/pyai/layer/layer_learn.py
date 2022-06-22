@@ -216,8 +216,7 @@ def e_learning(layer,t05 = 100):
     layer.e_ = layer.e_ + de*eta 
 
 def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05 = 100):
-    print("----------------  LEARNING  ----------------")
-    #print("Wow this was insightful : i'm gonna learn from that !")
+    # print("----------------  LEARNING  ----------------")
     T = layer.T
     N = layer.options.T_horizon
     Nmod = layer.Nmod
@@ -241,10 +240,6 @@ def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05 = 
         e_learning(layer,t05 = t05)
     
     # # Negative freeee eneergiiiies
-    
-    
-    
-    
     for modality in range (Nmod):
         if isField(layer.a_):
             Fa = -spm_KL_dir(layer.a_[modality],layer.a_prior[modality])

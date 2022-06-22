@@ -36,9 +36,8 @@ from .active_model_container import ActiveModelSaveContainer
 from .active_model_save_manager import ActiveSaveManager
 
 class ActiveModel():
-    def __init__(self,active_save_manager : ActiveSaveManager,modelname="default",savefolder=None):
-        self.model_name = modelname
-        self.save_folder = savefolder
+    def __init__(self,active_save_manager : ActiveSaveManager = None,modelname=None,savefolder=None,verbose = False):
+        self.verbose = verbose
         self.sample_size = 0
 
         self.A = None
@@ -73,10 +72,23 @@ class ActiveModel():
 
         self.layer_list = []
 
-        self.save_manager = active_save_manager
-        self.save_manager.update_model_name(self.model_name)
-        self.save_manager.update_folder_name(self.save_folder)
+        if (isField(active_save_manager)):
+            self.save_manager = active_save_manager
+            self.model_name = active_save_manager.model_name
+            self.save_folder = active_save_manager.folder_name
+        else :
+            if (isField(modelname)):
+                self.model_name = modelname
+            if(isField(savefolder)):
+                self.save_folder = savefolder
+        
         self.saveticks = self.save_manager.list_of_intermediate_ticks()
+
+        self.custom_state_transition_rule=None
+        self.initial_state=None
+
+        self.custom_obs_perception_rule=None
+        self.initial_observation=None
 
     def initialize_layer(self):
         layer = mdp_layer()
@@ -179,107 +191,110 @@ class ActiveModel():
         layer.postrun(True) # learning step
                      #return [layer,t]
 
-
-
     def run_trial(self,trial_counter,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,overwrite=False,global_prop=None,list_of_last_n_trial_times=None):
         """Initialize sample_size generators with the same rules.
             Possibility to introduce parrallel processing here ? """
+        
+        savebool = (self.save_manager.save_this_trial(trial_counter))and(isField(self.save_manager))
 
-        self.save_model()
-        savebool = self.save_manager.save_this_trial(trial_counter)
+        if (savebool)and(not(self.isModelSaved)):
+            self.save_model()
+
         for k in range(len(self.layer_list)):
-            print("(Model " + str(k)+ " )")
-
             # ---------------------- THIS IS JUST COSMETIC ---------------------------------
-            if (not(global_prop==None)) :
-                model_n = global_prop[0]
-                max_model_n = global_prop[1]
-                trial_n = global_prop[2]
-                max_trial_n = global_prop[3]
-                instance_n = k # local instance index
-                max_instance_n = len(self.layer_list)
+            if(self.verbose):
+                print("(Model " + str(k)+ " )")
 
-                max_total_instances = max_model_n*max_trial_n*max_instance_n
-
-                current_total_model_counter = model_n
-                #invert instance and trial enumeration due to strange active model organization
-                current_total_trial_counter = max_trial_n*current_total_model_counter + trial_n
-                current_total_instance_counter = max_instance_n*current_total_trial_counter + instance_n
-                #current_total_trial_counter = max_trial_n*current_total_instance_counter + trial_n
                 
-                total_progress = int(1000*(100*float(current_total_instance_counter)/max_total_instances))/1000.0
-                #print("Model number : " + str(current_total_model_counter))
-                print("----  " + str(total_progress) + "  % ----")
-                if (not(list_of_last_n_trial_times==None)):
-                    mean_time = statistics.mean(list_of_last_n_trial_times)
-                    total_time = mean_time*max_total_instances
-                    done_time = mean_time*current_total_instance_counter
-                    remaining_time = mean_time*(max_total_instances-current_total_instance_counter)
+                if (not(global_prop==None)) :
+                    model_n = global_prop[0]
+                    max_model_n = global_prop[1]
+                    trial_n = global_prop[2]
+                    max_trial_n = global_prop[3]
+                    instance_n = k # local instance index
+                    max_instance_n = len(self.layer_list)
+
+                    max_total_instances = max_model_n*max_trial_n*max_instance_n
+
+                    current_total_model_counter = model_n
+                    #invert instance and trial enumeration due to strange active model organization
+                    current_total_trial_counter = max_trial_n*current_total_model_counter + trial_n
+                    current_total_instance_counter = max_instance_n*current_total_trial_counter + instance_n
+                    #current_total_trial_counter = max_trial_n*current_total_instance_counter + trial_n
+                    
+                    total_progress = int(1000*(100*float(current_total_instance_counter)/max_total_instances))/1000.0
+                    #print("Model number : " + str(current_total_model_counter))
+                    print("----  " + str(total_progress) + "  % ----")
+                    if (not(list_of_last_n_trial_times==None)):
+                        mean_time = statistics.mean(list_of_last_n_trial_times)
+                        print("Mean time for a trial : " + str(mean_time))
+                        total_time = mean_time*max_total_instances
+                        done_time = mean_time*current_total_instance_counter
+                        remaining_time = mean_time*(max_total_instances-current_total_instance_counter)
 
 
-                    days = remaining_time//(3600*24)
-                    hours = (remaining_time - days*3600*24)//3600
-                    mins = (remaining_time - days*3600*24 - hours*3600)//60
-                    secs = (remaining_time -60*(mins + 60*(hours + 24*(days))))
-                    print("Remaining time :    " + str(int(days)) + " Days - "+str(int(hours))+" Hours - " +str(int(mins)) +" Min - "+str(int(secs))+" Sec")
-                print("------" + "-----" + "--------")
+                        days = remaining_time//(3600*24)
+                        hours = (remaining_time - days*3600*24)//3600
+                        mins = (remaining_time - days*3600*24 - hours*3600)//60
+                        secs = (remaining_time -60*(mins + 60*(hours + 24*(days))))
+                        print("Remaining time :    " + str(int(days)) + " Days - "+str(int(hours))+" Hours - " +str(int(mins)) +" Min - "+str(int(secs))+" Sec")
+                    print("------" + "-----" + "--------")
             # ---------------------- THIS IS JUST COSMETIC ---------------------------------
+            
+            
             lay = self.layer_list[k]
 
             # CHECK : does this trial already exist ?
             # Ask the save manager :
-            
-            run_next_trial = False 
-            if(not(overwrite)):
+            if(not(overwrite))and(savebool):
+                run_next_trial = False 
                 existbool = self.save_manager.check_exists(k,trial_counter,'f',lay)
-                if (existbool):
+                if (existbool)and(self.verbose):
                     print("Trial " + str(trial_counter) +" for instance " + str(k)+ " already exists.")
                 else :
                     run_next_trial = True
             else :
                 run_next_trial = True
+            
             tbefore = time.time()
-
             if run_next_trial :
                 for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation):
                     t = ol[1]  # To get the actual timestep 
                     updated_layer = ol[0]
                     if ((t in self.saveticks)and(savebool)) :
-                        print("----------------  SAVING  ----------------")
+                        if(self.verbose):
+                            print("----------------  SAVING  ----------------")
                         self.save_manager.save_process(updated_layer,trial_counter,k,t)
                 if (savebool):
                     self.save_manager.save_process(updated_layer,trial_counter,k,'f')
                     # Save the trial AFTER the learning step !
-                    
-                print(" - Observations --> " + str(self.layer_list[k].o))
-                print(" - Actual states --> " + str(self.layer_list[k].s))
-                print(" - Belief about states --> \n" + str(np.round(self.layer_list[k].X,1)) + "\n")
-                print(" - Chosen actions --> " + str(self.layer_list[k].u))
+                
+                if(self.verbose):
+                    print("----------------  SAVING  ----------------")
+                    print(" - Observations --> " + str(self.layer_list[k].o))
+                    print(" - Actual states --> " + str(self.layer_list[k].s))
+                    print(" - Belief about states --> \n" + str(np.round(self.layer_list[k].X,1)) + "\n")
+                    print(" - Chosen actions --> " + str(self.layer_list[k].u))
             
                 tafter = time.time()
             else : 
                 tafter = tbefore + 0.001
             
             if (not(list_of_last_n_trial_times==None)):
-                #print(list_of_last_n_trial_times)
-                ntrialtimes = 10000000000000
+                ntrialtimes = 100000
                 list_of_last_n_trial_times.append(tafter-tbefore)
                 if(len(list_of_last_n_trial_times)>ntrialtimes):
                     list_of_last_n_trial_times.pop(0)
-
-        # print(" - State perception --> " + str(self.layer_list[0].a_[0]))
-        # for k in range(self.layer_list[0].b_[0].shape[-1]):
-        #     print(" - Action perception --> " + str(self.layer_list[0].b_[0][:,:,k]))
 
     def run_n_trials(self,n,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,overwrite=False,global_prop=None,list_of_last_n_trial_times = None):
         # global_prop is the proportion of the overall number of models ran
         # aka if global prop is 0.5, we already did 50% of all models
         
-
         for k in range(n):
-            print("---------------")
-            print("Trial " + str(k) + " .")
-            print("---------------")
+            if(self.verbose):
+                print("---------------")
+                print("Trial " + str(k) + " .")
+                print("---------------")
             model_n = global_prop[0]
             max_model_n = global_prop[1]
             trial_n = k

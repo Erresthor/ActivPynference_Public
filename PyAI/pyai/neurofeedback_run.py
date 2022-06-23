@@ -14,11 +14,7 @@ from .model.active_model_container import ActiveModelSaveContainer
 
 
 from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,general_performance_plot,trial_plot_figure
-
 from .models_neurofeedback.climb_stairs import nf_model,evaluate_container
-
-# UNIQUE FOR THIS MODEL !!
-
 
 # EXTRACTORS OF TRIALS
 def evaluate_trial(evaluator,trialcontainer,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour):
@@ -52,19 +48,19 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
                 a_mat = cont.a_
             except :
                 a_mat = cont.A_
-            A_list[-1].append(a_mat)
+            A_list.append(a_mat)
 
             try :
                 b_mat = cont.b_
             except :
                 b_mat = cont.B_
-            B_list[-1].append(b_mat)
+            B_list.append(b_mat)
 
             try :
                 d_mat = cont.d_
             except :
                 d_mat = cont.D_
-            D_list[-1].append(d_mat)
+            D_list.append(d_mat)
     
     if (return_matrices):
         return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,A_list,B_list,D_list
@@ -80,7 +76,7 @@ def evaluate_model(evaluator,modelname,savepath) :
     
     Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour = [],[],[],[],[],[],[]        
     model = ActiveModel.load_model(loadpath)
-
+    print(modelname)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
         is_dir = (os.path.isdir(complete_path))

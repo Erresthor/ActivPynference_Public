@@ -197,7 +197,7 @@ class ActiveModel():
         
         savebool = (self.save_manager.save_this_trial(trial_counter))and(isField(self.save_manager))
 
-        if (savebool)and(not(self.isModelSaved)):
+        if (savebool)and(not(self.isModelSaved())):
             self.save_model()
 
         for k in range(len(self.layer_list)):
@@ -295,8 +295,10 @@ class ActiveModel():
                 print("---------------")
                 print("Trial " + str(k) + " .")
                 print("---------------")
-            model_n = global_prop[0]
-            max_model_n = global_prop[1]
+            if (not(global_prop==None)):
+                model_n = global_prop[0]
+                max_model_n = global_prop[1]
+                global_prop = [model_n,max_model_n,trial_n,max_trial_n]
             trial_n = k
             max_trial_n = n
-            self.run_trial(k,state_transition_rule,obs_perception_rule,initial_state,initial_observation,overwrite=overwrite,global_prop=[model_n,max_model_n,trial_n,max_trial_n],list_of_last_n_trial_times=list_of_last_n_trial_times)
+            self.run_trial(k,state_transition_rule,obs_perception_rule,initial_state,initial_observation,overwrite=overwrite,global_prop=global_prop,list_of_last_n_trial_times=list_of_last_n_trial_times)

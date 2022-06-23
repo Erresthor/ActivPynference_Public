@@ -320,11 +320,3 @@ def evaluate_container(container,options=['2']):
         'd_uncertainty': mean_uncertainty_d
     }
     return output_dict    
-
-
-
-
-
-
-
-

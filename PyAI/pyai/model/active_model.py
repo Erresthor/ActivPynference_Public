@@ -37,6 +37,10 @@ from .active_model_save_manager import ActiveSaveManager
 
 class ActiveModel():
     def __init__(self,active_save_manager : ActiveSaveManager = None,modelname=None,savefolder=None,verbose = False):
+        self.index = None # This is a tuple/list that we use to preserve parameter coherence
+                          # Used to build cross-model representations
+        self.input_parameters = None
+
         self.verbose = verbose
         self.sample_size = 0
 
@@ -197,7 +201,7 @@ class ActiveModel():
         
         savebool = (self.save_manager.save_this_trial(trial_counter))and(isField(self.save_manager))
 
-        if (savebool)and(not(self.isModelSaved())):
+        if (savebool)and((trial_counter==0)or(not(self.isModelSaved()))):
             self.save_model()
 
         for k in range(len(self.layer_list)):

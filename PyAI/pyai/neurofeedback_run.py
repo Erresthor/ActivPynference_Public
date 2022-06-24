@@ -76,7 +76,6 @@ def evaluate_model(evaluator,modelname,savepath) :
     
     Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour = [],[],[],[],[],[],[]        
     model = ActiveModel.load_model(loadpath)
-    print(modelname)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
         is_dir = (os.path.isdir(complete_path))

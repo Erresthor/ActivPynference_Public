@@ -1,3 +1,4 @@
+from json import load
 import sys,inspect,os
 from pickle import FALSE
 import numpy as np
@@ -13,14 +14,20 @@ from pyai.model.active_model import ActiveModel
 from pyai.neurofeedback_run import run_models
 from pyai.neurofeedback_run import evaluate_model_mean
 
-
-
 def produce_sumup_for(savepath,evaluator):
     # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
     all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
     output_list = []
     for model in all_folders:
-        output_list.append(produce_model_sumup_for(model,savepath,evaluator))
+        modelpath = os.path.join(savepath,model)
+        # Check if the file with local performances as been generated :
+        potential_file = os.path.join(modelpath,"_PERFORMANCES")
+        print("------   " + model + " -------")
+        if (os.path.isfile(potential_file)) :
+            local_sumup = load_flexible(potential_file)
+        else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+            local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+        output_list.append(local_sumup)
     save_flexible(output_list,os.path.join(savepath,"simulation_output.pyai"))
     return output_list
 

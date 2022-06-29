@@ -12,24 +12,15 @@ from pyai.layer.layer_learn import MemoryDecayType
 from pyai.model.active_model import ActiveModel
 from pyai.neurofeedback_run import evaluate_model_mean
 
-from pyai.models_neurofeedback.climb_stairs import nf_model,evaluate_container
+#from pyai.models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
+from pyai.models_neurofeedback.article_1_simulations.climb_stairs_002 import nf_model,evaluate_container
 # Generate a succession of trial results for a model in the list generated
 # Made to parrallelize in a cluster-like environment
 
 # Grid of prior values explored : 
-prior_value_a = np.array([1.0,1.2,1.5,1.8,2.0,2.4,2.8,3.0,5.0,15.0,50.0,200.0])
-prior_value_b = np.array([1.0,1.2,1.5,1.8,2.0,2.4,2.8,3.0,5.0,15.0,50.0,200.0])
- 
-
-def generate_a_dictionnary(a_priors,b_priors) :
-    new_dict = {}
-    for ka in range(a_priors.shape[0]):
-        for kb in range(b_priors.shape[0]):
-            modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
-            new_dict[modelname] = modelchar
-    return new_dict
+prior_value_a_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0])
+prior_value_b_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0])
 
 def generate_a_parameter_list(a_priors,b_priors) :
     # Undordered dictionnaries are soooo not cool :(
@@ -37,7 +28,7 @@ def generate_a_parameter_list(a_priors,b_priors) :
     indexlist = [] #This is the list of how the nth model would be situated in a k-dim grid
     for ka in range(a_priors.shape[0]):
         for kb in range(b_priors.shape[0]):
-            modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
+            modelchar = [False,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
             modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
             new_list.append([modelname,modelchar])
             indexlist.append([ka,kb])
@@ -50,16 +41,16 @@ def save_model_sumup_for(modelname,savepath,evaluator):
     model_object = ActiveModel.load_model(model_path)
     
     # There are also instances here, we should generate mean indicators to get the general performances!
-    mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances = evaluate_model_mean(evaluator,modelname,savepath)
+    mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances = evaluate_model_mean(evaluator,modelname,savepath)
     # # We can manually go through the instances :
     # all_instances = [f for f in os.listdir(model_path) if (os.path.isdir(os.path.join(model_path, f)))]
     # for instance in all_instances :
     #     instance_path = os.path.join(model_path,instance)
-    performance_list = [mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances]
+    performance_list = [mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances]
     model_list = [model_object,performance_list]
     return model_list
 
-parameter_list,index_list = generate_a_parameter_list(prior_value_a,prior_value_b)
+parameter_list,index_list = generate_a_parameter_list(prior_value_a_sigma,prior_value_b_sigma)
 
 if __name__=="__main__":
     input_arguments = sys.argv
@@ -71,23 +62,9 @@ if __name__=="__main__":
     Ntrials = int(input_arguments[4])
 
     try :
-        overwrite = input_arguments[5]
+        overwrite = (input_arguments[5]== 'True')
     except :
         overwrite = False
-
-    # savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
-
-    # # An example model dictionnary that we could use
-    # models_dictionnary = {
-    #     "a_ac1p5_str1_b_ac1_str1":[True,1.5,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac3_str1_b_ac1_str1":[True,3,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac5_str1_b_ac1_str1":[True,5,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac10_str1_b_ac1_str1":[True,10,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac15_str1_b_ac1_str1":[True,15,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac25_str1_b_ac1_str1":[True,25,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac50_str1_b_ac1_str1":[True,50,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],
-    #     "a_ac200_str1_b_ac1_str1":[True,200,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-    # }
 
     try :
         model_name = parameter_list[list_index][0]
@@ -107,8 +84,8 @@ if __name__=="__main__":
     memory_decay_type = model_options[7]
     memory_decay_halftime = model_options[8]
     # THIS GENERATES THE TRIALS without using run_model
-    model = nf_model(model_name,save_path,prop_poubelle=0.0,prior_a_ratio=a_acc,prior_a_strength=a_str,learn_a=a_learn,
-                                                        prior_b_ratio=b_acc,prior_b_strength=b_str,learn_b=b_learn,
+    model = nf_model(model_name,save_path,prop_poubelle=0.0,prior_a_sigma=a_acc,prior_a_strength=a_str,learn_a=a_learn,
+                                                        prior_b_sigma=b_acc,prior_b_strength=b_str,learn_b=b_learn,
                                                         learn_d=d_learn,
                                                         mem_dec_type=memory_decay_type,mem_dec_halftime=memory_decay_halftime,
                                                         verbose=False)
@@ -122,14 +99,12 @@ if __name__=="__main__":
     trial_times = [0.01]
     model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None,list_of_last_n_trial_times=trial_times)
 
-    # Old version :
+    # Old version : (could not shunt the way model options impacted the model :/ too restrictive or a better way of following things up ?)
     #run_model(save_path,model_name,model_options,Ntrials,Ninstances,overwrite = False,global_prop=[0,1],verbose=False)
-    
 
     # Here, we shoud generate a first set of run-wide performance results
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
     sumup = save_model_sumup_for(model_name,save_path,evaluate_container)
-    
     local_model_savepath = os.path.join(save_path,model_name,"_PERFORMANCES")
     save_flexible(sumup,local_model_savepath)
     print("Saving model results at :   " + local_model_savepath)

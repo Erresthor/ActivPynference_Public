@@ -1,15 +1,15 @@
 import numpy as np
 import statistics as stat
 
-from ..model.metrics import flexible_entropy,flexible_kl_dir
+from ...model.metrics import flexible_entropy,flexible_kl_dir
 
-from ..layer.layer_learn import MemoryDecayType
-from ..base.miscellaneous_toolbox import isField
-from ..base.function_toolbox import normalize
-from ..base.matrix_functions import matrix_distance_list,argmean
+from ...layer.layer_learn import MemoryDecayType
+from ...base.miscellaneous_toolbox import isField
+from ...base.function_toolbox import normalize
+from ...base.matrix_functions import matrix_distance_list,argmean
 
-from ..model.active_model import ActiveModel
-from ..model.active_model_save_manager import ActiveSaveManager
+from ...model.active_model import ActiveModel
+from ...model.active_model_save_manager import ActiveSaveManager
 
 
 def nf_model(modelname,savepath,prop_poubelle = 0.0,
@@ -154,9 +154,9 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     rs = 2
     C_mental = np.array([[2*la],
                         [la],
-                        [rs],
-                        [3*rs],
-                        [14*rs]])
+                        [0],
+                        [1*rs],
+                        [2*rs]])
     C_ = [C_mental]
 
     NU = nu + npoubelle

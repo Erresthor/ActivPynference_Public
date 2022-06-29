@@ -38,12 +38,15 @@ def produce_model_sumup_for(modelname,savepath,evaluator):
     model_object = ActiveModel.load_model(model_path)
     
     # There are also instances here, we should generate mean indicators to get the general performances!
-    mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances = evaluate_model_mean(evaluator,modelname,savepath)
+    mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances = evaluate_model_mean(evaluator,modelname,savepath)
+    # 0      1      2      3         4         5       6      7            8             9                   10                     11
+    
+    
     # # We can manually go through the instances :
     # all_instances = [f for f in os.listdir(model_path) if (os.path.isdir(os.path.join(model_path, f)))]
     # for instance in all_instances :
     #     instance_path = os.path.join(model_path,instance)
-    performance_list = [mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances]
+    performance_list = [mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances]
     model_list = [model_object,performance_list]
     return model_list
 

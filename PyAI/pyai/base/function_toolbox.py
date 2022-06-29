@@ -66,6 +66,9 @@ def normalize(X,axis=0,epsilon=1e-15):                                          
         x= X/(np.sum(X,axis))
     elif(X==None):
         return None
+    else :
+        print("Unknwon type encountered in normalize : " + str(type(X)))
+        print(X)
     return x
 
 def nat_log(x):

@@ -1,5 +1,5 @@
 import numpy as np
-from pyai.base.function_toolbox import normalize
+from .function_toolbox import normalize
 import matplotlib.pyplot as plt
 import math
 import pandas as pd
@@ -93,60 +93,62 @@ def generate_normal_dist_along_mulist(zero_matrix,mulist,sig2,n_points=500,ecart
         output_matrix[slicer] = casted_dist
     return output_matrix
 
-# X,casted_dist,x,y = generate_distribution(np.zeros(5,),4.2,1,ecart=10)
-# plt.bar(X,casted_dist,0.95)
-# # plt.plot(x,y,color='r')
-# plt.show()
 
 
-from pyai.base.plotting_toolbox import multi_3dmatrix_plot,multi_matrix_plot
-mats  =[]
-labs = []
+if __name__=="__main__":
+    # X,casted_dist,x,y = generate_distribution(np.zeros(5,),4.2,1,ecart=10)
+    # plt.bar(X,casted_dist,0.95)
+    # # plt.plot(x,y,color='r')
+    # plt.show()
 
-# Mu PERFECT
+    from pyai.base.plotting_toolbox import multi_3dmatrix_plot,multi_matrix_plot
+    mats  =[]
+    labs = []
 
-sigmas = np.array([0.01,0.1,0.25,0.5,1,3,10,50])
-s_size = sigmas.shape[0]
+    # Mu PERFECT
 
-ec = 0
-npoints = 1000
-k = 5
+    sigmas = np.array([0.01,0.1,0.25,0.5,1,3,10,50])
+    s_size = sigmas.shape[0]
 
-A = np.eye(k)
-As = np.zeros(A.shape+(s_size,))
-for ss in range(s_size):
-    sig = sigmas[ss]
-    a = generate_normal_dist_along_matrix(A,sig,n_points=npoints,ecart=ec)
-    print(a.shape,As.shape)
-    As[...,ss] = a
+    ec = 0
+    npoints = 1000
+    k = 5
 
-mats.append(As)
-labels = (np.core.defchararray.add("mu = real, Sigma² = ", sigmas.astype(str)))
-labs.append(labels)
+    A = np.eye(k)
+    As = np.zeros(A.shape+(s_size,))
+    for ss in range(s_size):
+        sig = sigmas[ss]
+        a = generate_normal_dist_along_matrix(A,sig,n_points=npoints,ecart=ec)
+        print(a.shape,As.shape)
+        As[...,ss] = a
 
-# Mu NOT PERFECT
-perfect = np.linspace(0,k-1,k)
-mulist = perfect*0.8
-Bs = np.zeros(A.shape+(s_size,))
-for ss in range(s_size):
-    sig = sigmas[ss]
-    b = generate_normal_dist_along_mulist(np.zeros(A.shape),mulist,sig,n_points=npoints,ecart=ec)
-    Bs[...,ss] = b
-mats.append(Bs)
-labels = (np.core.defchararray.add("mu = real x 0.8, Sigma² = ", sigmas.astype(str)))
-labs.append(labels)
+    mats.append(As)
+    labels = (np.core.defchararray.add("mu = real, Sigma² = ", sigmas.astype(str)))
+    labs.append(labels)
 
-# Mu NOT PERFECT
-perfect = np.linspace(0,k-1,k)
-mulist = perfect+0.5
-Cs = np.zeros(A.shape+(s_size,))
-for ss in range(s_size):
-    sig = sigmas[ss]
-    b = generate_normal_dist_along_mulist(np.zeros(A.shape),mulist,sig,n_points=npoints,ecart=ec)
-    Cs[...,ss] = b
-mats.append(Cs)
-labels = (np.core.defchararray.add("mu = real + 0.5 Sigma² = ", sigmas.astype(str)))
-labs.append(labels)
+    # Mu NOT PERFECT
+    perfect = np.linspace(0,k-1,k)
+    mulist = perfect*0.8
+    Bs = np.zeros(A.shape+(s_size,))
+    for ss in range(s_size):
+        sig = sigmas[ss]
+        b = generate_normal_dist_along_mulist(np.zeros(A.shape),mulist,sig,n_points=npoints,ecart=ec)
+        Bs[...,ss] = b
+    mats.append(Bs)
+    labels = (np.core.defchararray.add("mu = real x 0.8, Sigma² = ", sigmas.astype(str)))
+    labs.append(labels)
 
-multi_matrix_plot(mats,labs,colmap = 'jet',xlab="Hidden mental state",ylab="Observation")
-plt.show()
+    # Mu NOT PERFECT
+    perfect = np.linspace(0,k-1,k)
+    mulist = perfect+0.5
+    Cs = np.zeros(A.shape+(s_size,))
+    for ss in range(s_size):
+        sig = sigmas[ss]
+        b = generate_normal_dist_along_mulist(np.zeros(A.shape),mulist,sig,n_points=npoints,ecart=ec)
+        Cs[...,ss] = b
+    mats.append(Cs)
+    labels = (np.core.defchararray.add("mu = real + 0.5 Sigma² = ", sigmas.astype(str)))
+    labs.append(labels)
+
+    multi_matrix_plot(mats,labs,colmap = 'jet',xlab="Hidden mental state",ylab="Observation")
+    plt.show()

@@ -17,7 +17,7 @@ from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,g
 from .models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
 # EXTRACTORS OF TRIALS
-def evaluate_trial(evaluator,trialcontainer,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour):
+def evaluate_trial(evaluator,trialcontainer,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions):
     eval_cont = evaluator(trialcontainer)
 
     a_err.append(eval_cont['a_dir'])
@@ -28,6 +28,8 @@ def evaluate_trial(evaluator,trialcontainer,a_err,b_err,Ka,Kb,Kd,error_states,er
 
     error_states.append(eval_cont['mean_error_state'])
     error_behaviour.append(eval_cont['mean_error_behaviour'])
+    error_observations.append(eval_cont['mean_error_observations'])
+    error_perceptions.append( eval_cont['mean_error_perception'])
 
 def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matrices=False):
     instance_string = f'{instance_number:03d}'
@@ -37,12 +39,14 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
     trials = range(total_trials)
     
     Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour = [],[],[],[],[],[],[]
+    error_observations,error_perceptions = [],[]
+
     if(return_matrices):
         A_list,B_list,D_list = [],[],[]
     
     for trial in trials:
         cont = ActiveSaveManager.open_trial_container(os.path.join(savepath,modelname),instance_number,trial,'f')
-        evaluate_trial(evaluator,cont,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour)
+        evaluate_trial(evaluator,cont,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions)
         if(return_matrices):
             try :
                 a_mat = cont.a_
@@ -63,9 +67,9 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
             D_list.append(d_mat)
     
     if (return_matrices):
-        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,A_list,B_list,D_list
+        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions,A_list,B_list,D_list
     else :
-        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour
+        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions
  
 def evaluate_model(evaluator,modelname,savepath) : 
     """Return all the performance indicators implemented for a given model accross all layer instances
@@ -74,7 +78,7 @@ def evaluate_model(evaluator,modelname,savepath) :
 
     A_list,B_list,D_list = [],[],[]
     
-    Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour = [],[],[],[],[],[],[]        
+    Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[]      
     model = ActiveModel.load_model(loadpath)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
@@ -92,7 +96,7 @@ def evaluate_model(evaluator,modelname,savepath) :
             # This is trial results (layer instance)
             layer_instance = int(potential_instance)
 
-            trials,a_err_i,b_err_i,Ka_i,Kb_i,Kd_i,error_states_i,error_behaviour_i,A_list_i,B_list_i,D_list_i = evaluate_instance(evaluator,savepath,modelname,instance_number=layer_instance,return_matrices=True)
+            trials,a_err_i,b_err_i,Ka_i,Kb_i,Kd_i,error_states_i,error_behaviour_i,error_observations_i,error_perceptions_i,A_list_i,B_list_i,D_list_i = evaluate_instance(evaluator,savepath,modelname,instance_number=layer_instance,return_matrices=True)
             
             A_list.append(A_list_i)
             B_list.append(B_list_i)
@@ -104,6 +108,8 @@ def evaluate_model(evaluator,modelname,savepath) :
             b_err.append(b_err_i)
             error_states.append(error_states_i)
             error_behaviour.append(error_behaviour_i)
+            error_observations.append(error_observations_i)
+            error_perceptions.append(error_perceptions_i)
 
     Ka_arr = np.array(Ka)
     Kb_arr = np.array(Kb)
@@ -112,10 +118,12 @@ def evaluate_model(evaluator,modelname,savepath) :
     b_err_arr = np.array(b_err)
     error_states_arr = np.array(error_states)
     error_behaviour_arr = np.array(error_behaviour)
+    error_observations_arr = np.array(error_observations)
+    error_perceptions_arr = np.array(error_perceptions)
+    return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr
 
-    return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr
+def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
 
-def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr):
     def mean_over_first_dim(list_of_list_of_matrices):
         def flexible_sum(list_of_matrices_1,list_of_matrices_2):
             assert len(list_of_matrices_1)==len(list_of_matrices_2),"List should be equal dimensions before summing"
@@ -160,13 +168,15 @@ def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_ar
     b_err_arr = np.mean(b_err_arr,axis=0)
     error_states_arr = np.mean(error_states_arr,axis=0)
     error_behaviour_arr = np.mean(error_behaviour_arr,axis=0)
-
-    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,total_instances
+    error_observations_arr = np.mean(error_observations_arr,axis=0)
+    error_perception_arr = np.mean(error_perceptions_arr,axis=0)
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
 
 def evaluate_model_mean(evaluator,modelname,savepath) :
     """Generate the mean trial by selecting the mean value accross all instances for every matrix and error estimators    """
-    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr = evaluate_model(evaluator,modelname,savepath)
-    return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr)
+    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
+    print(A_list)
+    return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
 
 def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=False,mod_ind=0,fac_ind=0,show=False):
     """ Plot of individual agent performances over all instances for a given model."""
@@ -176,14 +186,14 @@ def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=F
 
 def generate_instance_performance_figure(evaluator,savepath,modelname,instance_number=0) :
     """ Plot of a and b knowledge error + state and behaviour error."""
-    trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour = evaluate_instance(evaluator,savepath,modelname,instance_number)
+    trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perception = evaluate_instance(evaluator,savepath,modelname,instance_number,return_matrices=False)
     save_string = f'{instance_number:03d}'
     figtitle = modelname +" - Instance " + str(instance_number) + " performance sumup"
     general_performance_plot(savepath,modelname,save_string,trials,a_err,b_err,Ka,Kb,error_states,error_behaviour,smooth_window = 5,show=False,figtitle=figtitle)
 
 def evaluate_model_figure(evaluator,savepath,modelname,show=True):
     """ generate_instances_figure but for an hypothetical """
-    mean_A,mean_B,mean_D,a_err,b_err,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,tot_instances = evaluate_model_mean(evaluator,modelname,savepath)
+    mean_A,mean_B,mean_D,a_err,b_err,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,tot_instances = evaluate_model_mean(evaluator,modelname,savepath)
     n = a_err.shape[0]
     trials = np.linspace(0,n,n)
     

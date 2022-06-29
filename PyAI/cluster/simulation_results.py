@@ -3,6 +3,11 @@ from json import load
 import sys,inspect,os
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+import matplotlib.animation as animation
+plt.rcParams["figure.figsize"] = [7.50, 3.50]
+plt.rcParams["figure.autolayout"] = True
+
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(currentdir)
 sys.path.insert(0, parentdir) 
@@ -20,6 +25,32 @@ import time as t
 def load_perf(filepath):
     return (load_flexible(filepath))
 
+def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 0):
+    Xgrid = np.zeros(size)
+    Ygrid = np.zeros(size)
+    Zgrid = np.zeros(size)
+    for model in model_list :
+        model_object = model[0]
+        results_list = model[1]
+        options = model_object.input_parameters
+        index = tuple(model_object.index)
+        Xgrid[index] = options[1]
+        Ygrid[index] = options[4]
+        Zgrid[index] = results_list[parameter_index][pick_t]
+        if(smooth_it > 0):
+            sum = 0
+            cnt = 0
+            for k in range(pick_t-smooth_it,pick_t + smooth_it + 1):
+                try :
+                    sum += results_list[parameter_index][k]
+                    cnt += 1
+                except :
+                    sum += 0
+                    cnt += 0
+            Zgrid[index] = sum/cnt
+    return Xgrid,Ygrid,Zgrid
+
+
 if __name__=="__main__":
     savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
     filename = "simulation_output.pyai"
@@ -29,15 +60,58 @@ if __name__=="__main__":
     format_float = "{:.2f}".format(timefloat)
     print("Loaded performance file in " + format_float + " seconds.")
     
-    t = np.arange(0,500,1)
-    print(len(big_list))
-    for model in big_list :
-        model_object = model[0]
-        performance_list = model[1]
-        print(model_object.a)
-        plt.plot(t,performance_list[6])
-    plt.show()
 
+    size = (12,12)
+    param_plot = 9
+    
+    N = 50
+    fps = 30
+    frn = 500
+
+    z_array = np.zeros(size+(frn,))
+    for t in range(frn):
+        smooth_it = 0
+        if (param_plot==8) or (param_plot==9):
+            smooth_it = 10
+        x,y,z = generate_grids(big_list,t,param_plot,size=size,smooth_it=smooth_it)
+        z_array[:,:,t] = z
+    
+    limit = 9
+    x = x[:limit,:limit]
+    y = y[:limit,:limit]
+    z_array = z_array[:limit,:limit]
+
+
+    def change_plot(frame_number, zarray, plot):
+        plot[0].remove()
+        #plot[0] = ax.plot_surface(x, y, zarray[:, :, frame_number], cmap="afmhot_r")
+        plot[0] = ax.plot_surface(x, y, zarray[:, :, frame_number], cmap=cm.coolwarm,linewidth=0, antialiased=False)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlabel('a accuracy')
+    ax.set_ylabel('b accuracy')
+    ax.set_zlabel('state error')
+    plot = [ax.plot_surface(x, y, z_array[:, :, 0], color='0.75', rstride=1, cstride=1)]
+    ax.set_zlim(0, 1.1)
+    ani = animation.FuncAnimation(fig, change_plot, frn, fargs=(z_array, plot), interval=1000 / fps)
+    plt.show()
+    
+    
+    # t = np.arange(0,500,1)
+    # print(len(big_list))
+    # pick_t = 400
+    
+
+    # fig = plt.figure()
+    # ax = plt.axes(projection='3d')
+    # surf = ax.plot_surface(X, Y, Z, cmap=cm.coolwarm,
+    #                    linewidth=0, antialiased=False)
+
+
+    # ax.axes.set_xlim3d(left=1, right=5)
+    # ax.axes.set_ylim3d(bottom=1, top=5)
+
+    
     # We have a problem : these simulations are not ordered by design (we stack them up in a list :( )
     # Solution 1 : stack them up in an other form of data structure to preserve spatial coherence
     # SOlution 2 : sort them now depending on their variables

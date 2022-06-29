@@ -245,23 +245,26 @@ class ActiveModel():
                     print("------" + "-----" + "--------")
             # ---------------------- THIS IS JUST COSMETIC ---------------------------------
             
-            
+            tbefore = time.time()
             lay = self.layer_list[k]
 
             # CHECK : does this trial already exist ?
             # Ask the save manager :
-            if(not(overwrite))and(savebool):
-                run_next_trial = False 
-                existbool = self.save_manager.check_exists(k,trial_counter,'f',lay)
-                if (existbool)and(self.verbose):
-                    print("Trial " + str(trial_counter) +" for instance " + str(k)+ " already exists.")
-                else :
+            run_next_trial = False
+            if (savebool):
+                if (overwrite):
                     run_next_trial = True
-            else :
-                run_next_trial = True
+                else :
+                    existbool = self.save_manager.check_exists(k,trial_counter,'f',lay) # True if it already exists
+                    if not(existbool):
+                        run_next_trial = True
+                    else : 
+                        print("Model " + str(self.model_name) +" -  Trial " + str(trial_counter) +" for instance " + str(k)+ " already exists.")
             
-            tbefore = time.time()
+            
             if run_next_trial :
+                print("------")
+                print("Simulating Model " + str(self.model_name) +" -  Trial " + str(trial_counter) +" for instance " + str(k)+ ".")
                 for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation):
                     t = ol[1]  # To get the actual timestep 
                     updated_layer = ol[0]
@@ -281,11 +284,15 @@ class ActiveModel():
                     print(" - Chosen actions --> " + str(self.layer_list[k].u))
             
                 tafter = time.time()
+                format_float = "{:.2f}".format(tafter-tbefore)
+                print(" Simulated trial in " + format_float + " seconds.")
             else : 
                 tafter = tbefore + 0.001
+                format_float = "{:.2f}".format(tafter-tbefore)
+                print(" Skipped existing trial in " + format_float + " seconds.")
             
             if (not(list_of_last_n_trial_times==None)):
-                ntrialtimes = 100000
+                ntrialtimes = 10000
                 list_of_last_n_trial_times.append(tafter-tbefore)
                 if(len(list_of_last_n_trial_times)>ntrialtimes):
                     list_of_last_n_trial_times.pop(0)

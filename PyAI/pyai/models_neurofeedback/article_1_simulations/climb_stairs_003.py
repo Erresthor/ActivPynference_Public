@@ -1,39 +1,23 @@
 import numpy as np
 import statistics as stat
 
-from ..model.metrics import flexible_entropy,flexible_kl_dir
+from ...model.metrics import flexible_entropy,flexible_kl_dir
 
-from ..layer.layer_learn import MemoryDecayType
-from ..base.miscellaneous_toolbox import isField
-from ..base.function_toolbox import normalize
-from ..base.matrix_functions import matrix_distance_list,argmean
+from ...layer.layer_learn import MemoryDecayType
+from ...base.miscellaneous_toolbox import isField
+from ...base.function_toolbox import normalize
+from ...base.matrix_functions import matrix_distance_list,argmean
 
-from ..model.active_model import ActiveModel
-from ..model.active_model_save_manager import ActiveSaveManager
+from ...model.active_model import ActiveModel
+from ...model.active_model_save_manager import ActiveSaveManager
+from ...base.normal_distribution_matrix import generate_normal_dist_along_matrix
 
 
 def nf_model(modelname,savepath,prop_poubelle = 0.0,
-                        learn_a = True,prior_a_ratio = 3,prior_a_strength=3,
-                        learn_b=True,prior_b_ratio = 0.0,prior_b_strength=1,
+                        learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
+                        learn_b=True,prior_b_sigma = 3,prior_b_strength=1,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False):
-    
-    def base_prior_generator(true_matrix,strength_of_false,strength_of_true,eps=1e-8):
-        prior = np.zeros(true_matrix.shape)
-        ones = np.ones(true_matrix.shape)
-
-        false_vals_mask = true_matrix<eps
-        prior[false_vals_mask] = prior[false_vals_mask] + strength_of_false*ones[false_vals_mask]
-
-        true_vals_mask = true_matrix>=eps
-        prior[true_vals_mask] = prior[true_vals_mask] + strength_of_true*ones[true_vals_mask]
-
-        return prior
-    
-    def gaussian_prior_generator(true_matrix,sigma,eps=1e-8):
-        return None # TBI
-    
-    
+                        verbose = False):   
     Nf = 1
 
     initial_state = 0
@@ -74,21 +58,16 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
     # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
-        
     a_ = []
-    a_.append(np.ones((A_[0].shape))*prior_a_strength)
-    a_[0] = a_[0] + (prior_a_ratio-1.0)*prior_a_strength*A_[0]
+    a_.append(prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma))
 
-    a_[0] = np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(A_[0].shape[0])
-    #a_[0] = np.eye(5)
 
 
     # Transition matrixes between hidden states ( = control states)
     pb = 1
 
     nu = 5
-    prop_poublle = 0.3
-    npoubelle = int((prop_poublle/(1-prop_poublle))*nu)
+    npoubelle = int((prop_poubelle/(1-prop_poubelle))*nu)
     B_ = []
     B_mental_states = np.zeros((Ns[0],Ns[0],nu+npoubelle))
 
@@ -130,33 +109,18 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     B_.append(B_mental_states)
 
-    b_ = [np.ones((B_[0].shape))]
-    # b_[0][0,:,:] = 0.1
-    # b_[0][1,:,:] = 0.15
-    # b_[0][2,:,:] = 0.2
-    # b_[0][3,:,:] = 0.25
-    # b_[0][4,:,:] = 0.3
-
-    #b_[0] = 1.0*b_[0] - 0.0*B_[0]
-    
     b_ = []
-    b_.append(np.ones((B_[0].shape))*prior_b_strength)
-    b_[0] = b_[0] + (prior_b_ratio-1.0)*prior_b_strength*B_[0]
-
-
-    #b_ = B_
-    # for i in range(B_[0].shape[-1]):
-    #     b_[0][:,:,i][B_[0][:,:,i]>0.5] += 10
-
-    No = [A_[0].shape[0]]
-
+    b_.append(prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma))
+    
+    # print(b_)
+    # print(b_[0].shape)
     la = -2
     rs = 2
     C_mental = np.array([[2*la],
-                        [la],
-                        [rs],
-                        [3*rs],
-                        [14*rs]])
+                        [1*la],
+                        [0],
+                        [1*rs],
+                        [2*rs]])
     C_ = [C_mental]
 
     NU = nu + npoubelle
@@ -179,6 +143,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                                     # Trial related save , timestep related save
     nf_model = ActiveModel(savemanager)
     nf_model.T = T
+
     nf_model.A = A_
     nf_model.a = a_
     nf_model.B = B_
@@ -209,8 +174,6 @@ def evaluate_container(container,options=['2']):
     trial = container.trial
     T = container.T
     Nf = len(container.s)
-    
-   
 
     def best_actions(actual_state):
         if(actual_state==0):

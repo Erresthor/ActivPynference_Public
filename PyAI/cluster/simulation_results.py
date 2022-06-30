@@ -34,6 +34,7 @@ def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 
         results_list = model[1]
         options = model_object.input_parameters
         index = tuple(model_object.index)
+        #print(index)
         Xgrid[index] = options[1]
         Ygrid[index] = options[4]
         Zgrid[index] = results_list[parameter_index][pick_t]
@@ -52,8 +53,8 @@ def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 
 
 
 if __name__=="__main__":
-    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
-    filename = "simulation_output.pyai"
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","article_1")
+    filename = "simulation_output_001.pyai"
     t0 = t.time()
     big_list = load_perf(os.path.join(savepath,filename))
     timefloat = (t.time()-t0)
@@ -61,8 +62,8 @@ if __name__=="__main__":
     print("Loaded performance file in " + format_float + " seconds.")
     
 
-    size = (12,12)
-    param_plot = 9
+    size = (16,16)
+    param_plot = 10
     
     N = 50
     fps = 30
@@ -71,12 +72,12 @@ if __name__=="__main__":
     z_array = np.zeros(size+(frn,))
     for t in range(frn):
         smooth_it = 0
-        if (param_plot==8) or (param_plot==9):
-            smooth_it = 10
+        if (param_plot==8) or (param_plot==9) or (param_plot==10):
+            smooth_it = 15
         x,y,z = generate_grids(big_list,t,param_plot,size=size,smooth_it=smooth_it)
         z_array[:,:,t] = z
     
-    limit = 9
+    limit = 16
     x = x[:limit,:limit]
     y = y[:limit,:limit]
     z_array = z_array[:limit,:limit]

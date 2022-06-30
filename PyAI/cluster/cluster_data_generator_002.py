@@ -19,8 +19,8 @@ from pyai.models_neurofeedback.article_1_simulations.climb_stairs_002 import nf_
 # Made to parrallelize in a cluster-like environment
 
 # Grid of prior values explored : 
-prior_value_a_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0])
-prior_value_b_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0])
+prior_value_a_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0,20.0])
+prior_value_b_sigma = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0,20.0])
 
 def generate_a_parameter_list(a_priors,b_priors) :
     # Undordered dictionnaries are soooo not cool :(

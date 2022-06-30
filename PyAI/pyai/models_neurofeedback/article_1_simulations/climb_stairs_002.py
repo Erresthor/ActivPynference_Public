@@ -237,7 +237,7 @@ def evaluate_container(container,options=['2']):
     mean_errors_state = mean_errors_state/T
     mean_error_behaviour = mean_error_behaviour/(T-1)
     mean_error_observations = mean_error_observations/T
-    mean_error_percept = flexible_kl_dir(belief_about_states,true_state_distribution)
+    mean_error_percept = flexible_kl_dir(belief_about_states,true_state_distribution,option='centered')
 
 
     # Matrix distances (not that useful ?)

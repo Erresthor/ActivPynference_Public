@@ -1,4 +1,3 @@
-from asyncio import constants
 import numpy as np
 import statistics as stat
 
@@ -20,7 +19,6 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
                         verbose = False):   
     Nf = 1
-    constant = 20
 
     initial_state = 0
     D_ =[]
@@ -61,9 +59,9 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
     # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
     a_ = []
-    a_.append(constant*prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma) + 1)
+    a_.append(prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma))
 
-
+    A_[0] = normalize(np.ones(a_[0].shape))
 
     # Transition matrixes between hidden states ( = control states)
     pb = 1
@@ -112,8 +110,8 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     B_.append(B_mental_states)
 
     b_ = []
-    b_.append(constant*prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma) + 1 )
-    #b_[0] = 0.25*np.ones(b_[0].shape)
+    b_.append(prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma))
+    
     # print(b_)
     # print(b_[0].shape)
     la = -2
@@ -123,12 +121,6 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         [0],
                         [1*rs],
                         [2*rs]])
-
-    # C_mental = np.array([[0.1*la],
-    #                     [0.05*la],
-    #                     [0],
-    #                     [0.05*rs],
-    #                     [5*rs]])
     C_ = [C_mental]
 
     NU = nu + npoubelle

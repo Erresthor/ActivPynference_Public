@@ -35,6 +35,7 @@ def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 
         options = model_object.input_parameters
         index = tuple(model_object.index)
         #print(index)
+        #print(options[1],options[4])
         Xgrid[index] = options[1]
         Ygrid[index] = options[4]
         Zgrid[index] = results_list[parameter_index][pick_t]
@@ -54,7 +55,7 @@ def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 
 
 if __name__=="__main__":
     savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","article_1")
-    filename = "simulation_output_001.pyai"
+    filename = "simulation_output_002.pyai"
     t0 = t.time()
     big_list = load_perf(os.path.join(savepath,filename))
     timefloat = (t.time()-t0)
@@ -62,8 +63,8 @@ if __name__=="__main__":
     print("Loaded performance file in " + format_float + " seconds.")
     
 
-    size = (16,16)
-    param_plot = 10
+    size = (21,21)
+    param_plot = 6
     
     N = 50
     fps = 30
@@ -77,10 +78,10 @@ if __name__=="__main__":
         x,y,z = generate_grids(big_list,t,param_plot,size=size,smooth_it=smooth_it)
         z_array[:,:,t] = z
     
-    limit = 16
-    x = x[:limit,:limit]
-    y = y[:limit,:limit]
-    z_array = z_array[:limit,:limit]
+    # limit = 999
+    # x = x[:limit,:limit]
+    # y = y[:limit,:limit]
+    # z_array = z_array[:limit,:limit]
 
 
     def change_plot(frame_number, zarray, plot):
@@ -91,7 +92,28 @@ if __name__=="__main__":
     ax = fig.add_subplot(111, projection='3d')
     ax.set_xlabel('a accuracy')
     ax.set_ylabel('b accuracy')
-    ax.set_zlabel('state error')
+
+
+
+    if (param_plot==3):
+        ax.set_zlabel('PERCEPTION error')
+    elif  (param_plot==4):
+        ax.set_zlabel('ACTION error')
+    elif  (param_plot==5):
+        ax.set_zlabel('PERCEPTION entropy')
+    elif  (param_plot==6):
+        ax.set_zlabel('ACTION entropy')
+    elif  (param_plot==7):
+        ax.set_zlabel('INITIAL STATE entropy')
+    elif  (param_plot==8):
+        ax.set_zlabel('state error')
+    elif  (param_plot==9):
+        ax.set_zlabel('behaviour error')
+    elif  (param_plot==10):
+        ax.set_zlabel('observations error')
+    elif  (param_plot==11):
+        ax.set_zlabel('perception error')
+
     plot = [ax.plot_surface(x, y, z_array[:, :, 0], color='0.75', rstride=1, cstride=1)]
     ax.set_zlim(0, 1.1)
     ani = animation.FuncAnimation(fig, change_plot, frn, fargs=(z_array, plot), interval=1000 / fps)

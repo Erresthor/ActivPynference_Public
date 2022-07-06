@@ -175,7 +175,6 @@ def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_ar
 def evaluate_model_mean(evaluator,modelname,savepath) :
     """Generate the mean trial by selecting the mean value accross all instances for every matrix and error estimators    """
     A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
-    print(A_list)
     return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
 
 def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=False,mod_ind=0,fac_ind=0,show=False):
@@ -228,6 +227,14 @@ def trial_plot(savecontainer,plotmean=False,action_labels="alphabet",title=None,
                 a_mat,b_mat,
                 plotmean=plotmean,action_labels=action_labels,title=title)
     figure.show()
+
+def trial_plot_from_name(save_path,model_name,instance,list_of_t,
+                        plotmean=False,action_labels="alphabet",title="",
+                        hidden_state_factor = 0,perc_modality = 0) :
+    for t in list_of_t:
+        fullname = ActiveSaveManager.generate_save_name(os.path.join(save_path,model_name),instance,t,'f')
+        container = ActiveModelSaveContainer.load_active_model_container(fullname)
+        trial_plot(container,plotmean,action_labels,title+"_"+str(t),hidden_state_factor,perc_modality)
 
 def run_a_trial():
     """An example trial to check if the whole package actually works"""

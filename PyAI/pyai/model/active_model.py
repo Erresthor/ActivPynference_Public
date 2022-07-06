@@ -154,7 +154,7 @@ class ActiveModel():
             self.initialize_layer()
             self.sample_size += 1
     
-    def layer_generator(layer,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None):
+    def layer_generator(layer,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,verbose=False):
         """ Allows better control of a model run. The user can define initial states and observations, as well as complex transition and perception rules. 
         For now, pre-defined sequences of states, observations and actions using self.s_,self.u_ and self.o_ aren't implemented."""
 
@@ -175,6 +175,7 @@ class ActiveModel():
             layer.s[:,t] = next_real_state
             layer.o[:,t] = next_observation
 
+            layer.verbose = verbose
             layer.tick()
             yield [layer,t]
 
@@ -198,7 +199,7 @@ class ActiveModel():
     def run_trial(self,trial_counter,state_transition_rule=None,obs_perception_rule=None,initial_state=None,initial_observation=None,overwrite=False,global_prop=None,list_of_last_n_trial_times=None):
         """Initialize sample_size generators with the same rules.
             Possibility to introduce parrallel processing here ? """
-        
+
         savebool = (self.save_manager.save_this_trial(trial_counter))and(isField(self.save_manager))
 
         if (savebool)and((trial_counter==0)or(not(self.isModelSaved()))):
@@ -265,7 +266,7 @@ class ActiveModel():
             if run_next_trial :
                 print("------")
                 print("Simulating Model " + str(self.model_name) +" -  Trial " + str(trial_counter) +" for instance " + str(k)+ ".")
-                for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation):
+                for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation,verbose=self.verbose):
                     t = ol[1]  # To get the actual timestep 
                     updated_layer = ol[0]
                     if ((t in self.saveticks)and(savebool)) :

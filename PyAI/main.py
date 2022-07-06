@@ -96,32 +96,34 @@ if __name__=="__main__":
     # print("----------")
     # for action in range(5):
     #     print(np.round(model.b[0][:,:,action],2))
-    model.input_parameters = model_options
-    model.index = index_list[list_index] # This is to track the input parameters
+    # model.input_parameters = model_options
+    # model.index = index_list[list_index] # This is to track the input parameters
     # We can also add custom values for the matrices or modify the run here :
     # model.parameter = new_value
-    model.initialize_n_layers(Ninstances)
-    trial_times = [0.01]
-    model.verbose = False
-    model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None,list_of_last_n_trial_times=trial_times)
+    # model.initialize_n_layers(Ninstances)
+    # trial_times = [0.01]
+    # model.verbose = False
+    # model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None,list_of_last_n_trial_times=trial_times)
 
     # Old version : (could not shunt the way model options impacted the model :/ too restrictive or a better way of following things up ?)
-    #run_model(save_path,model_name,model_options,Ntrials,Ninstances,overwrite = False,global_prop=[0,1],verbose=False)
+    # run_model(save_path,model_name,model_options,Ntrials,Ninstances,overwrite = False,global_prop=[0,1],verbose=False)
     
 
     # Here, we shoud generate a first set of run-wide performance results
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
     
 
-    generate_model_sumup(model_name,save_path,True)
-    sumup  = save_model_sumup_for(model_name,save_path,evaluate_container)[1]
+    # generate_model_sumup(model_name,save_path,True)
+    # sumup  = save_model_sumup_for(model_name,save_path,evaluate_container)[1]
     # mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
     # 0      1       2        3           4     5       6    7         8                  9                      10                 11  
     
-    #print(sumup)
-    general_performance_plot(save_path,model_name,"GLOBAL",
-            np.arange(0,Ntrials,1),sumup[3],sumup[4],sumup[5],sumup[6],sumup[8],sumup[9])
+    # print(sumup)
+    # general_performance_plot(save_path,model_name,"GLOBAL",
+    #         np.arange(0,Ntrials,1),sumup[3],sumup[4],sumup[5],sumup[6],sumup[8],sumup[9])
     
 
-    trial_plot_from_name(save_path,model_name,0,[0,1,2,3,Ntrials-2,Ntrials-1])
-    plt.show()
+    # trial_plot_from_name(save_path,model_name,0,[0,1,2,3,Ntrials-2,Ntrials-1])
+    # plt.show()
+    prior_value_a_sigma = np.arange(0,5.25,0.25)
+    print(prior_value_a_sigma)

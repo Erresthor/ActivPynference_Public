@@ -780,7 +780,7 @@ class mdp_layer :
         # If t horizon = 0, N = t, no loop
         # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
-        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,t,T,min(T-1,t+N),t0=t,verbose=self.verbose)
+        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,self.b_complexity,t,T,min(T-1,t+N),t0=t,verbose=self.verbose)
         
         
 

@@ -491,10 +491,7 @@ def trial_plot_old(plotfile,plotmean=False,action_labels="alphabet",title=None):
     states = cont.s
     acts = cont.u
     beliefs = cont.X
-    print("#############")
-    for t in range(T-1):
-        print(str(np.round(cont.U_post[:,t],2)) + " -> " + str(acts[hidden_state_factor,t]))
-    
+
     Nactions = cont.U_post.shape[0]
     Ns = beliefs[hidden_state_factor].shape[0]
     No = Ns # In the case of observation-hidden state same size spaces

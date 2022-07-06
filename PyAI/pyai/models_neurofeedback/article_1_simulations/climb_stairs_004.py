@@ -113,7 +113,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     b_ = []
     b_.append(constant*prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma) + 1 )
-    #b_[0] = 0.25*np.ones(b_[0].shape)
+    b_[0] = 0.25*np.ones(b_[0].shape)
     # print(b_)
     # print(b_[0].shape)
     la = -2
@@ -124,11 +124,11 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         [1*rs],
                         [2*rs]])
 
-    # C_mental = np.array([[0.1*la],
-    #                     [0.05*la],
-    #                     [0],
-    #                     [0.05*rs],
-    #                     [5*rs]])
+    C_mental = np.array([[0.1*la],
+                        [0.05*la],
+                        [0],
+                        [0.05*rs],
+                        [5*rs]])
     C_ = [C_mental]
 
     NU = nu + npoubelle

@@ -53,7 +53,7 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax
 from ..base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions,flexible_toString,flexible_print,flexible_copy
 from ..visi_lib.state_tree import tree_node,state_tree
 
-def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = False) :
+def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verbose = False) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -97,7 +97,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
     L = 1
     for modality in range (Nmod):
         L = L * spm_dot(A[modality],O[modality])
-    # P is the posterior over hidden states based on priors
+    # P is the posterior over hidden states at the current time t based on priors
     P[t] =normalize(L.flatten()*P[t])
 
     if (t==T):
@@ -108,11 +108,12 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
     Q = []
     for action in range(U.shape[0]) :
         Q.append(np.dot(B[action],P[t])) # predictive posterior of states at time t
-        
+        # print(Q)
         for modality in range(Nmod):
             # print(Nf)
             # print(A[modality].shape)
             flattened_A = flatten_last_n_dimensions(A[modality].ndim-1,A[modality])
+            flattened_W = flatten_last_n_dimensions(Nf,A_novelty[modality])
             qo = np.dot(flattened_A,Q[action]) # prediction over observations at time t
             po = C[modality][:,t]              # what we want at that time
             bayesian_risk_only = False 
@@ -121,13 +122,52 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
             else :
                 # G[factor] =                              ambiguity              +                 risk
                 G[action] = G[action] + np.dot(Q[action].T,A_ambiguity[modality].flatten()) - np.dot(qo.T,nat_log(qo)-po)
+
+
                 # Bayesian surprise about parameters (= novelty)
-                G[action] = G[action] - np.dot(qo.T,np.dot(flatten_last_n_dimensions(Nf,A_novelty[modality]),Q[action]))
+                # A term to promote agent exploration to improve the model
+                # The smaller the weights of a single cell, the more it is explored
+                # The bigger the weights of the whole modality, the less it is explored
+                # THIS IS ONLY COHERENT IF WE ARE LEARNING a 
+                # PLUS
+                # I THINK THERE IS A SIGN MISTAKE HERE : 
+                A_exploration_term = 0
+                B_exploration_term = 0
+
+                # if we learn a :
+                A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                # if we learn b : 
+                B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P[t]))
+
+                if (t==t0) :
+                    print(t)
+                    print("Action : " + str(action) + "  - Exploratory terms : B " + str(B_exploration_term) + " A " + str(A_exploration_term))
+                    print("---")
+                G[action] = G[action] - A_exploration_term - B_exploration_term
+                # Let's pick an observation probability dirichlet prior for given set of states : a_1 = [10,5,0.01], a_2  = [1,1,1]
+                # w_norm(a_1) = -[0.1 - 1/15, 0.2 - 1/15, 100 - 1/15]) = [-0.033, -0.133 , -99.933]
+                # w_norm(a_2) = -[1 - 1/3 ,1 - 1/3 ,1 - 1/3] =           [-0.66,-0.66,-0.66]         # Considerable weights towards a_1, whereas it has already been explored --> error !
+                # WOuld encourage very well-known actions & particularly unwanted actions
+                # The inverse would make a lot more sense ? (R. Smith et al. , A step-by-step tutorial on active inference and its application to empirical data, 2022 page 34)
+
+                # TODO : the same with b !
+                
+                # print(np.dot(B_novelty[action],P[t]))
+                # print(Q[action])
+                # print(t,action,A_exploration_term,B_exploration_term)
+                # print("#######")
+
+                # Remark : leave as is for now, but not the best way to 
+                # promote A and B exploration ?
     # Q = q(s|pi) at time t
     # P = q(s) at time t
     # P_archive = q(s) at time t --> N 
     # u = q(pi) at time t
-
+    # if (t==0):
+    #     print(G)
+    #     np.set_printoptions(suppress=True)
+    #     print("A_novelty =")
+    #     print(np.round(flattened_W,2))
     condition = (t<10) and (verbose) and True
     if (t==t0)and (condition):
         print("---------------------------------------------------------------------")
@@ -173,7 +213,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,t,T,N,t0 = 0,verbose = Fals
                     #prior over subsequent action under this hidden state
                     #----------------------------------------------------------
                     P[t+1] = Q[action]
-                    F,useless = spm_forwards(flexible_copy(O),P,U,A,B,C,E,A_ambiguity,A_novelty,t+1,T,N,t0=t0)
+                    F,useless = spm_forwards(flexible_copy(O),P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t+1,T,N,t0=t0)
                     
                     if not(isNone(F)):  
                         # If the next timestep is not the last, update efe marginalized over subsequent action

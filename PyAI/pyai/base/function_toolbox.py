@@ -97,10 +97,18 @@ def spm_wnorm_toocomplex(A):
         return (np.squeeze(A_wnormed))
     return A_wnormed
 
-def spm_wnorm(A) :
+def spm_wnorm(A,epsilon = 1e-16) :
         # no idea what it does ¯\_(ツ)_/¯ 
-    A = A + 1e-16 #♣np.exp(-16)
-    A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./A))/2.
+    A = A +  epsilon#♣np.exp(-16)
+    #print(1./np.sum(A,axis=0,keepdims=True))
+    A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./A))/2. # Always <0 --> Unwanted ?
+    return np.squeeze(A_wnormed)
+
+def inverted_spm_wnorm(A,epsilon = 1e-16) :
+        # Same as before but with sign inverted so that it is always >0
+    A = A +  epsilon#♣np.exp(-16)
+    print(1./np.sum(A,axis=0,keepdims=True))
+    A_wnormed = ((1./A)-(1./np.sum(A,axis=0,keepdims=True)) )/2.
     return np.squeeze(A_wnormed)
 
 def spm_cross(*argv) :

@@ -39,6 +39,7 @@ import matplotlib.pyplot as plt
 
 from ..base.miscellaneous_toolbox import isField, flexible_copy
 from ..base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax
+from ..base.function_toolbox import inverted_spm_wnorm
 from .parameters.policy_method import Policy_method
 from .layer_precisions import init_precisions
 
@@ -125,7 +126,21 @@ def initialize_fields(layer_input):
         a_novelty = []          # <=> W{m,g}
         for modality in range(Nmod):
             a_prior.append(np.copy(layer_input.a_[modality]))
-            a_novelty.append( spm_wnorm(a_prior[modality])*(a_prior[modality]>0) )
+            epsilon = 1e-16
+            # a_novelty.append( spm_wnorm(a_prior[modality],epsilon)*(a_prior[modality]>epsilon) )
+            # I believe the true novelty should be the opposite of the previous term to be >0 :
+            a_novelty.append(-spm_wnorm(a_prior[modality],epsilon)*(a_prior[modality]>epsilon) )
+        # print("--------------------------------")
+        # print("--------------------------------")
+        # print("--------------------------------")
+        # print("--------------------------------")
+        # np.set_printoptions(suppress=True)
+        # print(np.round(a_prior[modality],10))
+        # print(np.round(a_novelty,2))
+        # print("--------------------------------")
+        # print("--------------------------------")
+        # print("--------------------------------")
+        # print("--------------------------------")
     elif isField(layer_input.A_) :
         a = normalize(layer_input.A_)
 
@@ -152,7 +167,7 @@ def initialize_fields(layer_input):
         b_concentration = []
         for factor in range(Nf):   # For all factors
             b_prior.append(np.copy(layer_input.b_[factor]))
-            b_complexity.append(spm_wnorm(b_prior[factor])*(b_prior[factor]>0))
+            b_complexity.append(-spm_wnorm(b_prior[factor])*(b_prior[factor]>0))
     elif isField(layer_input.B_) :
         b = normalize(layer_input.B_)
     else :
@@ -161,11 +176,14 @@ def initialize_fields(layer_input):
     if (layer_input.policy_method == Policy_method.ACTION):
         # Kronecker form of policies :
         b_kron = [] 
+        b_complex_kron = []
         for k in range(Np) :
             b_kron.append(1)
+            b_complex_kron.append(1)
             for f in range(Nf):
                 #b_kron[k] = spm_kron(b[f][:,:,layer_input.U_[k,f]],b_kron[k])
-                b_kron[k] = spm_kron(b_kron[k],b[f][:,:,layer_input.U_[k,f]])                
+                b_kron[k] = spm_kron(b_kron[k],b[f][:,:,layer_input.U_[k,f]])
+                b_complex_kron[k] = spm_kron(b_complex_kron[k],b_complexity[f][:,:,layer_input.U_[k,f]])                
     # Some way of "compressing" multiple factors into a single matrix 
     # Different from Matlab script, because our kronecker product orders dimension differently
 
@@ -225,7 +243,6 @@ def initialize_fields(layer_input):
                 c_prior[modality] = np.tile(c_prior[modality],(1,T))
         C[modality] = nat_log(softmax(C[modality],0))
     
-
     if (layer_input.policy_method == Policy_method.POLICY) :
         V = layer_input.V_.astype(np.int)
         layer_input.V = V
@@ -252,6 +269,7 @@ def initialize_fields(layer_input):
         layer_input.b_complexity = b_complexity
     if (layer_input.policy_method == Policy_method.ACTION):
         layer_input.b_kron = b_kron
+        layer_input.b_complexity = b_complex_kron
     
     layer_input.c = C
     layer_input.C = C

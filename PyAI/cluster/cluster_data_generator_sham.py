@@ -85,10 +85,10 @@ if __name__=="__main__":
     
     # Get the index-th element of the dictionnary to generate the related 
     a_learn = model_options[0]
-    a_acc = model_options[1]
+    a_acc = max(model_options[1],0.005)
     a_str = model_options[2]
     b_learn = model_options[3]
-    b_acc = model_options[4]
+    b_acc = max(model_options[4],0.005)
     b_str = model_options[5]
     d_learn = model_options[6]
     memory_decay_type = model_options[7]

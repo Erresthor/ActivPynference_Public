@@ -55,8 +55,12 @@ def cast_to_array(x,y,scale_array):
 
 # print(np.linspace(0,10,10+1))
 def generate_distribution(empty_array,mu,sig2,n_points = 500,ecart = 3) :
+    epsilon = 1e-5
     assert empty_array.ndim ==1,"Array should be 1 dimensionnal"
     k = empty_array.shape[0]
+
+    if (sig2 < epsilon):
+        sig2 = epsilon
 
     ecart = max(ecart,0.5)
     x = np.linspace(0-ecart,k-1+ecart,n_points)

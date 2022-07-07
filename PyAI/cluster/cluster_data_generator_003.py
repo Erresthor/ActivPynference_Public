@@ -33,7 +33,7 @@ def generate_a_parameter_list(a_priors,b_priors) :
     for ka in range(a_priors.shape[0]):
         for kb in range(b_priors.shape[0]):
             modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
+            modelname = "a_ac"+str(int(100*a_priors[ka]))+"_str1_b_ac"+str(int(100*b_priors[kb]))+"_str1"
             new_list.append([modelname,modelchar])
             indexlist.append([ka,kb])
     return new_list,indexlist

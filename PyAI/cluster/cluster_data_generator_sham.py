@@ -19,8 +19,8 @@ from pyai.models_neurofeedback.article_1_simulations.climb_stairs_sham import nf
 # Made to parrallelize in a cluster-like environment
 
 # Grid of prior values explored : 
-prior_value_a = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0,20.0])
-prior_value_b = np.array([0.05,0.1,0.2,0.3,0.5,1.0,2.0,3.5,5.0,7.5,10.0,20.0])
+prior_value_a_sigma = np.arange(0,5.25,0.25)
+prior_value_b_sigma = np.arange(0,5.25,0.25)
  
 
 def generate_a_dictionnary(a_priors,b_priors) :
@@ -28,7 +28,7 @@ def generate_a_dictionnary(a_priors,b_priors) :
     for ka in range(a_priors.shape[0]):
         for kb in range(b_priors.shape[0]):
             modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
+            modelname = "a_ac"+str(int(100*a_priors[ka]))+"_str1_b_ac"+str(int(100*b_priors[kb]))+"_str1"
             new_dict[modelname] = modelchar
     return new_dict
 
@@ -60,7 +60,7 @@ def save_model_sumup_for(modelname,savepath,evaluator):
     model_list = [model_object,performance_list]
     return model_list
 
-parameter_list,index_list = generate_a_parameter_list(prior_value_a,prior_value_b)
+parameter_list,index_list = generate_a_parameter_list(prior_value_a_sigma,prior_value_b_sigma)
 
 if __name__=="__main__":
     input_arguments = sys.argv

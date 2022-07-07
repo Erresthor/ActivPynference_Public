@@ -19,8 +19,8 @@ from pyai.models_neurofeedback.article_1_simulations.climb_stairs_002 import nf_
 # Made to parrallelize in a cluster-like environment
 
 # Grid of prior values explored : 
-prior_value_a_sigma = np.array([0.001,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1.0])
-prior_value_b_sigma = np.array([0.001,0.05,0.1,0.15,0.2,0.25,0.3,0.35,0.4,0.45,0.5,0.55,0.6,0.65,0.7,0.75,0.8,0.85,0.9,0.95,1.0])
+prior_value_a_sigma = np.arange(0,5.25,0.25)
+prior_value_b_sigma = np.arange(0,5.25,0.25)
 
 def generate_a_parameter_list(a_priors,b_priors) :
     # Undordered dictionnaries are soooo not cool :(
@@ -29,7 +29,7 @@ def generate_a_parameter_list(a_priors,b_priors) :
     for ka in range(a_priors.shape[0]):
         for kb in range(b_priors.shape[0]):
             modelchar = [False,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
+            modelname = "a_ac"+str(int(100*a_priors[ka]))+"_str1_b_ac"+str(int(100*b_priors[kb]))+"_str1"
             new_list.append([modelname,modelchar])
             indexlist.append([ka,kb])
     return new_list,indexlist

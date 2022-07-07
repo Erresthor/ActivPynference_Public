@@ -18,9 +18,9 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
                         learn_b=True,prior_b_sigma = 3,prior_b_strength=1,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False):   
+                        verbose = False,constant = 20):   
     Nf = 1
-    constant = 20
+    
 
     initial_state = 0
     D_ =[]

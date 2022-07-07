@@ -17,9 +17,9 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
                         learn_b=True,prior_b_sigma = 3,prior_b_strength=1,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False):   
+                        verbose = False,constant = 20):   
     Nf = 1
-
+    
     initial_state = 0
     D_ =[]
     D_.append(np.array([1,1,0,0,0])) #[Terrible state, neutral state , good state, great state, excessive state]
@@ -59,7 +59,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
     # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
     a_ = []
-    a_.append(prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma))
+    a_.append(constant*prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma)+1)
 
     temporary = a_
     A_ = a_
@@ -112,7 +112,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     B_.append(B_mental_states)
 
     b_ = []
-    b_.append(prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma))
+    b_.append(constant*prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma)+1)
     
     # print(b_)
     # print(b_[0].shape)

@@ -18,7 +18,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
                         learn_b=True,prior_b_sigma = 3,prior_b_strength=1,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False,constant = 20):   
+                        verbose = False,constant = 20,SHAM=False):   
     Nf = 1
     
 
@@ -44,19 +44,23 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
     pa = 1
+
     A_obs_mental = np.array([[pa  ,0.5-0.5*pa,0         ,0         ,0   ],
                             [1-pa,pa        ,0.5-0.5*pa,0         ,0   ],
                             [0   ,0.5-0.5*pa,pa        ,0.5-0.5*pa,0   ],
                             [0   ,0         ,0.5-0.5*pa,pa        ,1-pa],
                             [0   ,0         ,0         ,0.5-0.5*pa,pa  ]])
+    if (SHAM):
+        A_= [normalize(np.ones((No[0],Ns[0])))]
+    else : 
+        A_ = [A_obs_mental]
+        
     # A_obs_mental = np.array([[0,0,0,0,1],
     #                         [0,0,0,1,0],
     #                         [0,0,1,0,0],
     #                         [0,1,0,0,0],
     #                         [1,0,0,0,0]])
-    A_ = [A_obs_mental]
-
-
+    
 
     # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
     # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[

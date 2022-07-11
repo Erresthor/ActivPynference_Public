@@ -64,11 +64,11 @@ if __name__=="__main__":
     
 
     size = (21,21)
-    param_plot = 6
+    param_plot = 4
     
     N = 50
     fps = 30
-    frn = 500
+    frn = 250
 
     z_array = np.zeros(size+(frn,))
     for t in range(frn):

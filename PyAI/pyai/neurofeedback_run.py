@@ -1,4 +1,5 @@
 from pickle import FALSE
+from statistics import variance
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -17,11 +18,12 @@ from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,g
 from .models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
 # EXTRACTORS OF TRIALS
-def evaluate_trial(evaluator,trialcontainer,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions):
+def evaluate_trial(evaluator,trialcontainer,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions):
     eval_cont = evaluator(trialcontainer)
 
     a_err.append(eval_cont['a_dir'])
     b_err.append(eval_cont['b_dir'])
+    d_err.append(eval_cont['d_dir'])
     Ka.append(eval_cont['a_uncertainty'])
     Kb.append(eval_cont['b_uncertainty'])
     Kd.append(eval_cont['d_uncertainty'])
@@ -38,7 +40,7 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
     total_trials = len(os.listdir(instance_folder))#number_of_trials_in_instance_folder(instance_folder)    
     trials = range(total_trials)
     
-    Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour = [],[],[],[],[],[],[]
+    Ka,Kb,Kd,a_err,b_err,d_err,error_states,error_behaviour = [],[],[],[],[],[],[],[]
     error_observations,error_perceptions = [],[]
 
     if(return_matrices):
@@ -46,7 +48,7 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
     
     for trial in trials:
         cont = ActiveSaveManager.open_trial_container(os.path.join(savepath,modelname),instance_number,trial,'f')
-        evaluate_trial(evaluator,cont,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions)
+        evaluate_trial(evaluator,cont,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions)
         if(return_matrices):
             try :
                 a_mat = cont.a_
@@ -67,9 +69,9 @@ def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matr
             D_list.append(d_mat)
     
     if (return_matrices):
-        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions,A_list,B_list,D_list
+        return trials,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions,A_list,B_list,D_list
     else :
-        return trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions
+        return trials,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions
  
 def evaluate_model(evaluator,modelname,savepath) : 
     """Return all the performance indicators implemented for a given model accross all layer instances
@@ -78,7 +80,7 @@ def evaluate_model(evaluator,modelname,savepath) :
 
     A_list,B_list,D_list = [],[],[]
     
-    Ka,Kb,Kd,a_err,b_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[]      
+    Ka,Kb,Kd,a_err,b_err,d_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[]      
     model = ActiveModel.load_model(loadpath)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
@@ -96,7 +98,7 @@ def evaluate_model(evaluator,modelname,savepath) :
             # This is trial results (layer instance)
             layer_instance = int(potential_instance)
 
-            trials,a_err_i,b_err_i,Ka_i,Kb_i,Kd_i,error_states_i,error_behaviour_i,error_observations_i,error_perceptions_i,A_list_i,B_list_i,D_list_i = evaluate_instance(evaluator,savepath,modelname,instance_number=layer_instance,return_matrices=True)
+            trials,a_err_i,b_err_i,d_err_i,Ka_i,Kb_i,Kd_i,error_states_i,error_behaviour_i,error_observations_i,error_perceptions_i,A_list_i,B_list_i,D_list_i = evaluate_instance(evaluator,savepath,modelname,instance_number=layer_instance,return_matrices=True)
             
             A_list.append(A_list_i)
             B_list.append(B_list_i)
@@ -106,6 +108,7 @@ def evaluate_model(evaluator,modelname,savepath) :
             Kd.append(Kd_i)
             a_err.append(a_err_i)
             b_err.append(b_err_i)
+            d_err.append(d_err_i)
             error_states.append(error_states_i)
             error_behaviour.append(error_behaviour_i)
             error_observations.append(error_observations_i)
@@ -116,13 +119,14 @@ def evaluate_model(evaluator,modelname,savepath) :
     Kd_arr = np.array(Kd)
     a_err_arr = np.array(a_err)
     b_err_arr = np.array(b_err)
+    d_err_arr = np.array(d_err)
     error_states_arr = np.array(error_states)
     error_behaviour_arr = np.array(error_behaviour)
     error_observations_arr = np.array(error_observations)
     error_perceptions_arr = np.array(error_perceptions)
-    return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr
+    return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr
 
-def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
+def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
 
     def mean_over_first_dim(list_of_list_of_matrices):
         def flexible_sum(list_of_matrices_1,list_of_matrices_2):
@@ -166,16 +170,127 @@ def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_ar
     Kd_arr = np.mean(Kd_arr,axis=0)
     a_err_arr = np.mean(a_err_arr,axis=0)
     b_err_arr = np.mean(b_err_arr,axis=0)
+    d_err_arr = np.mean(d_err_arr,axis=0)
     error_states_arr = np.mean(error_states_arr,axis=0)
     error_behaviour_arr = np.mean(error_behaviour_arr,axis=0)
     error_observations_arr = np.mean(error_observations_arr,axis=0)
     error_perception_arr = np.mean(error_perceptions_arr,axis=0)
-    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
+
+def variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
+    # Not used for now ----------------------------------------------------------------------------------------
+    # def mean_over_first_dim(list_of_list_of_matrices):
+    #     def flexible_sum(list_of_matrices_1,list_of_matrices_2):
+    #         assert len(list_of_matrices_1)==len(list_of_matrices_2),"List should be equal dimensions before summing"
+    #         r = []
+    #         for k in range(len(list_of_matrices_1)) :
+    #             r.append(list_of_matrices_1[k] + list_of_matrices_2[k])
+    #         return r
+        
+    #     r = [0 for i in range(len(list_of_list_of_matrices[0]))]
+    #     cnt = 0
+    #     for list_of_matrices in list_of_list_of_matrices :
+    #         r = flexible_sum(r, list_of_matrices)
+    #         cnt = cnt + 1.0
+
+    #     # Mean :
+    #     for k in range(len(list_of_list_of_matrices[0])):
+    #         r[k] = r[k]/cnt
+        
+    #     return r
+
+    mean_A = []
+    mean_B = []
+    mean_D = []
+    total_instances = len(A_list)
+    # for t in range(len(A_list[0])): # Iterating through timesteps
+    #     a_at_t = []
+    #     b_at_t = []
+    #     d_at_t = []
+    #     for k in range(len(A_list)):
+    #         a_at_t.append(normalize(A_list[k][t]))
+    #         b_at_t.append(normalize(B_list[k][t]))
+    #         d_at_t.append(normalize(D_list[k][t]))
+
+    #     mean_A.append(mean_over_first_dim(a_at_t))
+    #     mean_B.append(mean_over_first_dim(b_at_t))
+    #     mean_D.append(mean_over_first_dim(d_at_t))
+
+    Ka_arr = np.var(Ka_arr,axis=0)
+    Kb_arr = np.var(Kb_arr,axis=0)
+    Kd_arr = np.var(Kd_arr,axis=0)
+    a_err_arr = np.var(a_err_arr,axis=0)
+    b_err_arr = np.var(b_err_arr,axis=0)
+    d_err_arr = np.var(d_err_arr,axis=0)
+    error_states_arr = np.var(error_states_arr,axis=0)
+    error_behaviour_arr = np.var(error_behaviour_arr,axis=0)
+    error_observations_arr = np.var(error_observations_arr,axis=0)
+    error_perception_arr = np.var(error_perceptions_arr,axis=0)
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
 
 def evaluate_model_mean(evaluator,modelname,savepath) :
     """Generate the mean trial by selecting the mean value accross all instances for every matrix and error estimators    """
-    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
-    return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
+    return mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+
+def evaluate_model_dict(evaluator,modelname,savepath):
+    A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
+    A_list_mean,B_list_mean,D_list_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+    A_list_var,B_list_var,D_list_var,Ka_arr_var,Kb_arr_var,Kd_arr_var,a_err_arr_var,b_err_arr_var,d_err_arr_var,error_states_arr_var,error_behaviour_arr_var,error_observations_arr_var,error_perceptions_arr_var = variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+
+
+    return_dict_complete = {
+        "A_list" : A_list,
+        "B_list" : B_list,
+        "D_list" : D_list,
+        "a_entropy" : Ka_arr,
+        "b_entropy" : Kb_arr,
+        "d_entropy" : Kd_arr,
+        "a_error" : a_err_arr,
+        "b_error" : b_err_arr,
+        "d_error" : d_err_arr,
+        "state_error" : error_states_arr,
+        "behaviour_error" : error_behaviour_arr,
+        "observation_error" : error_observations_arr,
+        "perception_error" : error_perceptions_arr
+    }
+
+    return_dict_mean = {
+        "A_list_mean" : A_list_mean,
+        "B_list_mean" : B_list_mean,
+        "D_list_mean" : D_list_mean,
+        "a_entropy" : Ka_arr_mean,
+        "b_entropy" : Kb_arr_mean,
+        "d_entropy" : Kd_arr_mean,
+        "a_error" : a_err_arr_mean,
+        "b_error" : b_err_arr_mean,
+        "d_error" : d_err_arr_mean,
+        "state_error" : error_states_arr_mean,
+        "behaviour_error" : error_behaviour_arr_mean,
+        "observation_error" : error_observations_arr_mean,
+        "perception_error" : error_perceptions_arr_mean
+    }
+
+    return_dict_variance = {
+        "a_entropy" : Ka_arr_var,
+        "b_entropy" : Kb_arr_var,
+        "d_entropy" : Kd_arr_var,
+        "a_error" : a_err_arr_var,
+        "b_error" : b_err_arr_var,
+        "d_error" : d_err_arr_var,
+        "state_error" : error_states_arr_var,
+        "behaviour_error" : error_behaviour_arr_var,
+        "observation_error" : error_observations_arr_var,
+        "perception_error" : error_perceptions_arr_var
+    }
+
+    return_dictionnary = {
+        "complete" : return_dict_complete,
+        "mean" : return_dict_mean,
+        "variance" : return_dict_variance
+    }
+
+    return return_dictionnary
 
 def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=False,mod_ind=0,fac_ind=0,show=False):
     """ Plot of individual agent performances over all instances for a given model."""

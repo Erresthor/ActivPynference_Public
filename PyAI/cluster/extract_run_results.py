@@ -61,6 +61,7 @@ def produce_sumup_for(savepath,evaluator,overwrite=False):
 
 
 if __name__=="__main__" :
+    # Come ooon
     # AFAIK, there is no way to check if cluster tasks are over. This has to be launched manually to generate a sumup matrix file.
     # We then send it (by mail ?) to the local post for analysis
     input_arguments = sys.argv
@@ -80,12 +81,12 @@ if __name__=="__main__" :
     if(overwrite):
         print("(Overwriting previous files)")
     print("------------------------------------------------------------------")
-    bigbig_dict = produce_sumup_for(save_path,evaluate_container)
+    bigbig_dict = produce_sumup_for(save_path,evaluate_container,overwrite=overwrite)
 
     sumup_file_name = "simulation_output_" + save_path.split("_")[-1] + ".pyai"
 
     save_flexible(bigbig_dict,os.path.join(save_path,sumup_file_name))
-    print("Saving output to  -  " + save_path + sumup_file_name)
+    print("Saving output to   -  " + save_path + sumup_file_name)
     # Multimodel plot :
     # action_errors = []
     # state_errors = []

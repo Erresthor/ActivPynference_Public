@@ -803,9 +803,9 @@ class mdp_layer :
 
         # posterior_over_policy & precision
         self.u_posterior[:,t] = softmax(G)
-        self.precisions.policy.beta[0,t] = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t]))
+        self.precisions.policy.beta[0,t] = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t])) # Entropy of posterior over policy distribution
         
-        w = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t]))
+        w = np.inner(self.u_posterior[:,t],nat_log(self.u_posterior[:,t])) 
         self.w[t] = w # Policy precision
 
         # Action selection :

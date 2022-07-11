@@ -94,8 +94,8 @@ if __name__=="__main__":
     memory_decay_type = model_options[7]
     memory_decay_halftime = model_options[8]
     # THIS GENERATES THE TRIALS without using run_model
-    model = nf_model(model_name,save_path,prop_poubelle=0.0,prior_a_ratio=a_acc,prior_a_strength=a_str,learn_a=a_learn,
-                                                        prior_b_ratio=b_acc,prior_b_strength=b_str,learn_b=b_learn,
+    model = nf_model(model_name,save_path,prop_poubelle=0.0,prior_a_sigma=a_acc,prior_a_strength=a_str,learn_a=a_learn,
+                                                        prior_b_sigma=b_acc,prior_b_strength=b_str,learn_b=b_learn,
                                                         learn_d=d_learn,
                                                         mem_dec_type=memory_decay_type,mem_dec_halftime=memory_decay_halftime,
                                                         verbose=False)

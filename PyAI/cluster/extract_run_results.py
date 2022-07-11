@@ -80,7 +80,7 @@ if __name__=="__main__" :
     if(overwrite):
         print("(Overwriting previous files)")
     print("------------------------------------------------------------------")
-    bigbig_dict = produce_sumup_for(save_path,evaluate_container)
+    bigbig_dict = produce_sumup_for(save_path,evaluate_container,overwrite=overwrite)
 
     sumup_file_name = "simulation_output_" + save_path.split("_")[-1] + ".pyai"
 

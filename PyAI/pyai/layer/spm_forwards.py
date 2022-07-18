@@ -139,7 +139,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
                 # if we learn b : 
                 B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P[t]))
 
-                if (t==t0) :
+                if (t==t0) and False :
                     print(t)
                     print("Action : " + str(action) + "  - Exploratory terms : B " + str(B_exploration_term) + " A " + str(A_exploration_term))
                     print("---")

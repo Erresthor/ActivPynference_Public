@@ -80,7 +80,7 @@ def evaluate_model(evaluator,modelname,savepath) :
 
     A_list,B_list,D_list = [],[],[]
     
-    Ka,Kb,Kd,a_err,b_err,d_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[]      
+    Ka,Kb,Kd,a_err,b_err,d_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[],[]      
     model = ActiveModel.load_model(loadpath)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
@@ -175,7 +175,7 @@ def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_ar
     error_behaviour_arr = np.mean(error_behaviour_arr,axis=0)
     error_observations_arr = np.mean(error_observations_arr,axis=0)
     error_perception_arr = np.mean(error_perceptions_arr,axis=0)
-    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr
 
 def variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
     # Not used for now ----------------------------------------------------------------------------------------
@@ -226,7 +226,7 @@ def variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_er
     error_behaviour_arr = np.var(error_behaviour_arr,axis=0)
     error_observations_arr = np.var(error_observations_arr,axis=0)
     error_perception_arr = np.var(error_perceptions_arr,axis=0)
-    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
+    return mean_A,mean_B,mean_D,a_err_arr,b_err_arr,d_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr
 
 def evaluate_model_mean(evaluator,modelname,savepath) :
     """Generate the mean trial by selecting the mean value accross all instances for every matrix and error estimators    """
@@ -235,7 +235,7 @@ def evaluate_model_mean(evaluator,modelname,savepath) :
 
 def evaluate_model_dict(evaluator,modelname,savepath):
     A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
-    A_list_mean,B_list_mean,D_list_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+    A_list_mean,B_list_mean,D_list_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
     A_list_var,B_list_var,D_list_var,Ka_arr_var,Kb_arr_var,Kd_arr_var,a_err_arr_var,b_err_arr_var,d_err_arr_var,error_states_arr_var,error_behaviour_arr_var,error_observations_arr_var,error_perceptions_arr_var = variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
 
 

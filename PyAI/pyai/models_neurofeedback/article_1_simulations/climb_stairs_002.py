@@ -61,7 +61,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     a_ = []
     a_.append(constant*prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma)+1)
 
-    temporary = a_
+    temporary = A_
     A_ = a_
     a_ = temporary
 

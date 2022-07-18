@@ -64,7 +64,7 @@ if __name__=="__main__":
     
 
     size = (21,21)
-    param_plot = 4
+    param_plot = 3
     
     N = 50
     fps = 30
@@ -73,7 +73,7 @@ if __name__=="__main__":
     z_array = np.zeros(size+(frn,))
     for t in range(frn):
         smooth_it = 0
-        if (param_plot==8) or (param_plot==9) or (param_plot==10):
+        if (param_plot==8) or (param_plot==9) or (param_plot==10) or (param_plot==11):
             smooth_it = 15
         x,y,z = generate_grids(big_list,t,param_plot,size=size,smooth_it=smooth_it)
         z_array[:,:,t] = z
@@ -96,23 +96,32 @@ if __name__=="__main__":
 
 
     if (param_plot==3):
-        ax.set_zlabel('PERCEPTION error')
+        ax.set_zlabel('PERCEPTION MODEL error')
+        ax.set_title('PERCEPTION MODEL error - KL(a,A)')
     elif  (param_plot==4):
-        ax.set_zlabel('ACTION error')
+        ax.set_zlabel('ACTION MODEL error')
+        ax.set_title('ACTION MODEL error - KL(b,B)')
     elif  (param_plot==5):
-        ax.set_zlabel('PERCEPTION entropy')
+        ax.set_title('PERCEPTION MODEL entropy - E(a)')
+        ax.set_zlabel('PERCEPTION MODEL entropy')
     elif  (param_plot==6):
-        ax.set_zlabel('ACTION entropy')
+        ax.set_zlabel('ACTION MODEL entropy')
+        ax.set_title('ACTION MODEL entropy - E(b)')
     elif  (param_plot==7):
-        ax.set_zlabel('INITIAL STATE entropy')
+        ax.set_zlabel('INITIAL STATE MODEL entropy')
+        ax.set_title('INITIAL STATE MODEL entropy - E(d)')
     elif  (param_plot==8):
         ax.set_zlabel('state error')
+        ax.set_title('TRUE STATE error - ||optimal,true||_s')
     elif  (param_plot==9):
-        ax.set_zlabel('behaviour error')
+        ax.set_zlabel('actions taken error')
+        ax.set_title('TRUE ACTIONS TAKEN error - ||optimal,true||_u')
     elif  (param_plot==10):
         ax.set_zlabel('observations error')
+        ax.set_title('TRUE OBSERVATIONS error - ||optimal,true||_o')
     elif  (param_plot==11):
         ax.set_zlabel('perception error')
+        ax.set_title('TRUE PERCEPTION error - KL(s_estimated,s_true)')
 
     plot = [ax.plot_surface(x, y, z_array[:, :, 0], color='0.75', rstride=1, cstride=1)]
     ax.set_zlim(0, 1.1)

@@ -1,6 +1,7 @@
 #!/usr/bin/python
 from operator import index
 import sys,inspect,os
+from imageio import save
 import numpy as np
 import matplotlib.pyplot as plt
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
@@ -10,7 +11,7 @@ sys.path.insert(0, parentdir)
 from pyai.base.file_toolbox import save_flexible,load_flexible
 from pyai.layer.layer_learn import MemoryDecayType
 from pyai.model.active_model import ActiveModel
-from pyai.neurofeedback_run import evaluate_model_mean
+from pyai.neurofeedback_run import evaluate_model_mean,evaluate_model_dict
 
 #from pyai.models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
@@ -33,22 +34,6 @@ def generate_a_parameter_list(a_priors,b_priors) :
             new_list.append([modelname,modelchar])
             indexlist.append([ka,kb])
     return new_list,indexlist
-
-def save_model_sumup_for(modelname,savepath,evaluator):
-    # There is a MODEL_ file here,we should grab it and extract the model inside, it is a gound indicator of the input parameters
-    # for this run !
-    model_path = os.path.join(savepath,modelname)
-    model_object = ActiveModel.load_model(model_path)
-    
-    # There are also instances here, we should generate mean indicators to get the general performances!
-    mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances = evaluate_model_mean(evaluator,modelname,savepath)
-    # # We can manually go through the instances :
-    # all_instances = [f for f in os.listdir(model_path) if (os.path.isdir(os.path.join(model_path, f)))]
-    # for instance in all_instances :
-    #     instance_path = os.path.join(model_path,instance)
-    performance_list = [mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances]
-    model_list = [model_object,performance_list]
-    return model_list
 
 parameter_list,index_list = generate_a_parameter_list(prior_value_a_sigma,prior_value_b_sigma)
 
@@ -104,7 +89,11 @@ if __name__=="__main__":
 
     # Here, we shoud generate a first set of run-wide performance results
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
-    sumup = save_model_sumup_for(model_name,save_path,evaluate_container)
-    local_model_savepath = os.path.join(save_path,model_name,"_PERFORMANCES")
-    save_flexible(sumup,local_model_savepath)
-    print("Saving model results at :   " + local_model_savepath)
+    #sumup = save_model_sumup_for(model_name,save_path,evaluate_container)
+    sumup_dict = evaluate_model_dict(evaluator=evaluate_container,modelname=model_name,savepath=save_path)
+
+    local_model_savepath_mean = os.path.join(save_path,model_name,"_PERFORMANCES_MEAN")
+    save_flexible(sumup_dict['mean'],local_model_savepath_mean)
+    local_model_savepath_var = os.path.join(save_path,model_name,"_PERFORMANCES_VAR")
+    save_flexible(sumup_dict['variance'],local_model_savepath_var)
+    print("Saving model results at :   " + local_model_savepath_mean+" and "+local_model_savepath_var)

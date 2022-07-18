@@ -12,11 +12,11 @@ from pyai.model.active_model import ActiveModel
 from pyai.model.active_model_save_manager import ActiveSaveManager
 from pyai.model.active_model_container import ActiveModelSaveContainer
 
-from pyai.neurofeedback_run import run_models,run_model,evaluate_model,evaluate_model_mean,trial_plot_from_name
+from pyai.neurofeedback_run import run_models,run_model,evaluate_model,evaluate_model_mean,trial_plot_from_name,evaluate_model_dict
 
 #from pyai.models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
-from pyai.models_neurofeedback.article_1_simulations.climb_stairs_003 import nf_model,evaluate_container
+from pyai.models_neurofeedback.article_1_simulations.climb_stairs_002 import nf_model,evaluate_container
 
 # Generate a succession of trial results for a model in the list generated
 # Made to parrallelize in a cluster-like environment
@@ -58,13 +58,13 @@ parameter_list,index_list = generate_a_parameter_list(prior_value_a_sigma,prior_
 if __name__=="__main__":
     # ENVIRONMENT
     overwrite = True
-    save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","article_1","tests")
-    model_name = "gaussian_priors_performances_test_flat_2"
+    save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED")
+    model_name = "including_d_error_2"
 
     list_index = 120
     list_index = 5
-    Ninstances = 1
-    Ntrials = 150
+    Ninstances = 5
+    Ntrials = 10
 
     modelchar = [True,0.01,1,True,50,1,True,MemoryDecayType.NO_MEMORY_DECAY,1000]
     modelname = "a_ac"+str(int(100*modelchar[1]))+"_str1_b_ac"+str(int(100*modelchar[4]))+"_str1"
@@ -92,18 +92,19 @@ if __name__=="__main__":
                                                         mem_dec_type=memory_decay_type,mem_dec_halftime=memory_decay_halftime,
                                                         verbose=False)
     
-    # print(np.round(model.a[0],2))
-    # print("----------")
-    # for action in range(5):
-    #     print(np.round(model.b[0][:,:,action],2))
-    # model.input_parameters = model_options
-    # model.index = index_list[list_index] # This is to track the input parameters
+    print(np.round(model.a[0],2))
+    print("----------")
+    for action in range(5):
+        print(np.round(model.b[0][:,:,action],2))
+    model.input_parameters = model_options
+    model.index = index_list[list_index] # This is to track the input parameters
     # We can also add custom values for the matrices or modify the run here :
     # model.parameter = new_value
-    # model.initialize_n_layers(Ninstances)
-    # trial_times = [0.01]
-    # model.verbose = False
-    # model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None,list_of_last_n_trial_times=trial_times)
+
+    model.initialize_n_layers(Ninstances)
+    trial_times = [0.01]
+    model.verbose = False
+    #model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None,list_of_last_n_trial_times=trial_times)
 
     # Old version : (could not shunt the way model options impacted the model :/ too restrictive or a better way of following things up ?)
     # run_model(save_path,model_name,model_options,Ntrials,Ninstances,overwrite = False,global_prop=[0,1],verbose=False)
@@ -113,17 +114,19 @@ if __name__=="__main__":
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
     
 
-    # generate_model_sumup(model_name,save_path,True)
+    #generate_model_sumup(model_name,save_path,True)
     # sumup  = save_model_sumup_for(model_name,save_path,evaluate_container)[1]
+
+    dict_sumup = evaluate_model_dict(evaluator=evaluate_container,modelname=model_name,savepath=save_path)
     # mean_A,mean_B,mean_D,a_err_arr,b_err_arr,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,total_instances
     # 0      1       2        3           4     5       6    7         8                  9                      10                 11  
     
-    # print(sumup)
+    print(dict_sumup['variance'])
     # general_performance_plot(save_path,model_name,"GLOBAL",
     #         np.arange(0,Ntrials,1),sumup[3],sumup[4],sumup[5],sumup[6],sumup[8],sumup[9])
     
 
     # trial_plot_from_name(save_path,model_name,0,[0,1,2,3,Ntrials-2,Ntrials-1])
     # plt.show()
-    prior_value_a_sigma = np.arange(0,5.25,0.25)
-    print(prior_value_a_sigma)
+    # prior_value_a_sigma = np.arange(0,5.25,0.25)
+    # print(prior_value_a_sigma)

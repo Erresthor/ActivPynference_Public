@@ -114,7 +114,7 @@ if __name__=="__main__":
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
     
 
-    #generate_model_sumup(model_name,save_path,True)
+    generate_model_sumup(model_name,save_path,True)
     # sumup  = save_model_sumup_for(model_name,save_path,evaluate_container)[1]
 
     dict_sumup = evaluate_model_dict(evaluator=evaluate_container,modelname=model_name,savepath=save_path)

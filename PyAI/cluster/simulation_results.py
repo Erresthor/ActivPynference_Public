@@ -55,7 +55,7 @@ def generate_grids(model_list,pick_t,parameter_index,size = (12,12),smooth_it = 
 
 if __name__=="__main__":
     savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","article_1")
-    filename = "simulation_output_002.pyai"
+    filename = "simulation_output_003.pyai"
     t0 = t.time()
     big_list = load_perf(os.path.join(savepath,filename))
     timefloat = (t.time()-t0)
@@ -64,7 +64,7 @@ if __name__=="__main__":
     
 
     size = (21,21)
-    param_plot = 3
+    param_plot = 10
     
     N = 50
     fps = 30
@@ -90,8 +90,8 @@ if __name__=="__main__":
         plot[0] = ax.plot_surface(x, y, zarray[:, :, frame_number], cmap=cm.coolwarm,linewidth=0, antialiased=False)
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
-    ax.set_xlabel('a accuracy')
-    ax.set_ylabel('b accuracy')
+    ax.set_xlabel('a variance')
+    ax.set_ylabel('b variance')
 
 
 

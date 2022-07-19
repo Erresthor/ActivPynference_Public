@@ -42,21 +42,33 @@ def produce_model_sumup_for(modelname,savepath,evaluator):
 
     return model_dict
 
-def produce_sumup_for(savepath,evaluator,overwrite=False):
+def produce_total_sumup_for(savepath,evaluator,overwrite=False,keyword='mean'):
     # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
     all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
     output_list = []
     for model in all_folders:
         modelpath = os.path.join(savepath,model)
         # Check if the file with local performances as been generated :
-        potential_file = os.path.join(modelpath,"_PERFORMANCES")
-        print("------   " + model + " -------")
-        if (os.path.isfile(potential_file))and(not(overwrite)) :
-            local_sumup = load_flexible(potential_file)
-        else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-            local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-            save_flexible(local_sumup,potential_file)
-        output_list.append(local_sumup)
+
+        # MEAN
+        if(keyword=='mean') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
+        elif(keyword=='var') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
     return output_list
 
 
@@ -73,19 +85,17 @@ if __name__=="__main__" :
         overwrite = (overwrite=="True")
     except :
         overwrite = False
-    # prior_value_a = prior_value_a
-    # prior_value_b = prior_value_b
-    # parameter_list = parameter_list # This is the parameter list from the cluster data generator (list of [model_name, model_options])
+    
     print("------------------------------------------------------------------")
     print("Generating sumup for " + save_path)
     if(overwrite):
         print("(Overwriting previous files)")
     print("------------------------------------------------------------------")
-    bigbig_dict = produce_sumup_for(save_path,evaluate_container,overwrite=overwrite)
+    list_of_models = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite)
 
     sumup_file_name = "simulation_output_" + save_path.split("_")[-1] + ".pyai"
 
-    save_flexible(bigbig_dict,os.path.join(save_path,sumup_file_name))
+    save_flexible(list_of_models,os.path.join(save_path,sumup_file_name))
     print("Saving output to   -  " + save_path + sumup_file_name)
     # Multimodel plot :
     # action_errors = []

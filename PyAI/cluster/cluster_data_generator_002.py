@@ -1,7 +1,5 @@
 #!/usr/bin/python
-from operator import index
 import sys,inspect,os
-from imageio import save
 import numpy as np
 import matplotlib.pyplot as plt
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))

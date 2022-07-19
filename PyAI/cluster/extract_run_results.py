@@ -91,12 +91,16 @@ if __name__=="__main__" :
     if(overwrite):
         print("(Overwriting previous files)")
     print("------------------------------------------------------------------")
-    list_of_models = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite)
+    list_of_models_mean = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite,keyword='mean')
+    list_of_models_var = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite,keyword='var')
 
-    sumup_file_name = "simulation_output_" + save_path.split("_")[-1] + ".pyai"
+    sumup_file_name_mean = "simulation_output_" + save_path.split("_")[-1] + "_mean" + ".pyai"
+    sumup_file_name_var = "simulation_output_" + save_path.split("_")[-1] + "_var" + ".pyai"
 
-    save_flexible(list_of_models,os.path.join(save_path,sumup_file_name))
-    print("Saving output to   -  " + save_path + sumup_file_name)
+    save_flexible(list_of_models_mean,os.path.join(save_path,sumup_file_name_mean))
+    save_flexible(list_of_models_var,os.path.join(save_path,sumup_file_name_var))
+
+    print("Saving output to   -  " + save_path + sumup_file_name_mean + " / " + sumup_file_name_var)
     # Multimodel plot :
     # action_errors = []
     # state_errors = []

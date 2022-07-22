@@ -36,11 +36,12 @@ def produce_model_sumup_for(modelname,savepath,evaluator):
     # for instance in all_instances :
     #     instance_path = os.path.join(model_path,instance)
     model_dict = {
+        'model':model_object,
         'mean':mean_evaluator,
         'variance':variance_evaluator
     }
 
-    return model_dict
+    return model_dict,model_object
 
 def produce_total_sumup_for(savepath,evaluator,overwrite=False,keyword='mean'):
     # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
@@ -49,7 +50,7 @@ def produce_total_sumup_for(savepath,evaluator,overwrite=False,keyword='mean'):
     for model in all_folders:
         modelpath = os.path.join(savepath,model)
         # Check if the file with local performances as been generated :
-
+        
         # MEAN
         if(keyword=='mean') :
             potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")

@@ -21,16 +21,6 @@ from pyai.models_neurofeedback.article_1_simulations.climb_stairs_001 import nf_
 # Grid of prior values explored : 
 prior_value_a = np.array([1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0])
 prior_value_b = np.array([1.0,1.2,1.4,1.6,1.8,2.0,2.2,2.4,2.6,2.8,3.0,3.2,3.4,3.6,3.8,4.0])
- 
-
-def generate_a_dictionnary(a_priors,b_priors) :
-    new_dict = {}
-    for ka in range(a_priors.shape[0]):
-        for kb in range(b_priors.shape[0]):
-            modelchar = [True,a_priors[ka],1,True,b_priors[kb],1,True,MemoryDecayType.NO_MEMORY_DECAY,2000]
-            modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
-            new_dict[modelname] = modelchar
-    return new_dict
 
 def generate_a_parameter_list(a_priors,b_priors) :
     # Undordered dictionnaries are soooo not cool :(

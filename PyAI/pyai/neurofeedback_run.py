@@ -12,12 +12,12 @@ from .base.function_toolbox import normalize
 from .model.active_model import ActiveModel
 from .model.active_model_save_manager import ActiveSaveManager
 from .model.active_model_container import ActiveModelSaveContainer
-
+from .base.file_toolbox import filename_in_files
 
 from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,general_performance_plot,trial_plot_figure
 from .models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
-# EXTRACTORS OF TRIALS
+# Extract neurofeedback performances indicators at each level (TRIALS --> INSTANCES --> MODEL --> INTER MODEL MEAN & VAR)
 def evaluate_trial(evaluator,trialcontainer,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions):
     eval_cont = evaluator(trialcontainer)
 
@@ -81,7 +81,6 @@ def evaluate_model(evaluator,modelname,savepath) :
     A_list,B_list,D_list = [],[],[]
     
     Ka,Kb,Kd,a_err,b_err,d_err,error_states,error_behaviour,error_observations,error_perceptions = [],[],[],[],[],[],[],[],[],[]      
-    model = ActiveModel.load_model(loadpath)
     for potential_instance in os.listdir(loadpath):
         complete_path = os.path.join(loadpath,potential_instance)
         is_dir = (os.path.isdir(complete_path))
@@ -199,10 +198,6 @@ def variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_er
         
     #     return r
 
-    mean_A = []
-    mean_B = []
-    mean_D = []
-    total_instances = len(A_list)
     # for t in range(len(A_list[0])): # Iterating through timesteps
     #     a_at_t = []
     #     b_at_t = []
@@ -237,7 +232,7 @@ def evaluate_model_dict(evaluator,modelname,savepath):
     A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
     A_list_mean,B_list_mean,D_list_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
     A_list_var,B_list_var,D_list_var,Ka_arr_var,Kb_arr_var,Kd_arr_var,a_err_arr_var,b_err_arr_var,d_err_arr_var,error_states_arr_var,error_behaviour_arr_var,error_observations_arr_var,error_perceptions_arr_var = variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
-
+    model = ActiveModel.load_model(os.path.join(savepath,modelname))
 
     return_dict_complete = {
         "A_list" : A_list,
@@ -285,6 +280,7 @@ def evaluate_model_dict(evaluator,modelname,savepath):
     }
 
     return_dictionnary = {
+        "model" : model ,
         "complete" : return_dict_complete,
         "mean" : return_dict_mean,
         "variance" : return_dict_variance
@@ -292,18 +288,20 @@ def evaluate_model_dict(evaluator,modelname,savepath):
 
     return return_dictionnary
 
+# Plotting and generating figures in dediacted folders
+
 def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=False,mod_ind=0,fac_ind=0,show=False):
     """ Plot of individual agent performances over all instances for a given model."""
     generate_model_sumup(modelname,savepath,gifs,mod_ind,fac_ind) # Matrices and gifs to see how the training went
     for inst in instance_list:
         generate_instance_performance_figure(evaluator,savepath,modelname,inst,show=show) # A single plot encompassing matrix error & behaviour optimality
 
-def generate_instance_performance_figure(evaluator,savepath,modelname,instance_number=0) :
+def generate_instance_performance_figure(evaluator,savepath,modelname,instance_number=0,show=False) :
     """ Plot of a and b knowledge error + state and behaviour error."""
     trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perception = evaluate_instance(evaluator,savepath,modelname,instance_number,return_matrices=False)
     save_string = f'{instance_number:03d}'
     figtitle = modelname +" - Instance " + str(instance_number) + " performance sumup"
-    general_performance_plot(savepath,modelname,save_string,trials,a_err,b_err,Ka,Kb,error_states,error_behaviour,smooth_window = 5,show=False,figtitle=figtitle)
+    general_performance_plot(savepath,modelname,save_string,trials,a_err,b_err,Ka,Kb,error_states,error_behaviour,smooth_window = 5,show=show,figtitle=figtitle)
 
 def evaluate_model_figure(evaluator,savepath,modelname,show=True):
     """ generate_instances_figure but for an hypothetical """
@@ -350,6 +348,8 @@ def trial_plot_from_name(save_path,model_name,instance,list_of_t,
         fullname = ActiveSaveManager.generate_save_name(os.path.join(save_path,model_name),instance,t,'f')
         container = ActiveModelSaveContainer.load_active_model_container(fullname)
         trial_plot(container,plotmean,action_labels,title+"_"+str(t),hidden_state_factor,perc_modality)
+
+# Trial runners
 
 def run_a_trial():
     """An example trial to check if the whole package actually works"""
@@ -414,6 +414,127 @@ def run_model(savepath,model_name,model_options,Ntrials,Ninstances,overwrite = F
     trial_times = [0.01]
     model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=global_prop,list_of_last_n_trial_times=trial_times)
 
+# Generate performance files that make for easily transportable results for a wide range of models :
+# Need 2 functions : 
+# - 1. A function that will look at the nth file in a multi-model folder and generate model extraction results for it (to clusterify)
+# - 2. A function that will take all the individual model perf files and generate a list of it
+# - 3. A function that save the results of 2
+
+def model_performance_dictionnary(savepath,modelname,evaluator,include_var=True,include_complete=False):
+    # There is a MODEL_ file here,we should grab it and extract the model inside, it is a gound indicator of the input parameters
+    # for this run !
+    model_path = os.path.join(savepath,modelname)
+    model_object = ActiveModel.load_model(model_path)
+
+    model_evaluator_dictionnary = evaluate_model_dict(evaluator,modelname,savepath)
+    
+    mean_evaluator = model_evaluator_dictionnary['mean']
+    model_dict = {
+        'model':model_object,
+        'mean':mean_evaluator
+        }
+    
+    if(include_var):
+        variance_evaluator = model_evaluator_dictionnary['variance']
+        model_dict['variance'] = variance_evaluator
+    if(include_complete):
+        complete_evaluator = model_evaluator_dictionnary['complete']
+        model_dict['complete'] = complete_evaluator
+
+    return model_dict
+
+def individual_model_perf_filename(include_var=True,include_complete=False):
+    individual_model_perf_file_name = "_PERFORMANCES_m"
+    if(include_var):
+        individual_model_perf_file_name += "v"
+    if(include_complete) :
+        individual_model_perf_file_name += "c"
+    return individual_model_perf_file_name
+
+def save_model_performance_dictionnary(savepath,modelname,evaluator,overwrite=True,include_var=True,include_complete=False):
+    complete_path = os.path.join(savepath,modelname)
+    
+    is_dir = (os.path.isdir(complete_path))
+    if is_dir :
+        # Only models shpuld be in those dirs
+        perf_file_name = individual_model_perf_filename(include_var=include_var,include_complete=include_complete)
+        # If we don't overwrite, check if performance dictionnary exists already :
+        if(overwrite):
+            # If we overwrite, don't need to check
+            bool_save_new_performance_file = True
+        else :
+            existing_files = [f for f in os.listdir(complete_path) if os.path.isfile(os.path.join(complete_path, f))]
+            there_is_file_already = filename_in_files(existing_files,perf_file_name)
+            bool_save_new_performance_file = not(there_is_file_already) # If there is a file already, no need to save a new one
+                                                                        # (if i want mean and variance, but not complete, it should work ?)
+
+        if (bool_save_new_performance_file):
+            model_results_dictionnary = model_performance_dictionnary(savepath,modelname,evaluator,include_var=include_var,include_complete=include_complete)
+            save_flexible(model_results_dictionnary,os.path.join(complete_path,perf_file_name))
+        else :
+            print("Performance file " + perf_file_name + " already exists at " + complete_path +" .")
+    else :
+        print("Skipping " + str(complete_path))
+
+def save_model_performance_dictionnary_byindex(savepath,index,evaluator,overwrite=True,include_var=True,include_complete=False):
+    list_of_model_folders = sorted(os.listdir(savepath)) # This is to ensure two calls with the same index get indentical models
+    
+    potential_model_name = list_of_model_folders[index]
+    complete_path = os.path.join(savepath,potential_model_name)
+    
+    is_dir = (os.path.isdir(complete_path))
+    if is_dir :
+        # Only models shpuld be in those dirs
+        perf_file_name = individual_model_perf_filename(include_var=include_var,include_complete=include_complete)
+        # If we don't overwrite, check if performance dictionnary exists already :
+        if(overwrite):
+            # If we overwrite, don't need to check
+            bool_save_new_performance_file = True
+        else :
+            existing_files = [f for f in os.listdir(complete_path) if os.path.isfile(os.path.join(complete_path, f))]
+            there_is_file_already = filename_in_files(existing_files,perf_file_name)
+            bool_save_new_performance_file = not(there_is_file_already) # If there is a file already, no need to save a new one
+                                                                        # (if i want mean and variance, but not complete, it should work ?)
+
+        if (bool_save_new_performance_file):
+            model_results_dictionnary = model_performance_dictionnary(savepath,potential_model_name,evaluator,include_var=include_var,include_complete=include_complete)
+            save_flexible(model_results_dictionnary,os.path.join(complete_path,perf_file_name))
+        else :
+            print("Performance file " + perf_file_name + " already exists at " + complete_path +" .")
+    else :
+        print("Skipping " + str(complete_path))
+
+def old_save_model_performance_dictionnary(savepath,modelname,evaluator,overwrite=True,include_var=True,include_complete=False):
+    # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
+    all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
+    output_list = []
+    for model in all_folders:
+        modelpath = os.path.join(savepath,model)
+        # Check if the file with local performances as been generated :
+        
+        # MEAN
+        if(keyword=='mean') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
+        elif(keyword=='var') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
+    return output_list
+
+# Old stuff that I should probably get rid of :
+
 def movingaverage(interval, window_size):
     window= np.ones(int(window_size))/float(window_size)
     return np.convolve(interval, window, 'same')
@@ -444,15 +565,7 @@ def generate_a_dictionnary(a_priors,b_priors) :
             new_dict[modelname] = modelchar
     return new_dict
 
-
-
-
-
-
-
-
 def brouillon():
-
     save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
     models_dictionnary = {
         "a_ac1p5_str1_b_ac1_str1":[True,1.5,1,True,1,1,True,MemoryDecayType.NO_MEMORY_DECAY,2000],

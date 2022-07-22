@@ -47,3 +47,9 @@ def load_flexible(to_path):
     except :
         obj = load_pickled(to_path)
     return obj
+
+def filename_in_files(list_files,my_filename):
+    for filename in (list_files):
+        if my_filename in filename :
+            return True
+    return False

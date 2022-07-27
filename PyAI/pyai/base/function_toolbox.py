@@ -4,6 +4,7 @@ Created on Fri May  7 11:58:11 2021
 
 @author: cjsan
 """
+from dis import dis
 import numpy as np
 from scipy.special import gammaln
 from scipy.special import psi
@@ -99,6 +100,14 @@ def spm_wnorm_toocomplex(A):
 
 def spm_wnorm(A,epsilon = 1e-16) :
         # no idea what it does ¯\_(ツ)_/¯ 
+    """ Used for calculating a novelty term and push agent towards long term model exploration. 
+    In practice, we want to encourage unexplored options, even though we have some slight priors. Strong priors 
+    lead to an increase in EFE.
+    Terms :
+    1/ai - 1/sum(ai)
+    First term : high if ption prior is low. Problem : might be very high if prior very low but in spm forwards, it is no problem ?
+    Second term : high if dirichlet prior term sum low : encourage unexplored options
+    """
     A = A +  epsilon#♣np.exp(-16)
     #print(1./np.sum(A,axis=0,keepdims=True))
     A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./A))/2. # Always <0 --> Unwanted ?
@@ -110,6 +119,33 @@ def inverted_spm_wnorm(A,epsilon = 1e-16) :
     print(1./np.sum(A,axis=0,keepdims=True))
     A_wnormed = ((1./A)-(1./np.sum(A,axis=0,keepdims=True)) )/2.
     return np.squeeze(A_wnormed)
+
+def custom_entropy(A,axis=0,keepdims=False,eps=1e-10,maxValue = 10000):
+    zeroes = np.zeros(A.shape)
+    B = np.copy(A)
+    B[A<eps] = eps
+    entropy = -np.sum(A*np.log(B),axis=axis,keepdims=keepdims)
+    # O is an impossible value
+    if (keepdims):
+        return(zeroes + entropy)
+    else : 
+        return(entropy)
+
+def custom_novelty_calculation(A,epsilon = 1e-16,distribution_axis=0):
+    """ 
+    EFE is calculated as a way to compare various actions.
+    We propose replacing previous EFE calculations by combining :
+    - model uncertainty reduction : reduce H(A,axis=0)
+    - model exploration prompt : improve np.sum(A,axis=0,keepdims=True)
+    """
+    zeroes = np.zeros(A.shape)
+    normalized_A = normalize(A)
+    model_entropy = custom_entropy(normalized_A,axis=distribution_axis,keepdims=True)
+    total_weight = np.sum(A,axis=0,keepdims=True)+zeroes # To keep the shape
+    total_weight[total_weight<epsilon] = epsilon
+
+    return model_entropy/total_weight
+    # A_novelty = 
 
 def spm_cross(*argv) :
     n = (len(argv))

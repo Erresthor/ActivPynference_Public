@@ -110,7 +110,7 @@ def calculate_probs(etoileplus) :
     income = prix_ticket*N
     total_jackpot = unitary_jackpot/jackpot_ratio
     
-    other_costs_part_in_weekly_budget = 0.4
+    other_costs_part_in_weekly_budget = 0.4 # Random evaluation : 40% of the weekly budget is assigned to printing the tickets, paying salaries, etc.
     lots_parts_in_weekly_budget = 1 - other_costs_part_in_weekly_budget
     other_costs = (total_jackpot/lots_parts_in_weekly_budget)*other_costs_part_in_weekly_budget
     print(other_costs)
@@ -138,4 +138,4 @@ def calculate_probs(etoileplus) :
     print()
     print("On average, the lottery will make around " + str(np.round(estimate_benefice_bank/1e6,2)) + " Million € in raw benefits (income " + str(np.round(income/1e6,2)) + " m€ - estimated costs "+ str(np.round(total_costs/1e6,2)) + " m€ ).")
 
-calculate_probs(1)
+calculate_probs(0)

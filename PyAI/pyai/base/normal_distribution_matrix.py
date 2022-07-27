@@ -1,5 +1,4 @@
 import numpy as np
-from .function_toolbox import normalize
 import matplotlib.pyplot as plt
 import math
 import pandas as pd
@@ -155,4 +154,10 @@ if __name__=="__main__":
     labs.append(labels)
 
     multi_matrix_plot(mats,labs,colmap = 'jet',xlab="Hidden mental state",ylab="Observation")
+    #plt.show()
+
+
+    matrix = (10*generate_normal_dist_along_matrix(np.eye(5),0.05)+1)
+    matrix = matrix/np.sum(matrix,axis=0)
+    multi_matrix_plot([matrix],["A matrix"])
     plt.show()

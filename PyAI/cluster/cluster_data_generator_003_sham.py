@@ -109,7 +109,7 @@ if __name__=="__main__":
                     prior_b_ratio=b_acc,prior_b_strength=b_str,learn_b=b_learn,
                     learn_d=d_learn,
                     mem_dec_type=memory_decay_type,mem_dec_halftime=memory_decay_halftime,
-                    verbose=False,perfect_a=perfect_a,perfect_b=perfect_b)
+                    verbose=False,perfect_a=perfect_a,perfect_b=perfect_b,SHAM="True")
     
     
     model.input_parameters = model_options
@@ -124,5 +124,3 @@ if __name__=="__main__":
     save_model_performance_dictionnary(save_path,model_name,evaluate_container,overwrite=overwrite,include_var=var,include_complete=comp)
     print("Saving model results at :   " + save_path + " " + model_name)
 
-    trial_plot_from_name(save_path,model_name,4,[1,4,10,99])
-    plt.show()

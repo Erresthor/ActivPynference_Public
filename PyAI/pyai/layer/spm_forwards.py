@@ -137,6 +137,12 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
                 # if we learn a :
                 A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
                 # if we learn b : 
+                # Q[action] is the posterior over states$
+
+                # We calculate how much new information would be gained by picking action B knowing that we would be 
+                # starting from a distribution of state P and going towards a distribution of states Q
+                # Q = q(s|pi) at time t
+                # P = q(s) at time t
                 B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P[t]))
 
                 if (t==t0) and False :
@@ -150,11 +156,11 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
                 # WOuld encourage very well-known actions & particularly unwanted actions
                 # The inverse would make a lot more sense ? (R. Smith et al. , A step-by-step tutorial on active inference and its application to empirical data, 2022 page 34)
 
-                # TODO : the same with b !
+                # TODO :  b ambiguity term ?
                 
                 # print(np.dot(B_novelty[action],P[t]))
                 # print(Q[action])
-                # print(t,action,A_exploration_term,B_exploration_term)
+                #print(t,action,A_exploration_term)
                 # print("#######")
 
                 # Remark : leave as is for now, but not the best way to 

@@ -1,25 +1,25 @@
 import numpy as np
 import statistics as stat
 
-from ...model.metrics import flexible_entropy,flexible_kl_dir
+from ....model.metrics import flexible_entropy,flexible_kl_dir
 
-from ...layer.layer_learn import MemoryDecayType
-from ...base.miscellaneous_toolbox import isField
-from ...base.function_toolbox import normalize
-from ...base.matrix_functions import matrix_distance_list,argmean
+from ....layer.layer_learn import MemoryDecayType
+from ....base.miscellaneous_toolbox import isField
+from ....base.function_toolbox import normalize
+from ....base.matrix_functions import matrix_distance_list,argmean
 
-from ...model.active_model import ActiveModel
-from ...model.active_model_save_manager import ActiveSaveManager
-from ...base.normal_distribution_matrix import generate_normal_dist_along_matrix
+from ....model.active_model import ActiveModel
+from ....model.active_model_save_manager import ActiveSaveManager
+from ....base.normal_distribution_matrix import generate_normal_dist_along_matrix
 
 
 def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
                         learn_b=True,prior_b_sigma = 3,prior_b_strength=1,
                         learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False,constant = 20):   
+                        verbose = False,cst=20):   
     Nf = 1
-    
+
     initial_state = 0
     D_ =[]
     D_.append(np.array([1,1,0,0,0])) #[Terrible state, neutral state , good state, great state, excessive state]
@@ -59,11 +59,9 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
     # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
     a_ = []
-    a_.append(constant*prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma)+1)
+    a_.append(cst*prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma)+1)
 
-    temporary = A_
-    A_ = a_
-    a_ = temporary
+    A_[0] = normalize(np.ones(a_[0].shape))
 
     # Transition matrixes between hidden states ( = control states)
     pb = 1
@@ -112,7 +110,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     B_.append(B_mental_states)
 
     b_ = []
-    b_.append(constant*prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma)+1)
+    b_.append(cst*prior_b_strength*generate_normal_dist_along_matrix(B_[0],prior_b_sigma)+1)
     
     # print(b_)
     # print(b_[0].shape)
@@ -169,13 +167,16 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     return nf_model
 
-def evaluate_container(container,options=['2']):
+def evaluate_container(container,options=['2','all']):
     """ Calculate non-array indicators to store in a pandas framework for further analysis and vizualization."""
     matrix_metric = options[0]
+    dir_type = options[1]
 
     trial = container.trial
     T = container.T
     Nf = len(container.s)
+    
+   
 
     def best_actions(actual_state):
         if(actual_state==0):
@@ -198,8 +199,8 @@ def evaluate_container(container,options=['2']):
     mean_error_observations = 0
     mean_error_percept = 0
 
-    belief_about_states = container.X[factor]
-    true_state_distribution = np.zeros(belief_about_states.shape)
+    belief_about_states = container.X
+    true_state_distribution = [np.zeros(belief_about_states[0].shape)]
        
     max_size = container.D_[factor].shape[0]- 1 # best possible factor
     
@@ -215,7 +216,7 @@ def evaluate_container(container,options=['2']):
             mean_errors_state += abs(optimal_state-actual_state)/optimal_state
 
         # -------------prepare for perception error-----------------
-        true_state_distribution[actual_state,t] = 1
+        true_state_distribution[0][actual_state,t] = 1
 
         # -------------prepare for observations error-----------------
         optimal_observation = min(init_actual_state+t,max_size) 
@@ -234,9 +235,9 @@ def evaluate_container(container,options=['2']):
             if not(actual_action in optimal_action) :
                 mean_error_behaviour += 1 # Binary (best action chosen ? y/n)
         
-    mean_errors_state = mean_errors_state/T
-    mean_error_behaviour = mean_error_behaviour/(T-1)
-    mean_error_observations = mean_error_observations/T
+    mean_errors_state = [mean_errors_state/T] # List because one for each layer factor
+    mean_error_behaviour = [mean_error_behaviour/(T-1)] # List because one for each layer factor
+    mean_error_observations = [mean_error_observations/T] # List because one for each layer modality
     mean_error_percept = flexible_kl_dir(belief_about_states,true_state_distribution,option='centered')
 
 
@@ -259,13 +260,17 @@ def evaluate_container(container,options=['2']):
     free_energy_d = container.FE['Fd']
     free_energy_e = container.FE['Fe']
 
-    # KL dirs w.r.t the true process matrices : 
-    # print(normalize(container.a_))
-    # print(container.A_)
-    # print(flexible_kl_dir(container.a_,container.A_,option='centered'))
-    a_dir = stat.mean(flexible_kl_dir(normalize(container.a_),container.A_,option='centered'))
-    b_dir = stat.mean(flexible_kl_dir(normalize(container.b_),container.B_,option='centered'))
-    d_dir = stat.mean(flexible_kl_dir(normalize(container.d_),container.D_,option='centered'))
+    # KL dirs w.r.t the true process matrices
+    if (dir_type=='mean'):
+        # Mean of all modalities / factors
+        a_dir = stat.mean(flexible_kl_dir(normalize(container.a_),container.A_,option='centered'))
+        b_dir = stat.mean(flexible_kl_dir(normalize(container.b_),container.B_,option='centered'))
+        d_dir = stat.mean(flexible_kl_dir(normalize(container.d_),container.D_,option='centered'))
+    else :
+        # All modalities / factors : 
+        a_dir = flexible_kl_dir(normalize(container.a_),container.A_,option='centered')
+        b_dir = flexible_kl_dir(normalize(container.b_),container.B_,option='centered')
+        d_dir = flexible_kl_dir(normalize(container.d_),container.D_,option='centered')
 
     #print(free_energy_a,free_energy_b,free_energy_c,free_energy_d,free_energy_e)
     

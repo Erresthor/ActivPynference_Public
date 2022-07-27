@@ -1,3 +1,4 @@
+from json import load
 from pickle import FALSE
 from statistics import variance
 import numpy as np
@@ -210,6 +211,9 @@ def variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_er
     #     mean_A.append(mean_over_first_dim(a_at_t))
     #     mean_B.append(mean_over_first_dim(b_at_t))
     #     mean_D.append(mean_over_first_dim(d_at_t))
+    mean_A = []
+    mean_B = []
+    mean_D = []
 
     Ka_arr = np.var(Ka_arr,axis=0)
     Kb_arr = np.var(Kb_arr,axis=0)
@@ -230,8 +234,8 @@ def evaluate_model_mean(evaluator,modelname,savepath) :
 
 def evaluate_model_dict(evaluator,modelname,savepath):
     A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr = evaluate_model(evaluator,modelname,savepath)
-    A_list_mean,B_list_mean,D_list_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
-    A_list_var,B_list_var,D_list_var,Ka_arr_var,Kb_arr_var,Kd_arr_var,a_err_arr_var,b_err_arr_var,d_err_arr_var,error_states_arr_var,error_behaviour_arr_var,error_observations_arr_var,error_perceptions_arr_var = variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
+    A_list_mean,B_list_mean,D_list_mean,a_err_arr_mean,b_err_arr_mean,d_err_arr_mean,Ka_arr_mean,Kb_arr_mean,Kd_arr_mean,error_states_arr_mean,error_behaviour_arr_mean,error_observations_arr_mean,error_perceptions_arr_mean =  mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)                                                                                             
+    A_list_var,B_list_var,D_list_var,a_err_arr_var,b_err_arr_var,d_err_arr_var,Ka_arr_var,Kb_arr_var,Kd_arr_var,error_states_arr_var,error_behaviour_arr_var,error_observations_arr_var,error_perceptions_arr_var = variance_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr)
     model = ActiveModel.load_model(os.path.join(savepath,modelname))
 
     return_dict_complete = {
@@ -298,7 +302,7 @@ def generate_instances_figures(evaluator,savepath,modelname,instance_list,gifs=F
 
 def generate_instance_performance_figure(evaluator,savepath,modelname,instance_number=0,show=False) :
     """ Plot of a and b knowledge error + state and behaviour error."""
-    trials,a_err,b_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perception = evaluate_instance(evaluator,savepath,modelname,instance_number,return_matrices=False)
+    trials,a_err,b_err,d_err,Ka,Kb,Kd,error_states,error_behaviour,error_observations,error_perceptions = evaluate_instance(evaluator,savepath,modelname,instance_number,return_matrices=False)
     save_string = f'{instance_number:03d}'
     figtitle = modelname +" - Instance " + str(instance_number) + " performance sumup"
     general_performance_plot(savepath,modelname,save_string,trials,a_err,b_err,Ka,Kb,error_states,error_behaviour,smooth_window = 5,show=show,figtitle=figtitle)
@@ -504,35 +508,8 @@ def save_model_performance_dictionnary_byindex(savepath,index,evaluator,overwrit
     else :
         print("Skipping " + str(complete_path))
 
-def old_save_model_performance_dictionnary(savepath,modelname,evaluator,overwrite=True,include_var=True,include_complete=False):
-    # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
-    all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
-    output_list = []
-    for model in all_folders:
-        modelpath = os.path.join(savepath,model)
-        # Check if the file with local performances as been generated :
-        
-        # MEAN
-        if(keyword=='mean') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
-        elif(keyword=='var') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
-    return output_list
-
+def load_model_performance_dictionnary(savepath,modelname,var=True,complete=False):
+    return (load_flexible(os.path.join(savepath,modelname,individual_model_perf_filename(var,complete))))
 # Old stuff that I should probably get rid of :
 
 def movingaverage(interval, window_size):
@@ -564,6 +541,35 @@ def generate_a_dictionnary(a_priors,b_priors) :
             modelname = "a_ac"+str(int(10*a_priors[ka]))+"_str1_b_ac"+str(int(10*b_priors[kb]))+"_str1"
             new_dict[modelname] = modelchar
     return new_dict
+
+def old_save_model_performance_dictionnary(savepath,modelname,evaluator,overwrite=True,include_var=True,include_complete=False):
+    # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
+    all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
+    output_list = []
+    for model in all_folders:
+        modelpath = os.path.join(savepath,model)
+        # Check if the file with local performances as been generated :
+        
+        # MEAN
+        if(keyword=='mean') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
+        elif(keyword=='var') :
+            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
+            print("------   " + model + " -------")
+            if (os.path.isfile(potential_file))and(not(overwrite)) :
+                local_sumup = load_flexible(potential_file)
+            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
+                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
+                save_flexible(local_sumup,potential_file)
+            output_list.append(local_sumup)
+    return output_list
 
 def brouillon():
     save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")

@@ -11,86 +11,9 @@ from ...base.matrix_functions import matrix_distance_list,argmean
 from ...model.active_model import ActiveModel
 from ...model.active_model_save_manager import ActiveSaveManager
 
-
-def nf_model(modelname,savepath,prop_poubelle = 0.0,
-                        learn_a = True,prior_a_ratio = 3,prior_a_strength=3,
-                        learn_b=True,prior_b_ratio = 0.0,prior_b_strength=1,
-                        learn_d=True,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
-                        verbose = False):
-    
-    def base_prior_generator(true_matrix,strength_of_false,strength_of_true,eps=1e-8):
-        prior = np.zeros(true_matrix.shape)
-        ones = np.ones(true_matrix.shape)
-
-        false_vals_mask = true_matrix<eps
-        prior[false_vals_mask] = prior[false_vals_mask] + strength_of_false*ones[false_vals_mask]
-
-        true_vals_mask = true_matrix>=eps
-        prior[true_vals_mask] = prior[true_vals_mask] + strength_of_true*ones[true_vals_mask]
-
-        return prior
-    
-    def gaussian_prior_generator(true_matrix,sigma,eps=1e-8):
-        return None # TBI
-    
-    
-    Nf = 1
-
-    initial_state = 0
-    D_ =[]
-    D_.append(np.array([1,1,0,0,0])) #[Terrible state, neutral state , good state, great state, excessive state]
-    #D_[0][initial_state] = 1
-    D_ = normalize(D_)
-
-    d_ =[]
-    #d_.append(np.array([0.996,0.001,0.001,0.001,0.001])) #[Terrible state, neutral state , good state, great state, excessive state]
-    d_.append(np.zeros(D_[0].shape))
-    #d_ = D_
-
-
-    # State Outcome mapping and beliefs
-    # Prior probabilities about initial states in the generative process
-    Ns = [5] #(Number of states)
-    No = [5]
-
-    # Observations : just the states 
-    A_ = []
-
-    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
-    pa = 1
-    A_obs_mental = np.array([[pa  ,0.5-0.5*pa,0         ,0         ,0   ],
-                            [1-pa,pa        ,0.5-0.5*pa,0         ,0   ],
-                            [0   ,0.5-0.5*pa,pa        ,0.5-0.5*pa,0   ],
-                            [0   ,0         ,0.5-0.5*pa,pa        ,1-pa],
-                            [0   ,0         ,0         ,0.5-0.5*pa,pa  ]])
-    # A_obs_mental = np.array([[0,0,0,0,1],
-    #                         [0,0,0,1,0],
-    #                         [0,0,1,0,0],
-    #                         [0,1,0,0,0],
-    #                         [1,0,0,0,0]])
-    A_ = [A_obs_mental]
-
-
-
-    # prior_ratio = 5 # Correct_weights = ratio*incorrect_weights --> The higher this ratio, the better the quality of the priors
-    # prior_strength = 10.0 # Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
-        
-    a_ = []
-    a_.append(np.ones((A_[0].shape))*prior_a_strength)
-    a_[0] = a_[0] + (prior_a_ratio-1.0)*prior_a_strength*A_[0]
-
-    a_[0] = np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(A_[0].shape[0])
-    #a_[0] = np.eye(5)
-
-
-    # Transition matrixes between hidden states ( = control states)
-    pb = 1
-
-    nu = 5
-    prop_poublle = 0.3
-    npoubelle = int((prop_poublle/(1-prop_poublle))*nu)
-    B_ = []
-    B_mental_states = np.zeros((Ns[0],Ns[0],nu+npoubelle))
+def climb_stairs_B(pb=1,npoub=0):
+    ns = 5
+    B_mental_states = np.zeros((ns,ns,ns+npoub))
 
     # Line = where we're going
     # Column = where we're from
@@ -124,32 +47,78 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                                         [0  ,0  ,0  ,1-pb,0  ],
                                         [0  ,0  ,0  ,pb ,pb]])
 
-    for k in range(nu,nu+npoubelle):
-        B_mental_states[:,:,k] = normalize(np.random.random((5,5)))
+    for k in range(ns,ns+npoub):
+        B_mental_states[:,:,k] = normalize(np.random.random((5,5))) # If we want a random matrix for neutral actions
+                                                                    # Ill-advised for a climb stairs paradigm as random weightsq may provide a "shortcut"
         B_mental_states[:,:,k] = np.eye(5)
+    return [B_mental_states]
 
-    B_.append(B_mental_states)
+def nf_model(modelname,savepath,prop_poubelle = 0.0,
+                        learn_a = True,prior_a_ratio = 3,prior_a_strength=3,
+                        learn_b=True,prior_b_ratio = 0.0,prior_b_strength=1,
+                        learn_d=True,
+                        mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
+                        perfect_a = False,perfect_b=False,verbose = False,SHAM="False"):
+    """ 
+    A is perfect, and the agent has flat priors regarding perception AND action dynamics.
+    We can choose to help him a little by providing it with indications. 
+    ACTION & PERCEPTION : 
+    The agent beliefs about state transitions and observation meaning are "plateau-like" :  
+                                Prob density:       ^
+                                                    |           ___
+                                                    |          |   |        __
+                                                    |__________|   |_______|  |______      
+    *strength* describes the strongness of the priors, how confident the agent is about those and how difficult it will be to change them
+    *ratio* describes a preferential prior. If ratio > 1, the agent will have a positive prior regarding a certain dynamic
+     e.g. if ratio =2, the agent will believe that a feedback indicating 3 is twice as likely to mean a hidden state of 3 than any other.
+     [ this also stands for actions] 
+    """
+    Nf = 1
 
-    b_ = [np.ones((B_[0].shape))]
-    # b_[0][0,:,:] = 0.1
-    # b_[0][1,:,:] = 0.15
-    # b_[0][2,:,:] = 0.2
-    # b_[0][3,:,:] = 0.25
-    # b_[0][4,:,:] = 0.3
+    D_ = [np.array([1,1,0,0,0])] #All subjects start all trials either at state 0 or 1, forcing them to perform at least 3 sensible actions to get to the best state
+    D_ = normalize(D_)
 
-    #b_[0] = 1.0*b_[0] - 0.0*B_[0]
+    d_ =[]
+    #d_.append(np.array([0.996,0.001,0.001,0.001,0.001])) #[Terrible state, neutral state , good state, great state, excessive state]
+    d_.append(np.zeros(D_[0].shape))
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # OBSERVATIONS : 
+    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
+    # Here, we only have a single factor :
     
-    b_ = []
-    b_.append(np.ones((B_[0].shape))*prior_b_strength)
-    b_[0] = b_[0] + (prior_b_ratio-1.0)*prior_b_strength*B_[0]
+    if SHAM=="False":
+        A_ = [np.eye(5)]
+    elif SHAM=="True":
+        A_ = [normalize(np.ones((5,5)))]
+    elif type(SHAM)==np.ndarray:
+        A_ = [SHAM]
+    
+    # prior_ratio : Correct_weights = base_weight*ratio () --> The higher this ratio (>1), the better the quality of the priors. ratios < 1 indicate that the good values are defavored
+    # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
+    print(prior_a_ratio,type(prior_a_ratio))
+    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*A_[0]]
 
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # ACTIONS :
+    # Transition matrixes between hidden states ( = control states)
+    nu = 5
+    npoubelle = int((prop_poubelle/(1-prop_poubelle))*nu) # Prop poubelle represents the proportion of mental actions with a neutral impact on the hidden states, rendering 
+                                                          # them useless to improve one's mental state. Increasing this quantity is supposed to make exploration harder and 
+                                                          # training longer.
+    B_ = climb_stairs_B(pb=1,npoub=npoubelle)
+    
+    
+    # Action model : 
+    b_ = [np.ones((B_[0].shape))]
+    
+    # Quality of the prior
+    b_ = [np.ones(B_[0].shape)*prior_b_strength + (prior_b_ratio-1.0)*prior_b_strength*B_[0]]
 
-    #b_ = B_
-    # for i in range(B_[0].shape[-1]):
-    #     b_[0][:,:,i][B_[0][:,:,i]>0.5] += 10
-
-    No = [A_[0].shape[0]]
-
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # PREFERENCES :
+    # Transition matrixes between hidden states ( = control states)
+    # For now, just a linear model, where dc/ds = cst
     la = -2
     rs = 2
     C_mental = np.array([[2*la],
@@ -158,18 +127,18 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         [1*rs],
                         [2*rs]])
     C_ = [C_mental]
-
-    NU = nu + npoubelle
-
-
-    # Policies
-    Np = NU #Number of policies
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # POLICIES
+    Np = nu + npoubelle #Number of policies
     Nf = 1 #Number of state factors
 
-    U_ = np.zeros((NU,Nf)).astype(int)
-    U_[:,0] = range(NU)
+    U_ = np.zeros((Np,Nf)).astype(int)
+    U_[:,0] = range(Np)
 
-    #Habits
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # HABITS
+    # For now, no habits and we don't learn those. At some point, we will have to implement it
     E_ = None
     e_ = np.ones((Np,))
 
@@ -180,17 +149,27 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     nf_model = ActiveModel(savemanager)
     nf_model.T = T
     nf_model.A = A_
+
     nf_model.a = a_
+    if (perfect_a):
+        nf_model.a = A_
+        learn_a = False
+    nf_model.layer_options.learn_a = learn_a
+
     nf_model.B = B_
     nf_model.b = b_
-    nf_model.C = C_
+    if (perfect_b):
+        nf_model.b = B_
+        learn_b = False
+    nf_model.layer_options.learn_b = learn_b
+
     nf_model.D = D_
     nf_model.d = d_
-    nf_model.U = U_
-
-    nf_model.layer_options.learn_a = learn_a
-    nf_model.layer_options.learn_b = learn_b
     nf_model.layer_options.learn_d = learn_d
+
+    nf_model.C = C_
+
+    nf_model.U = U_
 
     nf_model.layer_options.T_horizon = 2
     nf_model.layer_options.learn_during_experience = False
@@ -202,9 +181,10 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
 
     return nf_model
 
-def evaluate_container(container,options=['2']):
+def evaluate_container(container,options=['2','all']):
     """ Calculate non-array indicators to store in a pandas framework for further analysis and vizualization."""
     matrix_metric = options[0]
+    dir_type = options[1]
 
     trial = container.trial
     T = container.T
@@ -233,8 +213,8 @@ def evaluate_container(container,options=['2']):
     mean_error_observations = 0
     mean_error_percept = 0
 
-    belief_about_states = container.X[factor]
-    true_state_distribution = np.zeros(belief_about_states.shape)
+    belief_about_states = container.X
+    true_state_distribution = [np.zeros(belief_about_states[0].shape)]
        
     max_size = container.D_[factor].shape[0]- 1 # best possible factor
     
@@ -250,7 +230,7 @@ def evaluate_container(container,options=['2']):
             mean_errors_state += abs(optimal_state-actual_state)/optimal_state
 
         # -------------prepare for perception error-----------------
-        true_state_distribution[actual_state,t] = 1
+        true_state_distribution[0][actual_state,t] = 1
 
         # -------------prepare for observations error-----------------
         optimal_observation = min(init_actual_state+t,max_size) 
@@ -269,9 +249,9 @@ def evaluate_container(container,options=['2']):
             if not(actual_action in optimal_action) :
                 mean_error_behaviour += 1 # Binary (best action chosen ? y/n)
         
-    mean_errors_state = mean_errors_state/T
-    mean_error_behaviour = mean_error_behaviour/(T-1)
-    mean_error_observations = mean_error_observations/T
+    mean_errors_state = [mean_errors_state/T] # List because one for each layer factor
+    mean_error_behaviour = [mean_error_behaviour/(T-1)] # List because one for each layer factor
+    mean_error_observations = [mean_error_observations/T] # List because one for each layer modality
     mean_error_percept = flexible_kl_dir(belief_about_states,true_state_distribution,option='centered')
 
 
@@ -294,13 +274,17 @@ def evaluate_container(container,options=['2']):
     free_energy_d = container.FE['Fd']
     free_energy_e = container.FE['Fe']
 
-    # KL dirs w.r.t the true process matrices : 
-    # print(normalize(container.a_))
-    # print(container.A_)
-    # print(flexible_kl_dir(container.a_,container.A_,option='centered'))
-    a_dir = stat.mean(flexible_kl_dir(normalize(container.a_),container.A_,option='centered'))
-    b_dir = stat.mean(flexible_kl_dir(normalize(container.b_),container.B_,option='centered'))
-    d_dir = stat.mean(flexible_kl_dir(normalize(container.d_),container.D_,option='centered'))
+    # KL dirs w.r.t the true process matrices
+    if (dir_type=='mean'):
+        # Mean of all modalities / factors
+        a_dir = stat.mean(flexible_kl_dir(normalize(container.a_),container.A_,option='centered'))
+        b_dir = stat.mean(flexible_kl_dir(normalize(container.b_),container.B_,option='centered'))
+        d_dir = stat.mean(flexible_kl_dir(normalize(container.d_),container.D_,option='centered'))
+    else :
+        # All modalities / factors : 
+        a_dir = flexible_kl_dir(normalize(container.a_),container.A_,option='centered')
+        b_dir = flexible_kl_dir(normalize(container.b_),container.B_,option='centered')
+        d_dir = flexible_kl_dir(normalize(container.d_),container.D_,option='centered')
 
     #print(free_energy_a,free_energy_b,free_energy_c,free_energy_d,free_energy_e)
     

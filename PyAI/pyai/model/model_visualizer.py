@@ -376,17 +376,21 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
         list_output = []
         N = len(list_input)
         for trial in range(N):
+            
             mean_value = 0
             counter = 0
             for k in range(trial - window_size,trial + window_size + 1):
                 if(k>=0):
                     try :
-                        mean_value += list_input[k]
+                        mean_value += list_input[k][0] #First factor
                         counter += 1
                     except :
                         a = 0
                         #Nothing lol
-            list_output.append(mean_value/counter)
+            if (counter==0) :
+                list_output.append(0)
+            else : 
+                list_output.append(mean_value/counter)
         return list_output
 
     state_error_mean = sliding_window_mean(error_states,smooth_window)
@@ -431,7 +435,6 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
     ax3.grid()
 
     l1 = ax3.plot(trials,error_states,'*',color=color3,label = 'error w.r.t. optimal states')
-
     ax4 = ax3.twinx()
     l2 = ax4.plot(trials,error_behaviour,'+',color=color4,label = 'error w.r.t. optimal behaviour')
     l3 = ax3.plot(trials,state_error_mean,"-",color=color3l,label = 'error w.r.t. optimal states (smoothed)')
@@ -470,198 +473,6 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
         plt.show()
     else :
         plt.close()
-
-
-def trial_plot_old(plotfile,plotmean=False,action_labels="alphabet",title=None):
-    labelfont = {
-        'weight': 'light',
-        'size': 8
-        }
-
-    hidden_state_factor = 0
-    perc_modality = 0
-
-    cont = ActiveModelSaveContainer.load_active_model_container(plotfile)
-    eval_cont = evaluate_container(cont)
-
-    T = cont.T
-    timesteps = np.linspace(0,T-1,T)
-    
-    obs = cont.o
-    states = cont.s
-    acts = cont.u
-    beliefs = cont.X
-
-    Nactions = cont.U_post.shape[0]
-    Ns = beliefs[hidden_state_factor].shape[0]
-    No = Ns # In the case of observation-hidden state same size spaces
-
-
-    my_colormap= [np.array([80,80,80,200]) , np.array([39,136,245,200]) , np.array([132,245,39,200]) , np.array([245,169,39,200]) , np.array([255,35,35,200])]
-    
-    
-    state_belief_image = custom_colormap(my_colormap,beliefs[hidden_state_factor])
-    mean_beliefs = argmean(beliefs[hidden_state_factor],axis=0)
-            # Only pertinent if states of close indices are spacially 
-            # linked    
-
-    # Major ticks every 5, minor ticks every 1
-    minor_ticks_x = np.arange(0, T, 1)
-    major_ticks_x = np.arange(0, T, 1)-0.5
-    ticks_actions = np.arange(0, Nactions, 1)
-
-
-
-
-
-    # BEGIN ! --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    
-    fig = plt.figure(constrained_layout=True)
-    
-    subfigures = fig.subfigures(1,2,wspace=0.07, width_ratios=[1.7, 1.])
-
-    
-
-    axes = subfigures[0].subplots(2,1)
-    ax1 = axes[0]
-    ax2 = axes[1]
-
-    # ax3 = fig.add_subplot(111, zorder=-1)
-    # for _, spine in ax3.spines.items():
-    #     spine.set_visible(False)
-    # ax3.tick_params(labelleft=False, labelbottom=False, left=False, right=False )
-    # ax3.get_shared_x_axes().join(ax3,ax1)
-    # ax3.set_xticks(minor_ticks,major_ticks)
-    # minor_locator1 = AutoMinorLocator(2)
-    # ax3.xaxis.set_minor_locator(minor_locator1)
-    # ax3.grid(which='minor')
-
-    labels = [str("") for i in minor_ticks_x]
-    ax1.set_xticks(minor_ticks_x,major_ticks_x)
-    minor_locator1 = AutoMinorLocator(2)
-    ax1.xaxis.set_minor_locator(minor_locator1)
-    ax1.grid(which='minor')
-    ax1.set_xticklabels(labels)
-
-    labels = [("t="+str(i)) for i in minor_ticks_x]
-    ax2.set_xticks(major_ticks_x,minor=True)
-    ax2.set_xticks(minor_ticks_x)
-    ax2.set_yticks(ticks_actions)
-    ax2.xaxis.grid(True, which='minor')
-    ax2.set_xticklabels(labels)
-    
-    if (action_labels=="alphabet"):
-        letters_list =  list(map(chr,range(ord('a'),ord('z')+1)))
-        mylabel = letters_list[:Nactions]
-        ax2.set_yticklabels(mylabel)
-    
-    ax1.set(xlim=(0-0.5, T-0.5))
-    ax1.imshow(state_belief_image/255.0,aspect="auto")
-    ax1.plot(timesteps,states[hidden_state_factor,:],color='black',lw=3)
-    if (plotmean):
-        ax1.plot(timesteps,mean_beliefs,color='blue',lw=2,ls=":")
-    ax1.plot(timesteps,obs[hidden_state_factor,:],color='w',marker="H",linestyle = 'None',markersize=10)
-    ax1.set_ylim(ax1.get_ylim()[::-1])
-    ax1.set_ylabel("OBSERVATIONS AND PERCEPTION")
-    
-    
-    ax2.set(xlim=(0-0.5, T-0.5))
-    action_posterior_image = custom_colormap(my_colormap,cont.U_post)
-    ax2.imshow(action_posterior_image/255.0,aspect="auto")
-    ax2.plot(timesteps[:-1],acts[hidden_state_factor,:],color='green',marker="*",linestyle = 'None',markersize=10)
-    ax2.set_ylim(ax1.get_ylim()[::-1])
-    ax2.set_ylabel("ACTIONS")
-    ax2.set_xlabel("Timesteps")
-    
-
-
-    for ax in [ax1,ax2]:
-        ax.set_anchor('W')
-    # fig.tight_layout()
-    # fig.show()
-
-
-    # fig,axes = plt.subplots(2,1)
-    subfigs_nested = subfigures[1].subfigures(2,1)
-    axes = subfigs_nested[0].subplots(1,2)
-    ax4 = axes[0]
-    ax6 = axes[1]
-    
-    try :
-        a_mat = cont.a_[perc_modality]
-    except:
-        a_mat = cont.A_[perc_modality]
-    
-    while (a_mat.ndim < 3):
-        a_mat = np.expand_dims(a_mat,-1)
-    a_image = draw_a_3D_image(normalize(a_mat),colormap =my_colormap)
-    ax4.imshow(a_image)
-    ax4.set_xlabel("States at time t",font=labelfont)
-    ax4.set_ylabel("Cause observations at time t",font=labelfont)
-    ax4.set_title('Perception model (after learning)', fontsize=10)
-    
-    
-    #Save scale for the first instance :
-    N = 250
-    img_array = np.linspace(1,0,N)
-    img = np.zeros(img_array.shape +(50,) +  (4,))
-    for k in range(N):
-        color_array = colorfunc(my_colormap,img_array[k])
-        img[k,:,:] = color_array
-    img = PIL.Image.fromarray(img.astype(np.uint8))
-    #img.resize((800,100))
-    ax6.imshow(img) 
-    ax6.set_title('Color legend', fontsize=10)
-    ax6.set_ylabel("Probability density",font=labelfont)
-    ax6.set_xticks([])
-    ax6.set_yticks([0,N/2.0,N])
-    ax6.set_yticklabels(["1.0","0.5","0.0"])
-
-    axes = subfigs_nested[1].subplots(1,1)
-    ax5 = axes
-    try :
-        b_mat = cont.b_[hidden_state_factor]
-    except :
-        b_mat = cont.B_[hidden_state_factor]
-    lim = 0
-    b_image = draw_a_3D_image(normalize(b_mat),lim,colormap =my_colormap)
-    
-    y_ticks = np.arange(0,Ns,1)
-    major_ticks = np.arange(0,Nactions,1)*(Ns+lim)-lim + (Ns+lim)/2.0 -0.5
-    minor_ticks=[]
-    major_ticks = []
-    iamhere=0
-    for k in range(Nactions):
-        major_ticks.append(iamhere-0.5 + Ns/2.0)
-        minor_ticks.append(iamhere-0.5)
-        iamhere = iamhere + Ns
-        minor_ticks.append(iamhere-0.5)
-        iamhere = iamhere + lim
-    
-    labels = [("t="+str(i)) for i in minor_ticks_x]
-    ax5.set_xticks(minor_ticks,minor=True)
-    ax5.set_xticks(major_ticks)
-    ax5.set_yticks(y_ticks)
-    ax5.xaxis.grid(True, which='minor')
-    if (action_labels=="alphabet"):
-        letters_list =  list(map(chr,range(ord('a'),ord('z')+1)))
-        mylabel = letters_list[:Nactions]
-        ax5.set_xticklabels(mylabel)
-    ax5.set_yticklabels(["" for i in range(Ns)])
-
-    ax5.imshow(b_image)
-    ax5.set_title('Action model (after learning)', fontsize=10)
-    ax5.set_xlabel("Action X leads from states t",font=labelfont)
-    ax5.set_ylabel("To states t+1",font=labelfont)
-    
-    subfigures[0].suptitle('TRIAL HISTORY', fontsize=13)
-    subfigures[1].suptitle('SUBJECT MODEL', fontsize=13)
-    if (title==None):
-        fig.suptitle('Trial sum-up', fontsize='xx-large')
-    else :
-        fig.suptitle(title, fontsize='xx-large')
-    fig.show()
-
 
 def trial_plot_figure(T,states_beliefs,action_beliefs,
                 observations,real_states,actions,

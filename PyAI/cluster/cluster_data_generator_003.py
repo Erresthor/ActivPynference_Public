@@ -115,7 +115,7 @@ if __name__=="__main__":
     model.input_parameters = model_options
     model.index = index_list[list_index] # This is to track the input parameters
     # We can also add custom values for the matrices or modify the run here :
-    # model.parameter = new_value
+    # model.parameter = new_value 
     model.initialize_n_layers(Ninstances)
     model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
 

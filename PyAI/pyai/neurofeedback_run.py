@@ -542,35 +542,6 @@ def generate_a_dictionnary(a_priors,b_priors) :
             new_dict[modelname] = modelchar
     return new_dict
 
-def old_save_model_performance_dictionnary(savepath,modelname,evaluator,overwrite=True,include_var=True,include_complete=False):
-    # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
-    all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
-    output_list = []
-    for model in all_folders:
-        modelpath = os.path.join(savepath,model)
-        # Check if the file with local performances as been generated :
-        
-        # MEAN
-        if(keyword=='mean') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
-        elif(keyword=='var') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
-    return output_list
-
 def brouillon():
     save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","series","series_a_b_prior")
     models_dictionnary = {

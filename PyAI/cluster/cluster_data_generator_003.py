@@ -124,5 +124,5 @@ if __name__=="__main__":
     save_model_performance_dictionnary(save_path,model_name,evaluate_container,overwrite=overwrite,include_var=var,include_complete=comp)
     print("Saving model results at :   " + save_path + " " + model_name)
 
-    trial_plot_from_name(save_path,model_name,4,[1,4,10,99])
-    plt.show()
+    # trial_plot_from_name(save_path,model_name,4,[1,4,10,99])
+    # plt.show()

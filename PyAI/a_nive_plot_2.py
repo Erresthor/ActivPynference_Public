@@ -41,7 +41,7 @@ if __name__=="__main__":
     
     full_dico = load_model_performance_dictionnary(save_path,model_name,var,complete_data)
 
-    field_wanted = "a_error"
+    field_wanted = "state_error"
     
     all_o_err = full_dico['complete'][field_wanted]
     o_err_std = np.sqrt(full_dico['variance'][field_wanted])

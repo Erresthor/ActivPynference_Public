@@ -13,7 +13,7 @@ from pyai.layer.layer_learn import MemoryDecayType
 from pyai.models_neurofeedback.climb_stairs import nf_model,evaluate_container
 from pyai.model.active_model import ActiveModel
 from pyai.neurofeedback_run import run_models
-from pyai.neurofeedback_run import evaluate_model_mean,evaluate_model_dict
+from pyai.neurofeedback_run import evaluate_model_mean,evaluate_model_dict,load_model_performance_dictionnary
 
 
 def produce_model_sumup_for(modelname,savepath,evaluator):
@@ -43,65 +43,63 @@ def produce_model_sumup_for(modelname,savepath,evaluator):
 
     return model_dict,model_object
 
-def produce_total_sumup_for(savepath,evaluator,overwrite=False,keyword='mean'):
+def produce_total_sumup_for(savepath,evaluator,overwrite=False,indiv_sumup_code='mcv',global_sumup_code='mv'):
     # We're in a folder where a lot of models can be stored all next to each other. Let's go through them all !
     all_folders = [f for f in os.listdir(savepath) if (os.path.isdir(os.path.join(savepath, f)))]
     output_list = []
-    for model in all_folders:
-        modelpath = os.path.join(savepath,model)
+    for modelname in all_folders:
+        modelpath = os.path.join(savepath,modelname)
         # Check if the file with local performances as been generated :
         
         # MEAN
-        if(keyword=='mean') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_MEAN")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
-        elif(keyword=='var') :
-            potential_file = os.path.join(modelpath,"_PERFORMANCES_VAR")
-            print("------   " + model + " -------")
-            if (os.path.isfile(potential_file))and(not(overwrite)) :
-                local_sumup = load_flexible(potential_file)
-            else : # Else, we generate it here. It is suboptimal because we do not parrallelize this operations (=/= cluster)
-                local_sumup = produce_model_sumup_for(model,savepath,evaluator)
-                save_flexible(local_sumup,potential_file)
-            output_list.append(local_sumup)
+        try :
+            model_perf_dict = load_model_performance_dictionnary(savepath,modelname,('v' in indiv_sumup_code),('c' in indiv_sumup_code))
+        except :
+            print("The specified file does not exist ... Aborting :(")
+            sys.exit()
+        
+        extract_part_of_dict = {
+            "model" : model_perf_dict["model"] ,
+            "mean" : model_perf_dict["mean"]
+        }
+        if ('v' in global_sumup_code):
+            extract_part_of_dict["variance"] = model_perf_dict["variance"]
+        if('c' in global_sumup_code):
+            extract_part_of_dict["complete"] = model_perf_dict["complete"]
+
+        output_list.append(extract_part_of_dict)
     return output_list
 
 
 if __name__=="__main__" :
-    # Come ooon
-    # AFAIK, there is no way to check if cluster tasks are over. This has to be launched manually to generate a sumup matrix file.
+    # AFAIK, there is no way to check if cluster tasks are over. This has to be launched manually to generate a sumup list file.
     # We then send it (by mail ?) to the local post for analysis
     input_arguments = sys.argv
     assert len(input_arguments)>=2,"Data generator needs at least 1 argument : savepath"
     name_of_script = input_arguments[0]
-    save_path = input_arguments[1]
+    model_save_path = input_arguments[1]
+    sumup_save_path = input_arguments[2]
+
     try : 
-        overwrite = input_arguments[2]
+        overwrite = input_arguments[3]
         overwrite = (overwrite=="True")
     except :
         overwrite = False
     
     print("------------------------------------------------------------------")
-    print("Generating sumup for " + save_path)
+    print("Generating sumup for all models in folder " + model_save_path)
     if(overwrite):
         print("(Overwriting previous files)")
-    print("------------------------------------------------------------------")
-    list_of_models_mean = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite,keyword='mean')
-    list_of_models_var = produce_total_sumup_for(save_path,evaluate_container,overwrite=overwrite,keyword='var')
+    
+    list_of_model_dicts = produce_total_sumup_for(model_save_path,evaluate_container,overwrite=overwrite,indiv_sumup_code='mcv',global_sumup_code='mv')
 
-    sumup_file_name_mean = "simulation_output_" + save_path.split("_")[-1] + "_mean" + ".pyai"
-    sumup_file_name_var = "simulation_output_" + save_path.split("_")[-1] + "_var" + ".pyai"
+    
+    sumup_file_name = "simulation_output_" + model_save_path.split("_")[-1]+ ".pyai"
+    print("Saving sumup for all models in folder " + os.path.join(sumup_save_path,sumup_file_name) + "  ...")
 
-    save_flexible(list_of_models_mean,os.path.join(save_path,sumup_file_name_mean))
-    save_flexible(list_of_models_var,os.path.join(save_path,sumup_file_name_var))
-
-    print("Saving output to   -  " + save_path + sumup_file_name_mean + " / " + sumup_file_name_var)
+    save_flexible(list_of_model_dicts,os.path.join(model_save_path,sumup_file_name))
+    print("Done !")
+    # print("------------------------------------------------------------------")
     # Multimodel plot :
     # action_errors = []
     # state_errors = []

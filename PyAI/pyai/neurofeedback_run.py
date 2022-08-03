@@ -33,6 +33,17 @@ def evaluate_trial(evaluator,trialcontainer,a_err,b_err,d_err,Ka,Kb,Kd,error_sta
     error_behaviour.append(eval_cont['mean_error_behaviour'])
     error_observations.append(eval_cont['mean_error_observations'])
     error_perceptions.append( eval_cont['mean_error_perception'])
+    # a_err.append(eval_cont['a_dir'][0])
+    # b_err.append(eval_cont['b_dir'][0])
+    # d_err.append(eval_cont['d_dir'][0])
+    # Ka.append(eval_cont['a_uncertainty'][0])
+    # Kb.append(eval_cont['b_uncertainty'][0])
+    # Kd.append(eval_cont['d_uncertainty'][0])
+
+    # error_states.append(eval_cont['mean_error_state'][0])
+    # error_behaviour.append(eval_cont['mean_error_behaviour'][0])
+    # error_observations.append(eval_cont['mean_error_observations'][0])
+    # error_perceptions.append( eval_cont['mean_error_perception'][0])
 
 def evaluate_instance(evaluator,savepath,modelname,instance_number=0,return_matrices=False):
     instance_string = f'{instance_number:03d}'
@@ -91,7 +102,6 @@ def evaluate_model(evaluator,modelname,savepath) :
                 # --> ignore this file 
                 print("Ignoring file " + potential_instance)
                 continue
-
             # This seems to be an instance :D
             print("Adding instance  : "+ potential_instance + " to the mean trial.")
 
@@ -113,17 +123,23 @@ def evaluate_model(evaluator,modelname,savepath) :
             error_behaviour.append(error_behaviour_i)
             error_observations.append(error_observations_i)
             error_perceptions.append(error_perceptions_i)
+    
 
-    Ka_arr = np.array(Ka)
-    Kb_arr = np.array(Kb)
-    Kd_arr = np.array(Kd)
-    a_err_arr = np.array(a_err)
-    b_err_arr = np.array(b_err)
-    d_err_arr = np.array(d_err)
-    error_states_arr = np.array(error_states)
-    error_behaviour_arr = np.array(error_behaviour)
-    error_observations_arr = np.array(error_observations)
-    error_perceptions_arr = np.array(error_perceptions)
+    # print(len(Ka))
+    # for i in range(len(Ka)):
+    #     print(len(Ka[i]))
+
+    Ka_arr = np.array(Ka,dtype=float)
+    
+    Kb_arr = np.array(Kb,dtype=float)
+    Kd_arr = np.array(Kd,dtype=float)
+    a_err_arr = np.array(a_err,dtype=float)
+    b_err_arr = np.array(b_err,dtype=float)
+    d_err_arr = np.array(d_err,dtype=float)
+    error_states_arr = np.array(error_states,dtype=float)
+    error_behaviour_arr = np.array(error_behaviour,dtype=float)
+    error_observations_arr = np.array(error_observations,dtype=float)
+    error_perceptions_arr = np.array(error_perceptions,dtype=float)
     return A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr
 
 def mean_indicators(A_list,B_list,D_list,Ka_arr,Kb_arr,Kd_arr,a_err_arr,b_err_arr,d_err_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perceptions_arr):
@@ -309,39 +325,53 @@ def generate_instance_performance_figure(evaluator,savepath,modelname,instance_n
 
 def evaluate_model_figure(evaluator,savepath,modelname,show=True):
     """ generate_instances_figure but for an hypothetical """
-    mean_A,mean_B,mean_D,a_err,b_err,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr,tot_instances = evaluate_model_mean(evaluator,modelname,savepath)
+    mean_A,mean_B,mean_D,a_err,b_err,d_err,Ka_arr,Kb_arr,Kd_arr,error_states_arr,error_behaviour_arr,error_observations_arr,error_perception_arr = evaluate_model_mean(evaluator,modelname,savepath)
     n = a_err.shape[0]
     trials = np.linspace(0,n,n)
     
-    general_performance_plot(savepath,modelname,"GLOBAL",trials,a_err,b_err,Ka_arr,Kb_arr,error_states_arr,error_behaviour_arr,smooth_window=5,figtitle=modelname+" - performance sumup over " + str(tot_instances) + " instance(s)",show=True)
+    general_performance_plot(savepath,modelname,"GLOBAL",trials,a_err,b_err,Ka_arr,Kb_arr,error_states_arr,error_behaviour_arr,error_observations_arr,smooth_window=3,figtitle=modelname+" - performance sumup over " + str(n) + " instance(s)",show=show)
     belief_matrices_plots(modelname,savepath,mean_A,mean_B,mean_D,plot_gifs=True)
 
-def trial_plot(savecontainer,plotmean=False,action_labels="alphabet",title=None,
+def trial_plot(savecontainer,a_pre,b_pre,plotmean=False,action_labels="alphabet",title=None,
                 hidden_state_factor = 0,perc_modality = 0):
     T = savecontainer.T
     
     obs = savecontainer.o[perc_modality,:]
     states = savecontainer.s[hidden_state_factor,:]
     acts = savecontainer.u[hidden_state_factor,:]
-    beliefs = savecontainer.X[hidden_state_factor]
-    u_post = savecontainer.U_post
+    try :
+        beliefs = savecontainer.X[hidden_state_factor]
+    except :
+        beliefs = np.zeros((states.shape[0],T))
+
+    try :
+        u_post = savecontainer.U_post
+    except :
+        u_post = np.zeros((acts.shape[0],T-1))
 
     # BEGIN ! --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------    
     try :
         a_mat = savecontainer.a_[perc_modality]
     except:
         a_mat = savecontainer.A_[perc_modality]
+    
     while (a_mat.ndim < 3):
         a_mat = np.expand_dims(a_mat,-1)
+
+    a_mat_pre = a_pre[perc_modality]
+    while (a_mat_pre.ndim < 3):
+        a_mat_pre = np.expand_dims(a_mat_pre,-1)
     
+
     try :
         b_mat = savecontainer.b_[hidden_state_factor]
     except :
         b_mat = savecontainer.B_[hidden_state_factor]
-    
+    b_mat_pre = b_pre[hidden_state_factor]
+
     figure = trial_plot_figure(T,beliefs,u_post,
                 obs,states,acts,
-                a_mat,b_mat,
+                a_mat_pre,b_mat_pre,a_mat,b_mat,
                 plotmean=plotmean,action_labels=action_labels,title=title)
     figure.show()
 
@@ -350,8 +380,31 @@ def trial_plot_from_name(save_path,model_name,instance,list_of_t,
                         hidden_state_factor = 0,perc_modality = 0) :
     for t in list_of_t:
         fullname = ActiveSaveManager.generate_save_name(os.path.join(save_path,model_name),instance,t,'f')
+        if (t>0):
+            previous_containername = ActiveSaveManager.generate_save_name(os.path.join(save_path,model_name),instance,t-1,'f')
+            previous_container = ActiveModelSaveContainer.load_active_model_container(previous_containername)
+            try :
+                a_pre = previous_container.a_
+            except :
+                b_pre = previous_container.A_
+            try :
+                b_pre = previous_container.b_
+            except :
+                b_pre = previous_container.B_
+        else :
+            # No container existing here, probably the first timestep
+            # We can grab those files from the model !
+            model = ActiveModel.load_model(os.path.join(save_path,model_name))
+            try :
+                a_pre = model.a
+            except :
+                b_pre = model.A
+            try :
+                b_pre = model.b
+            except :
+                b_pre = model.B
         container = ActiveModelSaveContainer.load_active_model_container(fullname)
-        trial_plot(container,plotmean,action_labels,title+"_"+str(t),hidden_state_factor,perc_modality)
+        trial_plot(container,a_pre,b_pre,plotmean,action_labels,title +str(t),hidden_state_factor,perc_modality)
 
 # Trial runners
 

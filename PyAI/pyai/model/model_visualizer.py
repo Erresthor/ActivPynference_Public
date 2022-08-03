@@ -17,6 +17,7 @@ from scipy import stats
 import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 from matplotlib.ticker import AutoMinorLocator
+import matplotlib.patches as mpatches
 import PIL
 
 from ..base.miscellaneous_toolbox import flexible_copy , isField , index_to_dist, dist_to_index
@@ -34,6 +35,30 @@ from ..layer.layer_sumup import *
 from .active_model import ActiveModel
 from .active_model_container import ActiveModelSaveContainer
 from .active_model_save_manager import ActiveSaveManager
+from matplotlib.collections import PatchCollection
+
+# define an object that will be used by the legend
+class MulticolorPatch(object):
+    def __init__(self, colors):
+        self.colors = colors
+        
+# define a handler for the MulticolorPatch object
+class MulticolorPatchHandler(object):
+    def legend_artist(self, legend, orig_handle, fontsize, handlebox):
+        width, height = handlebox.width, handlebox.height
+        patches = []
+        for i, c in enumerate(orig_handle.colors):
+            patches.append(plt.Rectangle([width/len(orig_handle.colors) * i - handlebox.xdescent, 
+                                          -handlebox.ydescent],
+                           width / len(orig_handle.colors),
+                           height, 
+                           facecolor=c, 
+                           edgecolor='none'))
+
+        patch = PatchCollection(patches,match_original=True)
+
+        handlebox.add_artist(patch)
+        return patch
 
 
 def show_figures(active_model,save_container,realA_override=None,realB_override=None,realD_override=None):
@@ -369,7 +394,7 @@ def belief_matrices_plots(modelname,savepath,a_list,b_list,d_list,
     plt.savefig(savepath_img,bbox_inches='tight',dpi=DPI)
     plt.close()
   
-def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,a_unc,b_unc,error_states,error_behaviour,smooth_window = 5,show=True,asp_ratio=(10,5),
+def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,a_unc,b_unc,error_states,error_behaviour,error_observations,smooth_window = 5,show=True,asp_ratio=(10,5),
                                 figtitle = "untitled") :
     # Mean of error states and behaviour :
     def sliding_window_mean(list_input,window_size = 3):
@@ -395,28 +420,28 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
 
     state_error_mean = sliding_window_mean(error_states,smooth_window)
     behaviour_error_mean = sliding_window_mean(error_behaviour,smooth_window)
-
+    error_obs_mean = sliding_window_mean(error_observations,smooth_window)
 
     color1 = 'tab:red'
     color2 = 'tab:blue'
     fig = plt.figure(figsize=asp_ratio)
     ax1 = fig.add_subplot(211)
-    ax1.tick_params(axis='y', labelcolor=color1)
-    ax1.set_xlabel('trial')
-    ax1.set_ylabel('mean metric entropy', color=color1)
+    ax1.tick_params(axis='y', labelcolor="black")
+    #ax1.set_xlabel('Trials',fontsize=10)
+    ax1.set_ylabel('MODEL ENTROPY', color="black",fontsize=10)
     ax1.set_ylim([-0.1,1.1])
     
 
     ax2 = ax1.twinx()
-    ax2.tick_params(axis='y', labelcolor=color2)
-    ax2.set_ylabel('mean "centered" kl divergence', color=color2)  # we already handled the x-label with ax1
-    ax2.set_ylim(bottom=-0.1)
-
+    ax2.tick_params(axis='y', labelcolor="black")
+    ax2.set_ylabel('MODEL ERROR (kl divergence)', color="black",fontsize=10)  # we already handled the x-label with ax1
+    ax2.set_ylim([-0.1,1.1])
+    
     l1 = ax1.plot(trials, a_unc, color=color1,label='A entropy',ls='--')
-    l2 = ax1.plot(trials, b_unc, color=color1,label='B entropy',ls='-')
+    l2 = ax1.plot(trials, b_unc, color=color2,label='B entropy',ls='--')
     # instantiate a second axes that shares the same x-axis
     
-    l3 = ax2.plot(trials, a_err, color=color2,label='A error',ls='--')
+    l3 = ax2.plot(trials, a_err, color=color1,label='A error',ls='-')
     l4 = ax2.plot(trials, b_err, color=color2,label='B error',ls='-')
 
     ls = l1 + l2 + l3 + l4
@@ -427,33 +452,35 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
     
 
     # -----------------------------------------------------------------
-    color3 = 'yellow'
+    color3 = np.array([1,224.0/255,179.0/255,0.5])
     color3l = 'orange'
-    color4 = 'cyan'
-    color4l = 'purple'
-    ax3 = fig.add_subplot(212)
+    color4 = np.array([1,102.0/255.0,102.0/255.0,0.5])
+    color4l = 'red'
+    color5 = np.array([0.25,1.0,0.5,0.5])
+    color5l = 'green'
+
+    ax3 = fig.add_subplot(212,sharex=ax1)
     ax3.grid()
 
-    l1 = ax3.plot(trials,error_states,'*',color=color3,label = 'error w.r.t. optimal states')
-    ax4 = ax3.twinx()
-    l2 = ax4.plot(trials,error_behaviour,'+',color=color4,label = 'error w.r.t. optimal behaviour')
-    l3 = ax3.plot(trials,state_error_mean,"-",color=color3l,label = 'error w.r.t. optimal states (smoothed)')
-    l4 = ax4.plot(trials,behaviour_error_mean,"--",color=color4l,label = 'error w.r.t. optimal behaviour (smoothed)')
+    l1 = ax3.plot(trials,error_states,'+',color=color3)
+    l2 = ax3.plot(trials,error_behaviour,'+',color=color4)
+    l3 = ax3.plot(trials,error_observations,"+",color=color5)
+    
+    l4 = ax3.plot(trials,state_error_mean,"-",color=color3l,label = 'Subject mental state errror (smoothed)')
+    
+    l6 = ax3.plot(trials,behaviour_error_mean,"-",color=color4l,label = 'Subject behaviour error (smoothed)')
 
-    ls = l1 + l2 + l3 + l4
+    l5 = ax3.plot(trials,error_obs_mean,"--",color=color5l,label = 'Feedback error (smoothed)')
+
+    ls = l4 + l5 +l6
     labs = [l.get_label() for l in ls]
     ax3.legend(ls,labs,loc = 'best')
 
-    ax3.set_xlabel('trial')
-    ax3.set_ylabel('state error', color=color3l)
-    ax3.tick_params(axis='y', labelcolor=color3l)
+    ax3.set_xlabel('Trials',fontsize=15)
+    ax3.set_ylabel('PERFORMANCE ERROR / OPTIMAL', color="Black",fontsize=10)
+    ax3.tick_params(axis='y', labelcolor='black')
     ax3.set_ylim([-0.1,1.1])
     ax3.set_ylim(ax1.get_ylim()[::-1])
-
-    ax4.set_ylabel('behaviour error', color=color4l)
-    ax4.tick_params(axis='y', labelcolor=color4l)
-    ax4.set_ylim([-0.1,1.1])
-    ax4.set_ylim(ax1.get_ylim()[::-1])
 
     fig.tight_layout()  # otherwise the right y-label is slightly clipped
     fig.suptitle(figtitle, fontsize=16,y=1.08)
@@ -470,11 +497,241 @@ def general_performance_plot (savepath,modelname,save_string,trials,a_err,b_err,
     figname = os.path.join(save_folder,"performances")
     plt.savefig(figname,bbox_inches='tight',dpi=1000)
     if(show):
-        plt.show()
+        plt.draw()
     else :
         plt.close()
 
+
+
 def trial_plot_figure(T,states_beliefs,action_beliefs,
+                observations,real_states,actions,
+                a_pre,b_pre,a_,b_,
+                plotmean=False,action_labels="alphabet",title=None) :
+    labelfont = {
+        'weight': 'light',
+        'size': 12
+        }
+    subtitle_fontsize = 14
+    big_label_size = 14
+    title_size = 18
+    overtitle_size = 20
+    legend_size = 12
+    
+    timesteps = np.linspace(0,T-1,T)
+    
+    Nactions = action_beliefs.shape[0]
+    Ns = states_beliefs.shape[0]
+    No = Ns # In the case of observation-hidden state same size spaces
+
+
+    my_colormap= [np.array([80,80,80,200]) , np.array([39,136,245,200]) , np.array([132,245,39,200]) , np.array([245,169,39,200]) , np.array([255,35,35,200])]
+    N = 250
+    img_array = np.linspace(1,0,N)
+    img = np.zeros(img_array.shape +(50,) +  (4,))
+    for k in range(N):
+        color_array = colorfunc(my_colormap,img_array[k])
+        img[k,:,:] = color_array
+    high_col = img[0,0]/255.0
+    mid_col = img[int(float(N)/2),0]/255.0
+    low_col = img[N-1,0]/255.0
+    
+    state_belief_image = custom_colormap(my_colormap,states_beliefs)
+    mean_beliefs = argmean(states_beliefs,axis=0)
+            # Only pertinent if states of close indices are spacially 
+            # linked    
+
+    # Major ticks every 5, minor ticks every 1
+    minor_ticks_x = np.arange(0, T, 1)
+    major_ticks_x = np.arange(0, T, 1)-0.5
+    ticks_actions = np.arange(0, Nactions, 1)
+
+
+
+    # BEGIN ! --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+    fig = plt.figure(constrained_layout=True)
+    subfigures = fig.subfigures(1,2,wspace=0.07, width_ratios=[1.7, 1.])
+
+    axes = subfigures[0].subplots(2,1)
+    ax1 = axes[0]
+    ax2 = axes[1]
+
+    labels = [str("") for i in minor_ticks_x]
+    ax1.set_xticks(minor_ticks_x,major_ticks_x)
+    minor_locator1 = AutoMinorLocator(2)
+    ax1.xaxis.set_minor_locator(minor_locator1)
+    ax1.grid(which='minor')
+    ax1.set_xticklabels(labels)
+
+    labels = [("t="+str(i)) for i in minor_ticks_x]
+    ax2.set_xticks(major_ticks_x,minor=True)
+    ax2.set_xticks(minor_ticks_x)
+    ax2.set_yticks(ticks_actions)
+    ax2.xaxis.grid(True, which='minor')
+    ax2.set_xticklabels(labels)
+    
+    if (action_labels=="alphabet"):
+        letters_list =  list(map(chr,range(ord('a'),ord('z')+1)))
+        mylabel = letters_list[:Nactions]
+        ax2.set_yticklabels(mylabel)
+    
+    ax1.set(xlim=(0-0.5, T-0.5))
+    ax1.imshow(state_belief_image/255.0,aspect="auto")
+    ax1.plot(timesteps,real_states,color='black',lw=3,label="True (hidden) mental state")
+    if (plotmean):
+        ax1.plot(timesteps,mean_beliefs,color='blue',lw=2,ls=":")
+    ax1.plot(timesteps,observations,color='w',marker="H",linestyle = 'None',markersize=10,label="Observations")
+    ax1.set_ylim(ax1.get_ylim()[::-1])
+    ax1.set_ylabel("OBSERVATIONS AND PERCEPTION",fontsize = big_label_size)
+
+    handles_colors = [low_col,mid_col,high_col]
+    handles, labels = ax1.get_legend_handles_labels()
+    handles.append(MulticolorPatch(handles_colors))
+    labels.append("Subject belief about hidden state")
+
+    ax1.legend(handles=handles,labels=labels,handler_map={MulticolorPatch: MulticolorPatchHandler()},fontsize=legend_size)
+    
+    ax2.set(xlim=(0-0.5, T-0.5))
+    action_posterior_image = custom_colormap(my_colormap,action_beliefs)
+    ax2.imshow(action_posterior_image/255.0,aspect="auto")
+    ax2.plot(timesteps[:-1],actions,color='white',marker="*",linestyle = 'None',markersize=10,label="Actions taken")
+    ax2.set_ylim(ax2.get_ylim()[::-1])
+    ax2.set_ylabel("ACTIONS",fontsize=big_label_size)
+    ax2.set_xlabel("Timesteps",fontsize = big_label_size)
+    
+
+    handles_colors = [low_col,mid_col,high_col]
+    handles, labels = ax2.get_legend_handles_labels()
+    handles.append(MulticolorPatch(handles_colors))
+    labels.append("Subject posterior over policy (belief about best possible action)")
+
+    ax2.legend(handles=handles,labels=labels,handler_map={MulticolorPatch: MulticolorPatchHandler()},loc='lower right',fontsize=legend_size)
+    
+
+
+    for ax in [ax1,ax2]:
+        ax.set_anchor('W')
+    # fig.tight_layout()
+    # fig.show()
+
+
+    # fig,axes = plt.subplots(2,1)
+    subfigs_nested = subfigures[1].subfigures(2,1)
+
+    a_matrices_subfigure = subfigs_nested[0].subfigures(1,2,wspace=0.07, width_ratios=[2, 1.])
+
+    # A matrices
+    a_matrices_axes = a_matrices_subfigure[0].subplots(2,1)
+    a_mat_bef = a_pre
+    a_mat = a_
+    #print(a_mat,a_mat_bef)
+    a_image_pre = draw_a_3D_image(normalize(a_mat_bef),colormap =my_colormap)
+    a_image = draw_a_3D_image(normalize(a_mat),colormap =my_colormap)
+    
+    ax4b = a_matrices_axes[0]
+    ax4b.imshow(a_image_pre)
+    ax4b.set_xlabel("States at t",font=labelfont)
+    ax4b.set_ylabel("Feedback (t)",font=labelfont)
+    ax4b.set_title('Perception model (during trial)', fontsize=subtitle_fontsize)
+
+    ax4 = a_matrices_axes[1]
+    ax4.imshow(a_image)
+    ax4.set_xlabel("States at t",font=labelfont)
+    ax4.set_ylabel("Feedback (t)",font=labelfont)
+    ax4.set_title('Perception model (after learning)', fontsize=subtitle_fontsize)
+    
+
+    Mxticks= []
+    Myticks = []
+    for k in range(Ns):
+        Mxticks.append(k)
+        Myticks.append(k)
+    ax4.set_xticks(Mxticks)
+    ax4.set_yticks(Myticks)
+    ax4b.set_xticks(Mxticks)
+    ax4b.set_yticks(Myticks)
+
+    axes_legend = a_matrices_subfigure[1].subplots(1,1)
+    ax6 = axes_legend
+    
+    
+    #Save scale for the first instance :
+    img_array = np.linspace(1,0,N)
+    img = np.zeros(img_array.shape +(50,) +  (4,))
+    for k in range(N):
+        color_array = colorfunc(my_colormap,img_array[k])
+        img[k,:,:] = color_array
+    img = PIL.Image.fromarray(img.astype(np.uint8))
+    #img.resize((800,100))
+    ax6.imshow(img) 
+    ax6.set_title('Color legend', fontsize=subtitle_fontsize)
+    ax6.set_ylabel("Probability density",font=labelfont)
+    ax6.set_xticks([])
+    ax6.set_yticks([0,N/2.0,N])
+    ax6.set_yticklabels(["1.0","0.5","0.0"])
+
+    axes = subfigs_nested[1].subplots(2,1)
+    ax5b = axes[0]
+    ax5 = axes[1]
+    
+    
+    b_mat = b_
+    b_mat_pre = b_pre
+
+    lim = 0
+    b_image = draw_a_3D_image(normalize(b_mat),lim,colormap =my_colormap)
+    b_image_pre = draw_a_3D_image(normalize(b_mat_pre),lim,colormap =my_colormap)
+
+    y_ticks = np.arange(0,Ns,1)
+    major_ticks = np.arange(0,Nactions,1)*(Ns+lim)-lim + (Ns+lim)/2.0 -0.5
+    minor_ticks=[]
+    major_ticks = []
+    iamhere=0
+    for k in range(Nactions):
+        major_ticks.append(iamhere-0.5 + Ns/2.0)
+        minor_ticks.append(iamhere-0.5)
+        iamhere = iamhere + Ns
+        minor_ticks.append(iamhere-0.5)
+        iamhere = iamhere + lim
+    
+    labels = [("t="+str(i)) for i in minor_ticks_x]
+
+    ax5b.set_xticks(minor_ticks,minor=True)
+    ax5b.set_xticks(major_ticks)
+    ax5b.set_yticks(y_ticks)
+    ax5b.xaxis.grid(True, which='minor')
+    if (action_labels=="alphabet"):
+        letters_list =  list(map(chr,range(ord('a'),ord('z')+1)))
+        mylabel = letters_list[:Nactions]
+        ax5b.set_xticklabels(mylabel)
+    ax5b.set_yticklabels(["" for i in range(Ns)])
+    ax5b.imshow(b_image_pre)
+    ax5b.set_title('Action model (during trial)', fontsize=subtitle_fontsize)
+    ax5b.set_xlabel("Action X leads from states t",font=labelfont)
+    ax5b.set_ylabel("To states t+1",font=labelfont)
+
+    ax5.set_xticks(minor_ticks,minor=True)
+    ax5.set_xticks(major_ticks)
+    ax5.set_yticks(y_ticks)
+    ax5.xaxis.grid(True, which='minor')
+    if (action_labels=="alphabet"):
+        letters_list =  list(map(chr,range(ord('a'),ord('z')+1)))
+        mylabel = letters_list[:Nactions]
+        ax5.set_xticklabels(mylabel)
+    ax5.set_yticklabels(["" for i in range(Ns)])
+    ax5.imshow(b_image)
+    ax5.set_title('Action model (after learning)', fontsize=subtitle_fontsize)
+    ax5.set_xlabel("Action X leads from states t",font=labelfont)
+    ax5.set_ylabel("To states t+1",font=labelfont)
+    
+    subfigures[0].suptitle('TRIAL HISTORY', fontsize=13)
+    subfigures[1].suptitle('SUBJECT MODEL', fontsize=13)
+    if (title==None):
+        fig.suptitle('Trial sum-up', fontsize='xx-large')
+    else :
+        fig.suptitle(title, fontsize='xx-large')
+    return fig
+
+def trial_plot_figure_old(T,states_beliefs,action_beliefs,
                 observations,real_states,actions,
                 a_,b_,
                 plotmean=False,action_labels="alphabet",title=None) :
@@ -508,7 +765,6 @@ def trial_plot_figure(T,states_beliefs,action_beliefs,
 
     # BEGIN ! --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     fig = plt.figure(constrained_layout=True)
-    
     subfigures = fig.subfigures(1,2,wspace=0.07, width_ratios=[1.7, 1.])
 
     axes = subfigures[0].subplots(2,1)

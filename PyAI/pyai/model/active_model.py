@@ -266,7 +266,9 @@ class ActiveModel():
             if run_next_trial :
                 print("------")
                 print("Simulating Model " + str(self.model_name) +" -  Trial " + str(trial_counter) +" for instance " + str(k)+ ".")
-                for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation,verbose=self.verbose):
+
+                big_verbose = False
+                for ol in ActiveModel.layer_generator(lay,state_transition_rule,obs_perception_rule,initial_state,initial_observation,verbose=big_verbose):
                     t = ol[1]  # To get the actual timestep 
                     updated_layer = ol[0]
                     if ((t in self.saveticks)and(savebool)) :

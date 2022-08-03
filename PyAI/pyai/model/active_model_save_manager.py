@@ -70,8 +70,11 @@ class ActiveSaveManager():
         
         container = ActiveModelSaveContainer(wholename,layer,trial_counter)
         container.layer_instance = parrallel_counter
-        if (self.verbose):
-            print("Saving to : " + container.path)
+        try :
+            if (self.verbose):
+                print("Saving to : " + container.path)
+        except: 
+            lol= 0
         container.quicksave()
 
     def save_this_trial(self,trial):

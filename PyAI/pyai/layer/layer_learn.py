@@ -30,6 +30,7 @@ Maxwell J. D. Ramstead (maxwell.ramstead@mcgill.ca)
 ------------------------------------------------------------------------------------------------------
 A method initializing the various sizes used in Active Inference Experiments
 """
+from operator import ne
 import os,sys
 from enum import Enum
 import random as r
@@ -63,10 +64,17 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100):
     if (t05 <= eps):
         return old_matrix + new_matrix
     else :
+        epsilon = 1e-8
         k = 1
         multiplier = np.exp(-(np.log(2)/t05))
+
+        new_matrix = old_matrix*multiplier + new_matrix
+        new_matrix[new_matrix<epsilon] = epsilon
+        return new_matrix
+
+
         epsilon = k*(multiplier)
-        min_value = 1
+        min_value = 1 # We forget following a forgetting rate epsilon, but never below a min value
         return_knowledge_matrix = old_matrix
         return_knowledge_matrix[return_knowledge_matrix>min_value] = return_knowledge_matrix[return_knowledge_matrix>min_value] - (return_knowledge_matrix[return_knowledge_matrix>min_value]-min_value)*(1-epsilon)
         return_knowledge_matrix[return_knowledge_matrix<min_value] = min_value # Just in case ?

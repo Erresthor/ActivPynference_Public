@@ -283,7 +283,13 @@ class ActiveModel():
                     print("----------------  SAVING  ----------------")
                     print(" - Observations --> " + str(self.layer_list[k].o))
                     print(" - Actual states --> " + str(self.layer_list[k].s))
-                    print(" - Belief about states --> \n" + str(np.round(self.layer_list[k].X,1)) + "\n")
+                    # print(self.layer_list[k].X)
+                    try : 
+                        print(" - Belief about states --> \n" + str(np.round(self.layer_list[k].X,1)) + "\n")
+                    except :
+                        print(" - Belief about states --> ")
+                        print(np.round(self.layer_list[k].X[0],1))
+                        print(np.round(self.layer_list[k].X[1],1))
                     print(" - Chosen actions --> " + str(self.layer_list[k].u))
             
                 tafter = time.time()

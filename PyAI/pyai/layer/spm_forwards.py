@@ -153,6 +153,8 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
                     print("       - Ambiguity = " + str(ambiguity))
                     print("       - Risk      = " + str(risk))
                 G[action] = G[action] - A_exploration_term - B_exploration_term
+                # print(G,action,A_exploration_term)
+                # print(np.round(B_novelty[action],2))
                 if (t==t0) and debug :
                     print("Resulting in G[action] = " + str(G[action]))
                     print("---")

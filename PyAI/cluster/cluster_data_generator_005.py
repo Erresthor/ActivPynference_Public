@@ -26,7 +26,7 @@ def generate_a_parameter_list(a_priors_sigma,a_priors_mean,A_priors_sigma,A_prio
         for kA in range(len(A_priors_sigma)):
             for ma in range(len(a_priors_mean)):
                 for mA in range(len(A_priors_mean)):
-                    modelchar = [True    ,a_priors_sigma[ka] ,a_priors_mean[ma]    ,A_priors_sigma[kA] ,A_priors_mean[mA]]
+                    modelchar = [False    ,a_priors_sigma[ka] ,a_priors_mean[ma]    ,A_priors_sigma[kA] ,A_priors_mean[mA]]
                     #            learn a ,a_sigma      ,a_mean ,A_sigma      ,A_mean
                     try :
                         labela1 = str(int(100*a_priors_sigma[ka]))
@@ -54,10 +54,10 @@ def generate_a_parameter_list(a_priors_sigma,a_priors_mean,A_priors_sigma,A_prio
     return new_list,indexlist
 
 if __name__=="__main__":
-    a_sigma = list(np.arange(0,2,0.25))
-    a_mean = list(np.arange(-1,1,0.25))
-    A_sigma = ["perfect"]
-    A_mean = [0]
+    a_sigma = ["perfect"]
+    a_mean = [0]
+    A_sigma = list(np.arange(0,2,0.25))
+    A_mean = list(np.arange(-1,1,0.25))
 
     parameter_list,index_list = generate_a_parameter_list(a_sigma,a_mean,A_sigma,A_mean)
 
@@ -105,7 +105,7 @@ if __name__=="__main__":
     if perfect_A:
         A_sigma = 0.01
     else: 
-        A_sigma = model_options[3]
+        A_sigma =  max(model_options[3],0.005)
     A_mean = model_options[4]
 
     prop_poubelle = 0.0

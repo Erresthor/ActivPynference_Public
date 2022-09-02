@@ -99,7 +99,8 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
                                            For a given initial state, prob to get to another          
     *strength* describes the strongness of the priors, how confident the agent is about those and how difficult it will be to change them
     *ratio* describes a preferential prior. If ratio > 1, the agent will have a positive prior regarding a certain dynamic
-     e.g. if ratio =2, the agent will believe that action 2 at state 1 is twice as likely to lead to a hidden state of 2 than any other.
+     e.g. if ratio =2, the agent will believe that action 2 at state 1 is twice as likely to lead to a hidden state of 2 than any other. It remains a weak prior though, as 
+                                    prob(not(state (2))| state(1) & action(2)) = 4/6  --> there is a huge chance that this action does not lead to 2
      [ this also stands for actions] 
     PERCEPTION :
     The agent beliefs about state-observations correspondance are "gaussian-like" :  

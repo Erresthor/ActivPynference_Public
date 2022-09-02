@@ -120,17 +120,17 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
             if (bayesian_risk_only):
                 G[action] = G[action] + np.dot(qo.T,po) # ROI if only bayesian risk is computed
             else :
+                ambiguity = np.dot(Q[action].T,A_ambiguity[modality].flatten()) # I'd rather solve uncertainty
+                risk =  - np.dot(qo.T,nat_log(qo)-po) # I want to go towards preferable results
                 # G[factor] =                              ambiguity              +                 risk
-                G[action] = G[action] + np.dot(Q[action].T,A_ambiguity[modality].flatten()) - np.dot(qo.T,nat_log(qo)-po)
+                G[action] = G[action] + ambiguity + risk
 
 
                 # Bayesian surprise about parameters (= novelty)
                 # A term to promote agent exploration to improve the model
                 # The smaller the weights of a single cell, the more it is explored
                 # The bigger the weights of the whole modality, the less it is explored
-                # THIS IS ONLY COHERENT IF WE ARE LEARNING a 
-                # PLUS
-                # I THINK THERE IS A SIGN MISTAKE HERE : 
+                # No sign error, we calculate MINUS EFE and not EFE in this routine
                 A_exploration_term = 0
                 B_exploration_term = 0
 
@@ -141,15 +141,23 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
 
                 # We calculate how much new information would be gained by picking action B knowing that we would be 
                 # starting from a distribution of state P and going towards a distribution of states Q
-                # Q = q(s|pi) at time t
+                # Q = q(s+1|pi) at time t
                 # P = q(s) at time t
                 B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P[t]))
 
-                if (t==t0) and False :
+                debug = False
+                if (t==t0) and debug :
                     print(t)
                     print("Action : " + str(action) + "  - Exploratory terms : B " + str(B_exploration_term) + " A " + str(A_exploration_term))
-                    print("---")
+                    print("Compared to G[action] = " + str(G[action]) + "   from :")
+                    print("       - Ambiguity = " + str(ambiguity))
+                    print("       - Risk      = " + str(risk))
                 G[action] = G[action] - A_exploration_term - B_exploration_term
+                # print(G,action,A_exploration_term)
+                # print(np.round(B_novelty[action],2))
+                if (t==t0) and debug :
+                    print("Resulting in G[action] = " + str(G[action]))
+                    print("---")
                 # Let's pick an observation probability dirichlet prior for given set of states : a_1 = [10,5,0.01], a_2  = [1,1,1]
                 # w_norm(a_1) = -[0.1 - 1/15, 0.2 - 1/15, 100 - 1/15]) = [-0.033, -0.133 , -99.933]
                 # w_norm(a_2) = -[1 - 1/3 ,1 - 1/3 ,1 - 1/3] =           [-0.66,-0.66,-0.66]         # Considerable weights towards a_1, whereas it has already been explored --> error !
@@ -198,6 +206,12 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
         # print("Risk")
 
     plausible_threshold = 1.0/16.0
+    debug = False 
+    if debug :
+        print("#########################")
+        print(np.round(G,2))
+        print(softmax(G))
+        print("#########################")
     if (t<N): # t within temporal horizon
         u = softmax(G)
         k = (u<plausible_threshold)

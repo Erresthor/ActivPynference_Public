@@ -129,7 +129,7 @@ def initialize_fields(layer_input):
             epsilon = 1e-16
             # a_novelty.append( spm_wnorm(a_prior[modality],epsilon)*(a_prior[modality]>epsilon) )
             # I believe the true novelty should be the opposite of the previous term to be >0 :
-            a_novelty.append(-spm_wnorm(a_prior[modality],epsilon)*(a_prior[modality]>epsilon) )
+            a_novelty.append(spm_wnorm(a_prior[modality],epsilon)*(a_prior[modality]>epsilon) )
         # print("--------------------------------")
         # print("--------------------------------")
         # print("--------------------------------")
@@ -167,7 +167,8 @@ def initialize_fields(layer_input):
         b_concentration = []
         for factor in range(Nf):   # For all factors
             b_prior.append(np.copy(layer_input.b_[factor]))
-            b_complexity.append(-spm_wnorm(b_prior[factor])*(b_prior[factor]>0))
+            epsilon = 1e-16
+            b_complexity.append(spm_wnorm(b_prior[factor])*(b_prior[factor]>epsilon))
     elif isField(layer_input.B_) :
         b = normalize(layer_input.B_)
     else :

@@ -1,9 +1,10 @@
 import sys,os
-
+import time as t
 from cmath import pi
 from imageio import save
 import numpy as np
 from pyai.base.matrix_functions import *
+from pyai.base.file_toolbox import load_flexible
 from pyai.base.function_toolbox import spm_wnorm
 from pyai.neurofeedback_run import save_model_performance_dictionnary,load_model_performance_dictionnary
 import matplotlib.pyplot as plt
@@ -27,42 +28,47 @@ def sliding_window_mean(array_input,window_size = 5):
         return list_output
 
 if __name__=="__main__":
-    save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","flat_prior_sham_feedback")
-    overwrite = False
-    model_name = "a_ac1.4_str1_b_ac2.8_str1"
-
-    complete_data = True
-    var = True 
-
-    save_model_performance_dictionnary(save_path,model_name,evaluate_container,overwrite=overwrite,include_var=var,include_complete=complete_data)
-
     plot_modality = 0
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","code","results","article_1")
+    filename = "simulation_output_004.1.pyai"
 
+    t0 = t.time()
+    file = load_flexible(os.path.join(savepath,filename))
+    t1 = t.time()
+    print("Loading file " + filename + " in " + str(np.round(t1 - t0,2)) + " seconds .")
     
-    full_dico = load_model_performance_dictionnary(save_path,model_name,var,complete_data)
 
-    field_wanted = "state_error"
+    field_wanted = "behaviour_error"
     
-    all_o_err = full_dico['complete'][field_wanted]
-    o_err_std = np.sqrt(full_dico['variance'][field_wanted])
-    o_err_mean = (full_dico['mean'][field_wanted])
-    ts = np.arange(0,o_err_std.shape[0],1) 
+    failed = False
+    cnt = 0
+    while (not(failed)):
+        try :
+            dico = file[cnt]
+            all_o_err = dico['complete'][field_wanted]
+            o_err_std = np.sqrt(dico['variance'][field_wanted])
+            o_err_mean = (dico['mean'][field_wanted])
+            ts = np.arange(0,o_err_std.shape[0],1) 
 
 
-    slided_std = sliding_window_mean(o_err_std[:,plot_modality],5)
-    slided_mea = sliding_window_mean(o_err_mean[:,plot_modality],5)
-    plt.fill_between(ts, slided_mea-slided_std, slided_mea+slided_std,color=np.array([0.8,0.8,1.0]))
-    
-    pointcolor = np.array([150.0/255,150.0/255,1.0])
-    for model_indice in range(all_o_err.shape[0]):
-        plt.scatter(ts,all_o_err[model_indice,:,plot_modality],c=pointcolor,s=0.33)
+            slided_std = sliding_window_mean(o_err_std[:,plot_modality],5)
+            slided_mea = sliding_window_mean(o_err_mean[:,plot_modality],5)
+            plt.fill_between(ts, slided_mea-slided_std, slided_mea+slided_std,color=np.array([0.8,0.8,1.0]))
+            
+            pointcolor = np.array([150.0/255,150.0/255,1.0])
+            for model_indice in range(all_o_err.shape[0]):
+                plt.scatter(ts,all_o_err[model_indice,:,plot_modality],c=pointcolor,s=0.33)
 
-    # print(slided_mea,slided_std.shape)
-    plt.plot(ts,slided_mea,color='red')
+            # print(slided_mea,slided_std.shape)
+            plt.plot(ts,slided_mea,color='red')
+        except : 
+            failed = True
+        cnt = cnt + 1
     #plt.xlim(0,1)
     plt.ylim(-0.1,1.1)
     plt.ylabel(field_wanted)
     plt.xlabel("Trials")
     plt.title("Evolution of " + field_wanted + " accross trials for 20 subjects with no initial b_prior and absolute a confidence")
     plt.show()
+    print(dico['model'].a)
     #print(full_dico['complete']['A_list'][0])

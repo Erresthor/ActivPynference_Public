@@ -86,12 +86,17 @@ if __name__=="__main__" :
     except :
         overwrite = False
     
+    try : 
+        loadcode = input_arguments[4]
+    except :
+        loadcode = "mv"
+
     print("------------------------------------------------------------------")
     print("Generating sumup for all models in folder " + model_save_path)
     if(overwrite):
         print("(Overwriting previous files)")
     
-    list_of_model_dicts = produce_total_sumup_for(model_save_path,evaluate_container,overwrite=overwrite,indiv_sumup_code='mcv',global_sumup_code='mv')
+    list_of_model_dicts = produce_total_sumup_for(model_save_path,evaluate_container,overwrite=overwrite,indiv_sumup_code='mcv',global_sumup_code=loadcode)
 
     
     sumup_file_name = "simulation_output_" + model_save_path.split("_")[-1]+ ".pyai"

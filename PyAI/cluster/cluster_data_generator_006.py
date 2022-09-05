@@ -114,6 +114,7 @@ if __name__=="__main__":
     model = nf_model(model_name,save_path,prop_poubelle=prop_poubelle,
                         prior_a_sigma=a_sigma,prior_a_meanskew=a_mean,learn_a=a_learn,
                         prior_A_sigma=A_sigma,prior_A_meanskew=A_mean,
+                        prior_a_strength=20,
                         perfect_a=perfect_a,perfect_A=perfect_A)
     
     

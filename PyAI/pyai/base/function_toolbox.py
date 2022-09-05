@@ -98,7 +98,7 @@ def spm_wnorm_toocomplex(A):
         return (np.squeeze(A_wnormed))
     return A_wnormed
 
-def spm_wnorm(A,epsilon = 1e-16) :
+def spm_wnorm(A,epsilon = 1e-2) :
         # no idea what it does ¯\_(ツ)_/¯ 
     """ Used for calculating a novelty term and push agent towards long term model exploration. 
     In practice, we want to encourage unexplored options, even though we have some slight priors. Strong priors 
@@ -108,8 +108,12 @@ def spm_wnorm(A,epsilon = 1e-16) :
     First term : high if ption prior is low. Problem : might be very high if prior very low but in spm forwards, it is no problem ?
     Second term : high if dirichlet prior term sum low : encourage unexplored options
     """
-    A = A +  epsilon#♣np.exp(-16)
-    #print(1./np.sum(A,axis=0,keepdims=True))
+    A = A +  epsilon
+    
+    # This very high epsilon puts an effective bound to the novelty term
+    # (max novelty ~ - 0.5* (100))
+    # If this does not exist, low prior models weights lead to very high novelties
+
     A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./A))/2. # Always <0 --> Unwanted ?
     return np.squeeze(A_wnormed)
 

@@ -136,6 +136,17 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
 
                 # if we learn a :
                 A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                # Problem : 
+                # If b is unknown too, state posterior may be very flat (0.2 0.2 0.2 0.2 0.2) (i don't know whare this action leads)
+                # If a is a gaussian with very low values (1e-5 1 1e-5 1e-100 1e-200) for a given state, 
+                # AND Predictive observation would be flat (0.2 0.2 0.2 0.2 0.2)
+                # 
+                # their novelty value would be very high (50,0,50,5000,50000)
+                # And the potential novelty achieved with this observation would be high too.
+                
+                
+                
+                
                 # if we learn b : 
                 # Q[action] is the posterior over states$
 
@@ -149,6 +160,10 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
                 if (t==t0) and debug :
                     print(t)
                     print("Action : " + str(action) + "  - Exploratory terms : B " + str(B_exploration_term) + " A " + str(A_exploration_term))
+                    print("Predicted observations : " + str(qo))
+                    print("Predicted states : " + str(Q[action]))
+                    print("A : " + str(flattened_W))
+                    print(np.dot(flattened_A,Q[action]))
                     print("Compared to G[action] = " + str(G[action]) + "   from :")
                     print("       - Ambiguity = " + str(ambiguity))
                     print("       - Risk      = " + str(risk))

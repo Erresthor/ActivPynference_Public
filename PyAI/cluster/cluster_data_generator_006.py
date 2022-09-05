@@ -1,4 +1,5 @@
 #!/usr/bin/python
+from json import load
 from operator import index
 import sys,inspect,os
 import numpy as np
@@ -13,6 +14,7 @@ from pyai.model.active_model import ActiveModel
 from pyai.neurofeedback_run import save_model_performance_dictionnary
 from pyai.neurofeedback_run import trial_plot, trial_plot_from_name
 from pyai.models_neurofeedback.article_1_simulations.climb_stairs_a_gaussian_A_gaussian import nf_model,evaluate_container
+from pyai.neurofeedback_run import load_model_performance_dictionnary
 
 # Generate a succession of trial results for a model in a list
 # Made to work as a command and simulate a single model index
@@ -114,6 +116,7 @@ if __name__=="__main__":
     model = nf_model(model_name,save_path,prop_poubelle=prop_poubelle,
                         prior_a_sigma=a_sigma,prior_a_meanskew=a_mean,learn_a=a_learn,
                         prior_A_sigma=A_sigma,prior_A_meanskew=A_mean,
+                        prior_a_strength=1,
                         perfect_a=perfect_a,perfect_A=perfect_A)
     
     
@@ -121,15 +124,25 @@ if __name__=="__main__":
     model.index = index_list[list_index] # This is to track the input parameters
     # We can also add custom values for the matrices or modify the run here :
     # model.parameter = new_value 
+    model.verbose = True
+
     model.initialize_n_layers(Ninstances)
     model.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
-
     # Here, we shoud generate a first set of run-wide performance results
     # And save them in a dedicated file (_MODEL and _PERFORMANCES or smthg like that ?)
     save_model_performance_dictionnary(save_path,model_name,evaluate_container,overwrite=overwrite,include_var=var,include_complete=comp)
     print("Saving model results at :   " + save_path + " " + model_name)
 
-    # trial_plot_from_name(save_path,model_name,2,[1,4,9])
+    # trial_plot_from_name(save_path,model_name,0,[1,15,100,500])
+    # plt.show()
+    # # 
+
+    dic = load_model_performance_dictionnary(save_path,model_name,True,True)
+    plt.plot(np.linspace(0,Ntrials,Ntrials),dic["mean"]['observation_error'])
+    plt.plot(np.linspace(0,Ntrials,Ntrials),dic["mean"]['b_error'])
+    plt.show()
+
+
     # plt.show()
     # print(model_name)
     # print(model_options)

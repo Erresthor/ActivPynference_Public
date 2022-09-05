@@ -57,7 +57,7 @@ if __name__=="__main__":
     a_sigma = ["perfect"]
     a_mean = [0]
     A_sigma = list(np.arange(0,2,0.25))
-    A_mean = list(np.arange(-1,1,0.25))
+    A_mean = list(np.arange(-1,1+0.25,0.25))
 
     parameter_list,index_list = generate_a_parameter_list(a_sigma,a_mean,A_sigma,A_mean)
 

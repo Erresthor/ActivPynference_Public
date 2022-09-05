@@ -113,6 +113,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     meaning that the agent may believe strongly that an observed 2 means a hidden state 2, but he may also believe
     less strongly that it may be 1 or 3, but it is much less likely to be 0 or 4.
     """
+    MIN_PRIOR = 0.1
     constant = 20
     Nf = 1
 

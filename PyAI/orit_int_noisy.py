@@ -390,7 +390,8 @@ if __name__ == "__main__":
     Ninst = 10
     overwrite = False 
     index = "001"
-    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","NEW_TEMPORARY_TEST_BED","bagherzadeh","ori_vs_int_b_learn")
+    prior_b_precision = 50
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","NEW_TEMPORARY_TEST_BED","bagherzadeh","ori_vs_int_b_learn_" + str(prior_b_precision) + "_low_int_terrible")
     
     p_i = 0.25 # probability of lowering the attentional level in case of monitoring attention
     p_o = 0.5 # probability of centering the directional attention in case of monitoring intensity
@@ -398,9 +399,12 @@ if __name__ == "__main__":
 
     modelnameR = "model_rnt"
     save_pathR = savepath
+
+    
+
     modelR = bagherzadeh_model(modelnameR,save_pathR,p_i,p_o,'right',
                                                     perfect_a=False,prior_a_precision=1,prior_a_confidence=0.5,
-                                                    perfect_b = False,prior_b_precision=10,
+                                                    perfect_b = False,prior_b_precision=prior_b_precision,
                                                     perfect_d=True,verbose=True)
     modelR.index = [p_i,p_o,index]
     modelR.T = T
@@ -410,7 +414,7 @@ if __name__ == "__main__":
     save_pathL = savepath
     modelL = bagherzadeh_model(modelnameL,save_pathL,p_i,p_o,'left' ,
                                                     perfect_a=False,prior_a_precision=1,prior_a_confidence=0.5,
-                                                    perfect_b = False,prior_b_precision=10,
+                                                    perfect_b = False,prior_b_precision=prior_b_precision,
                                                     perfect_d=True,verbose=True)
     modelL.index = [p_i,p_o,index]
     modelL.T = T

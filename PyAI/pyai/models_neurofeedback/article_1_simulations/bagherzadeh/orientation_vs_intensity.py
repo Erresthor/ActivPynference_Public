@@ -863,7 +863,7 @@ def bagherzadeh_model(modelname,savepath,p_i,p_o,
             verbose = False,SHAM="False"):
     Nf = 2 # two mental states are interesting in this scenario
     Ns = [5,3] # 5 orientation levels possible (left,center-left,middle,center-right,right) & 3 attention level possible (Low,Medium,High)
-    D_ = [np.array([0,0,1,0,0]),np.array([0,1,0])] # Initial state (attention isn't focused either right or left, intensity is medium)
+    D_ = [np.array([0,0,1,0,0]),np.array([1,1,1])] # Initial state (attention isn't focused either right or left, intensity is medium)
     D_ = normalize(D_)
 
     d_ =[]
@@ -886,42 +886,56 @@ def bagherzadeh_model(modelname,savepath,p_i,p_o,
     No = 5 # 1-very_bad 2-bad 3-neutral 4-good 5-very_good
     if SHAM=="False" :
         A_ = np.zeros((No,5,3))
-        for attentive_level in range(Ns[1]):
-            A_[:,:,attentive_level] = np.eye(5) # Whatever the attentional intensity, A_ is the same
+        # for attentive_level in range(Ns[1]):
+        #     A_[:,:,attentive_level] = np.eye(5) # Whatever the attentional intensity, A_ is the same
             
-            # attention is goood : 
-            A_[:,:,0] = (np.ones(A_[:,:,0].shape))
-            A_[:,:,1] = (np.ones(A_[:,:,0].shape) + 2*np.eye(5))
-            A_[:,:,2] = np.eye(5)
+        #     # attention is goood : 
+        #     A_[:,:,0] = (np.ones(A_[:,:,0].shape))
+        #     A_[:,:,1] = (np.ones(A_[:,:,0].shape) + 2*np.eye(5))
+        #     A_[:,:,2] = np.eye(5)
 
 
 
-            A_[:,:,0] = (np.ones(A_[:,:,0].shape))
-            A_[:,:,1] = (np.ones(A_[:,:,0].shape) + 2*np.eye(5))
-            A_[:,:,2] = np.eye(5)
+        #     A_[:,:,0] = (np.ones(A_[:,:,0].shape))
+        #     A_[:,:,1] = (np.ones(A_[:,:,0].shape) + 2*np.eye(5))
+        #     A_[:,:,2] = np.eye(5)
 
+
+        # # Right is at zero :
+        # if (neurofeedback_training_group =="right"):
+        #     A_[:,:,2] = np.array([[1,0,0,0,0],
+        #                           [0,1,0,0,0],
+        #                           [0,0,1,0,0],
+        #                           [0,0,0,1,0],
+        #                           [0,0,0,0,1]])
+        #     A_[:,:,0] = normalize(np.ones((5,5)))
+        #     A_[:,:,1] = normalize(np.ones((5,5))+4*A_[:,:,2])
+        #     A_[:,:,2] = normalize(np.ones((5,5))+10*A_[:,:,2])
+
+        # elif (neurofeedback_training_group =="left"):
+        #     A_[:,:,2] = np.array([[0,0,0,0,1],
+        #                           [0,0,0,1,0],
+        #                           [0,0,1,0,0],
+        #                           [0,1,0,0,0],
+        #                           [1,0,0,0,0]])
+        #     A_[:,:,0] = normalize(np.ones((5,5)))
+        #     A_[:,:,1] = normalize(np.ones((5,5))+4*A_[:,:,2])
+        #     A_[:,:,2] = normalize(np.ones((5,5))+10*A_[:,:,2])
+        #     #A_ = 
+        #     #A_ = np.rot90(A_,axes=(0,1))
 
         # Right is at zero :
         if (neurofeedback_training_group =="right"):
-            A_[:,:,2] = np.array([[1,0,0,0,0],
-                                  [0,1,0,0,0],
-                                  [0,0,1,0,0],
-                                  [0,0,0,1,0],
-                                  [0,0,0,0,1]])
-            A_[:,:,0] = normalize(np.ones((5,5)))
-            A_[:,:,1] = normalize(np.ones((5,5))+4*A_[:,:,2])
-            
+            for i in range(3):
+                A_[:,:,i] = np.eye(5)
 
         elif (neurofeedback_training_group =="left"):
-            A_[:,:,2] = np.array([[0,0,0,0,1],
-                                  [0,0,0,1,0],
-                                  [0,0,1,0,0],
-                                  [0,1,0,0,0],
-                                  [1,0,0,0,0]])
-            A_[:,:,0] = normalize(np.ones((5,5)))
-            A_[:,:,1] = normalize(np.ones((5,5))+4*A_[:,:,2])
-            #A_ = 
-            #A_ = np.rot90(A_,axes=(0,1))
+            for i in range(3):
+                A_[:,:,i] = np.array([[0,0,0,0,1],
+                                    [0,0,0,1,0],
+                                    [0,0,1,0,0],
+                                    [0,1,0,0,0],
+                                    [1,0,0,0,0]])
         A_ = normalize([A_])
     else :
         A_ = [normalize(np.ones((No,)+tuple(Ns)))]  
@@ -994,7 +1008,6 @@ def bagherzadeh_model(modelname,savepath,p_i,p_o,
         b_ = [0,0]
         b_[0] = prior_b_confidence*(np.ones(B_[0].shape) + (prior_b_precision-1)*B_[0])
         b_[1] = prior_b_confidence*(np.ones(B_[1].shape) + (prior_b_precision-1)*B_[1])
-
     # U_ = np.zeros((nu,len(Ns)))
     U_ = np.array([[0,0],    # To the right
                    [1,0],    # To the left            + nat decay
@@ -1036,7 +1049,7 @@ def bagherzadeh_model(modelname,savepath,p_i,p_o,
     nf_model.B = B_
     nf_model.b = b_
     nf_model.layer_options.learn_b = learn_b
-
+    
     nf_model.D = D_
     nf_model.d = d_
     nf_model.layer_options.learn_d = learn_d

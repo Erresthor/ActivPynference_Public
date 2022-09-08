@@ -55,7 +55,7 @@ def generate_a_parameter_list(a_priors_sigma,a_priors_mean,A_priors_sigma,A_prio
 
 if __name__=="__main__":
     a_sigma = list(np.arange(0,2,0.25))
-    a_mean = list(np.arange(-1,1,0.25))
+    a_mean = list(np.arange(-1,1+0.25,0.25))
     A_sigma = ["perfect"]
     A_mean = [0]
 

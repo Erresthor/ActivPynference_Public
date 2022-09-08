@@ -138,7 +138,22 @@ if __name__=="__main__":
     # # 
 
     dic = load_model_performance_dictionnary(save_path,model_name,True,True)
-    plt.plot(np.linspace(0,Ntrials,Ntrials),dic["mean"]['observation_error'])
+    
+    raw = dic["mean"]['state_error']
+
+    flattened=np.zeros((Ntrials,))
+    win = 3
+    for t in range(Ntrials):
+        print(Ntrials)
+        total = 0
+        cnter = 0
+        for k in range(t-3,t+4):
+            if (k>=0)and(k<Ntrials):
+                total = total + raw[k]
+                cnter = cnter + 1
+        flattened[t] = total/cnter
+
+    plt.plot(np.linspace(0,Ntrials,Ntrials),flattened)
     plt.plot(np.linspace(0,Ntrials,Ntrials),dic["mean"]['b_error'])
     plt.show()
 

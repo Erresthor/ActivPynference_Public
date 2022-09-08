@@ -41,6 +41,7 @@ def return_all_from(fullpath,Ntrials) :
                 list_of_perf.append(avg_obs/4.0) # rating between 0 and 1
             all_perfs.append(list_of_perf)
     return(all_perfs)
+
 def avg_trial_plot(save_pathR,modelnameR,save_pathL,modelnameL,Ntrials) :
     
     fileR = np.squeeze(np.array(return_all_from(os.path.join(save_pathR,modelnameR),Ntrials)))
@@ -418,9 +419,9 @@ if __name__ == "__main__":
     T = 11
     Ntrials = 100
     Ninst = 10
-    overwrite = True 
+    overwrite = False 
     index = "002"
-    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","no intensity impact")
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","orientation_intensity_new","learn_b_low_prior")
     
     p_i = 0.25 # probability of lowering the attentional level in case of monitoring attention
     p_o = 0.5 # probability of centering the directional attention in case of monitoring intensity
@@ -429,7 +430,7 @@ if __name__ == "__main__":
     save_pathR = savepath
     modelR = neurofeedback_model_intensityuseless(modelnameR,save_pathR,p_i,p_o,'right',
                                     perfect_a=False,prior_a_precision=1,prior_a_confidence=1,
-                                    perfect_b = True,prior_b_precision=5,
+                                    perfect_b = False,prior_b_precision=1.2,
                                     perfect_d=True,prior_d_precision=3,
                                     verbose=True)
     modelR.index = [p_i,p_o,index]
@@ -438,9 +439,10 @@ if __name__ == "__main__":
 
     modelnameL = "model_lnt"
     save_pathL = savepath
+    
     modelL = neurofeedback_model_intensityuseless(modelnameL,save_pathL,p_i,p_o,'left' ,
                                     perfect_a=False,prior_a_precision=1,prior_a_confidence=1,
-                                    perfect_b = True,prior_b_precision=5,
+                                    perfect_b = False,prior_b_precision=1.8,
                                     perfect_d=True,prior_d_precision=3,
                                     verbose=True)
     modelL.index = [p_i,p_o,index]
@@ -451,7 +453,9 @@ if __name__ == "__main__":
     print(modelL.A[0][:,:,1])
     print(modelL.A[0][:,:,2])
     modelR.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
+    overwrite = True
     modelL.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
+
     fullpathR = os.path.join(save_pathR,modelnameR)
     fullpathL = os.path.join(save_pathR,modelnameL)
 

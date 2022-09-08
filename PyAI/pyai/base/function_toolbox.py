@@ -108,13 +108,13 @@ def spm_wnorm(A,epsilon = 1e-2) :
     First term : high if ption prior is low. Problem : might be very high if prior very low but in spm forwards, it is no problem ?
     Second term : high if dirichlet prior term sum low : encourage unexplored options
     """
-    A = A +  epsilon
+    Acopy = np.copy(A) +  epsilon
     
     # This very high epsilon puts an effective bound to the novelty term
     # (max novelty ~ - 0.5* (100))
     # If this does not exist, low prior models weights lead to very high novelties
 
-    A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./A))/2. # Always <0 --> Unwanted ?
+    A_wnormed = ((1./np.sum(Acopy,axis=0,keepdims=True)) - (1./Acopy))/2. # Always <0 --> Unwanted ?
     return np.squeeze(A_wnormed)
 
 def inverted_spm_wnorm(A,epsilon = 1e-16) :
@@ -227,18 +227,30 @@ def KL_div_variant(x,y,norm=False):
             np.sum(gammaln(y)) + np.dot((x-y).T,(psi(x)-psi(np.sum(y)))))
     return np.sum(D)     
 
-def spm_KL_dir(x1,x2):
+def spm_KL_dir(xa,xb):
     """KL divergence between two dirichlet distributions"""
+    x1 = np.copy(xa)
+    x2 = np.copy(xb)
+    # print("-------------------------------------------")
+    # print(x1,x2)
+    # print(spm_betaln(x1))
+    # print(spm_betaln(x2))
+    # print("####")
+    # print(x2-x1)
+    # print("-------------------------------------------")
     d = spm_betaln(x2) - spm_betaln(x1) - np.sum((x2-x1)*spm_psi(x1+1/32),0)
+    # print( np.sum(d))
     return np.sum(d)
 
 def spm_betaln(X):
     """Generalized betaln function for unknown dimension matrixes
     The summation is on the first dimension so input matrix should be of 
     size A x B where B >= 1 and A >1 (ex : a 4 x 1 vector)"""
+    epsi = 1./32
     X= np.squeeze(X)
     if (X.ndim == 1):
-        X = X[X>0]
+        X[X<epsi] = X[X<epsi] + epsi
+        #print(X,np.sum(X))
         return np.sum(gammaln(X))-gammaln(np.sum(X))
     else :
         shape = X.shape[1:]

@@ -991,7 +991,7 @@ def bagherzadeh_model(modelname,savepath,p_i,p_o,
                               [0,1-p_deconcentrate  ,p_deconcentrate  ],
                               [0,0                  ,1-p_deconcentrate]])
     
-    n_b = 9
+    n_b = 3
     B_ = [np.zeros((Ns[0],Ns[0])+(n_b,)),np.zeros((Ns[1],Ns[1])+(3,))]
     B_[0][:,:,0] = to_the_right
     B_[0][:,:,1] = to_the_left

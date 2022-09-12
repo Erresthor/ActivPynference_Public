@@ -525,6 +525,17 @@ def trial_plot_figure(T,states_beliefs,action_beliefs,
 
 
     my_colormap= [np.array([80,80,80,200]) , np.array([39,136,245,200]) , np.array([132,245,39,200]) , np.array([245,169,39,200]) , np.array([255,35,35,200])]
+    
+    my_colormap= [np.array([0,0,255,200]) , np.array([255,0,0,200])]
+
+
+    my_colormap= [np.array([255,255,0,200]) , np.array([0,153,153,200]), np.array([0,0,255,200]), np.array([255,0,0,200])]
+
+    my_colormap= [np.array([0,0,0,200]) , np.array([0,153,153,200]), np.array([0,0,255,200]), np.array([255,0,0,200])]
+
+    my_colormap= [np.array([0,0,0,200]) ,np.array([255,160,51,200]), np.array([255,0,0,200])]
+
+
     N = 250
     img_array = np.linspace(1,0,N)
     img = np.zeros(img_array.shape +(50,) +  (4,))

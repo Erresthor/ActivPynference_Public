@@ -111,6 +111,19 @@ def flexible_to_array(X,dims_in_list = 1):
     else :
         return X
 
+def smooth_1D_array(arr,smooth_size = 5):
+    N = arr.shape[0]
+    smoothed_one = np.zeros((N,))
+    for i in range(N):
+        cnt = 0
+        tot = 0
+        for k in range(i-smooth_size,i+smooth_size+1,1):
+            if ((k>=0)and(k<N)):
+                cnt = cnt + 1
+                tot = tot + arr[k]
+        smoothed_one[i] = tot/cnt
+    return smoothed_one
+
 if __name__ == "__main__":
     A = np.round(np.random.rand(5,6,3,3),1)
     B = np.round(np.random.rand(5,6,3,3),1)

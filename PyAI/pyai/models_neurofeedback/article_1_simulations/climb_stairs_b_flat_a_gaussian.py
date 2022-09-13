@@ -55,6 +55,148 @@ def climb_stairs_B(pb=1,npoub=0):
         B_mental_states[:,:,k] = np.eye(5)
     return [B_mental_states]
 
+def nf_model_imperfect_true(modelname,savepath,prop_poubelle = 0.0,
+                        learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
+                        learn_b=True,prior_b_ratio = 1.0,prior_b_strength=1,
+                        learn_d=True,
+                        mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
+                        perfect_a = False,perfect_b=False,verbose = False,SHAM="False"):
+
+    """ 
+    A is perfect, and the agent has flat priors regarding ACTION & PERCEPTION dynamics.
+    We can choose to help him a little by providing it with indications.
+    ACTION :
+    The agent beliefs about state transitions are "plateau-like" :  
+                                Prob density:       ^
+                                                    |           ___
+                                                    |          |   |        __
+                                                    |__________|   |_______|  |______
+                                           For a given initial state, prob to get to another          
+    *strength* describes the strongness of the priors, how confident the agent is about those and how difficult it will be to change them
+    *ratio* describes a preferential prior. If ratio > 1, the agent will have a positive prior regarding a certain dynamic
+     e.g. if ratio =2, the agent will believe that action 2 at state 1 is twice as likely to lead to a hidden state of 2 than any other.
+     [ this also stands for actions] 
+    PERCEPTION :
+    The agent beliefs about state-observations correspondance are "gaussian-like" :  
+                                Prob density:       ^           Gaussian mean
+                                                    |               ___|___
+                                                    |       _______|       |______
+                                                    |______|                       |__________
+                                           For a given state, prob to get a given observation        
+    Because there is a notion of continuity between observations, a gaussian prior seems adapted for PERCEPTION
+    meaning that the agent may believe strongly that an observed 2 means a hidden state 2, but he may also believe
+    less strongly that it may be 1 or 3, but it is much less likely to be 0 or 4.
+    """
+    constant = 20
+    Nf = 1
+
+    D_ = [np.array([1,1,0,0,0])] #All subjects start all trials either at state 0 or 1, forcing them to perform at least 3 sensible actions to get to the best state
+    D_ = normalize(D_)
+
+    d_ =[]
+    #d_.append(np.array([0.996,0.001,0.001,0.001,0.001])) #[Terrible state, neutral state , good state, great state, excessive state]
+    d_.append(np.zeros(D_[0].shape))
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # OBSERVATIONS : 
+    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
+    # Here, we only have a single factor :
+    if SHAM=="False" :
+        A_ = [np.array([[0.7,0.3,0.1,0.0,0.0],
+                        [0.2,0.4,0.2,0.1,0.0],
+                        [0.1,0.2,0.4,0.2,0.1],
+                        [0.0,0.1,0.2,0.4,0.2],
+                        [0.0,0.0,0.1,0.3,0.7]])]
+    elif type(SHAM)==np.ndarray :
+        A_ = [SHAM]
+    elif SHAM=="True":
+        A_ = [normalize(np.ones((5,5)))]
+    
+    # prior_a_sigma : true values are the mean of our model
+    # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
+    a_=[prior_a_strength*generate_normal_dist_along_matrix(np.eye(5),prior_a_sigma)+1]
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # ACTIONS :
+    # Transition matrixes between hidden states ( = control states)
+    nu = 5
+    npoubelle = int((prop_poubelle/(1-prop_poubelle))*nu) # Prop poubelle represents the proportion of mental actions with a neutral impact on the hidden states, rendering 
+                                                          # them useless to improve one's mental state. Increasing this quantity is supposed to make exploration harder and 
+                                                          # training longer.
+    B_ = climb_stairs_B(pb=1,npoub=npoubelle)
+    
+    
+    # Action model :    
+    # Quality of the prior
+    b_ = [np.ones(B_[0].shape)*prior_b_strength + (prior_b_ratio-1.0)*prior_b_strength*B_[0]]
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # PREFERENCES :
+    # Transition matrixes between hidden states ( = control states)
+    # For now, just a linear model, where dc/ds = cst
+    la = -2
+    rs = 2
+    C_mental = np.array([[2*la],
+                        [la],
+                        [0],
+                        [1*rs],
+                        [2*rs]])
+    C_ = [C_mental]
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # POLICIES
+    Np = nu + npoubelle #Number of policies
+    Nf = 1 #Number of state factors
+
+    U_ = np.zeros((Np,Nf)).astype(int)
+    U_[:,0] = range(Np)
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # HABITS
+    # For now, no habits and we don't learn those. At some point, we will have to implement it
+    E_ = None
+    e_ = np.ones((Np,))
+
+
+    T = 10
+    savemanager = ActiveSaveManager(T,trial_savepattern=1,intermediate_savepattern=0,verbose=verbose,modelname=modelname,folder_name=savepath)
+                                    # Trial related save , timestep related save
+    nf_model = ActiveModel(savemanager)
+    nf_model.T = T
+    
+    nf_model.A = A_
+    nf_model.a = a_
+    if (perfect_a):
+        nf_model.a = A_
+        learn_a = False
+    nf_model.layer_options.learn_a = learn_a
+
+    nf_model.B = B_
+    nf_model.b = b_
+    if (perfect_b):
+        nf_model.b = B_
+        learn_b = False
+    nf_model.layer_options.learn_b = learn_b
+
+    nf_model.D = D_
+    nf_model.d = d_
+    nf_model.layer_options.learn_d = learn_d
+
+    nf_model.C = C_
+
+    nf_model.U = U_
+
+    nf_model.layer_options.T_horizon = 2
+    nf_model.layer_options.learn_during_experience = False
+    
+    nf_model.layer_options.memory_decay = mem_dec_type
+    nf_model.layer_options.decay_half_time = mem_dec_halftime
+
+    nf_model.verbose = verbose
+
+    return nf_model
+
+
 def nf_model(modelname,savepath,prop_poubelle = 0.0,
                         learn_a = True,prior_a_sigma = 3,prior_a_strength=3,
                         learn_b=True,prior_b_ratio = 1.0,prior_b_strength=1,
@@ -110,7 +252,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     
     # prior_a_sigma : true values are the mean of our model
     # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
-    a_=[prior_a_strength*generate_normal_dist_along_matrix(A_[0],prior_a_sigma)+1]
+    a_=[prior_a_strength*generate_normal_dist_along_matrix(np.eye(5),prior_a_sigma)+1]
 
     # -----------------------------------------------------------------------------------------------------------------------------------------------
     # ACTIONS :

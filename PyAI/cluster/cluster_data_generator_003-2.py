@@ -11,7 +11,6 @@ from pyai.base.file_toolbox import save_flexible,load_flexible
 from pyai.layer.layer_learn import MemoryDecayType
 from pyai.model.active_model import ActiveModel
 from pyai.neurofeedback_run import save_model_performance_dictionnary
-from pyai.neurofeedback_run import trial_plot, trial_plot_from_name
 from pyai.models_neurofeedback.article_1_simulations.climb_stairs_b_flat_a_gaussian import nf_model_imperfect_true,evaluate_container
 
 # Generate a succession of trial results for a model in a list

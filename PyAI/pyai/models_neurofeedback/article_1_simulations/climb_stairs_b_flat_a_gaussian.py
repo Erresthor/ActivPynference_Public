@@ -167,7 +167,7 @@ def nf_model_imperfect_true(modelname,savepath,prop_poubelle = 0.0,
     nf_model.A = A_
     nf_model.a = a_
     if (perfect_a):
-        nf_model.a = A_
+        nf_model.a = [np.eye(5)]
         learn_a = False
     nf_model.layer_options.learn_a = learn_a
 

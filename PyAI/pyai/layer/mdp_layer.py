@@ -55,7 +55,6 @@ from ..base.function_toolbox import G_epistemic_value
 from ..base.function_toolbox import spm_kron,spm_margin,spm_dekron
 from ..base.miscellaneous_toolbox import isField, isNone
 from ..base.miscellaneous_toolbox import flexible_copy
-from ..visi_lib.state_tree import tree_node,state_tree
 
 from .parameters.policy_method import Policy_method
 

@@ -97,7 +97,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     # prior_ratio : Correct_weights = base_weight*ratio () --> The higher this ratio (>1), the better the quality of the priors. ratios < 1 indicate that the good values are defavored
     # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
     print(prior_a_ratio,type(prior_a_ratio))
-    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*A_[0]]
+    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(5)]
 
     # -----------------------------------------------------------------------------------------------------------------------------------------------
     # ACTIONS :

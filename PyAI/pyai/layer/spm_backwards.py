@@ -5,7 +5,6 @@ from types import SimpleNamespace
 
 from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax
 from ..base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions,flexible_toString,flexible_print,flexible_copy
-from ..visi_lib.state_tree import tree_node,state_tree
 
 def spm_backwards(O,Q,A,B,K,T):
     # % Backwards smoothing to evaluate posterior over initial states

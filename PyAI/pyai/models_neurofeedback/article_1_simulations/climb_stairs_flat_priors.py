@@ -97,7 +97,7 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     # prior_ratio : Correct_weights = base_weight*ratio () --> The higher this ratio (>1), the better the quality of the priors. ratios < 1 indicate that the good values are defavored
     # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
     print(prior_a_ratio,type(prior_a_ratio))
-    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*A_[0]]
+    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(5)]
 
     # -----------------------------------------------------------------------------------------------------------------------------------------------
     # ACTIONS :
@@ -180,6 +180,146 @@ def nf_model(modelname,savepath,prop_poubelle = 0.0,
     nf_model.verbose = verbose
 
     return nf_model
+
+
+def nf_model_imp(modelname,savepath,prop_poubelle = 0.0,
+                learn_a = True, prior_a_ratio = 1 , prior_a_strength=3,
+                learn_b = True, prior_b_ratio = 0.0, prior_b_strength=1,
+                learn_d = True,
+                mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,mem_dec_halftime=5000,
+                perfect_a = False,perfect_b=False,verbose = False,SHAM="False"):
+    """ 
+    A is perfect, and the agent has flat priors regarding perception AND action dynamics.
+    We can choose to help him a little by providing it with indications. 
+    ACTION & PERCEPTION : 
+    The agent beliefs about state transitions and observation meaning are "plateau-like" :  
+                                Prob density:       ^
+                                                    |           ___
+                                                    |          |   |        __
+                                                    |__________|   |_______|  |______      
+    *strength* describes the strongness of the priors, how confident the agent is about those and how difficult it will be to change them
+    *ratio* describes a preferential prior. If ratio > 1, the agent will have a positive prior regarding a certain dynamic
+     e.g. if ratio =2, the agent will believe that a feedback indicating 3 is twice as likely to mean a hidden state of 3 than any other.
+     [ this also stands for actions] 
+    """
+    Nf = 1
+
+    D_ = [np.array([1,1,0,0,0])] #All subjects start all trials either at state 0 or 1, forcing them to perform at least 3 sensible actions to get to the best state
+    D_ = normalize(D_)
+
+    d_ =[]
+    #d_.append(np.array([0.996,0.001,0.001,0.001,0.001])) #[Terrible state, neutral state , good state, great state, excessive state]
+    d_.append(np.zeros(D_[0].shape))
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # OBSERVATIONS : 
+    # Generally : A[modality] is of shape (Number of outcomes for this modality) x (Number of states for 1st factor) x ... x (Number of states for nth factor)
+    # Here, we only have a single factor :
+    
+    if SHAM=="False":
+        A_ = [np.array([[0.7,0.3,0.1,0.0,0.0],
+                        [0.2,0.4,0.2,0.1,0.0],
+                        [0.1,0.2,0.4,0.2,0.1],
+                        [0.0,0.1,0.2,0.4,0.2],
+                        [0.0,0.0,0.1,0.3,0.7]])]
+    elif SHAM=="True":
+        A_ = [normalize(np.ones((5,5)))]
+    elif type(SHAM)==np.ndarray:
+        A_ = [SHAM]
+    
+    # prior_ratio : Correct_weights = base_weight*ratio () --> The higher this ratio (>1), the better the quality of the priors. ratios < 1 indicate that the good values are defavored
+    # prior_strength : Base weight --> The higher this number, the stronger priors are and the longer it takes for experience to "drown" them \in [0,+OO[
+    print(prior_a_ratio,type(prior_a_ratio))
+    a_ = [np.ones(A_[0].shape)*prior_a_strength + (prior_a_ratio-1.0)*prior_a_strength*np.eye(5)]
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # ACTIONS :
+    # Transition matrixes between hidden states ( = control states)
+    nu = 5
+    npoubelle = int((prop_poubelle/(1-prop_poubelle))*nu) # Prop poubelle represents the proportion of mental actions with a neutral impact on the hidden states, rendering 
+                                                          # them useless to improve one's mental state. Increasing this quantity is supposed to make exploration harder and 
+                                                          # training longer.
+    B_ = climb_stairs_B(pb=1,npoub=npoubelle)
+    
+    
+    # Action model : 
+    b_ = [np.ones((B_[0].shape))]
+    
+    # Quality of the prior
+    b_ = [np.ones(B_[0].shape)*prior_b_strength + (prior_b_ratio-1.0)*prior_b_strength*B_[0]]
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # PREFERENCES :
+    # Transition matrixes between hidden states ( = control states)
+    # For now, just a linear model, where dc/ds = cst
+    la = -2
+    rs = 2
+    C_mental = np.array([[2*la],
+                        [la],
+                        [0],
+                        [1*rs],
+                        [2*rs]])
+    C_ = [C_mental]
+    
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # POLICIES
+    Np = nu + npoubelle #Number of policies
+    Nf = 1 #Number of state factors
+
+    U_ = np.zeros((Np,Nf)).astype(int)
+    U_[:,0] = range(Np)
+
+    # -----------------------------------------------------------------------------------------------------------------------------------------------
+    # HABITS
+    # For now, no habits and we don't learn those. At some point, we will have to implement it
+    E_ = None
+    e_ = np.ones((Np,))
+
+
+    T = 10
+    savemanager = ActiveSaveManager(T,trial_savepattern=1,intermediate_savepattern=0,verbose=verbose,modelname=modelname,folder_name=savepath)
+                                    # Trial related save , timestep related save
+    nf_model = ActiveModel(savemanager)
+    nf_model.T = T
+    nf_model.A = A_
+
+    nf_model.a = a_
+    if (perfect_a):
+        nf_model.a = A_
+        learn_a = False
+    nf_model.layer_options.learn_a = learn_a
+
+    nf_model.B = B_
+    nf_model.b = b_
+    if (perfect_b):
+        nf_model.b = B_
+        learn_b = False
+    nf_model.layer_options.learn_b = learn_b
+
+    nf_model.D = D_
+    nf_model.d = d_
+    nf_model.layer_options.learn_d = learn_d
+
+    nf_model.C = C_
+
+    nf_model.U = U_
+
+    nf_model.layer_options.T_horizon = 2
+    nf_model.layer_options.learn_during_experience = False
+    
+    nf_model.layer_options.memory_decay = mem_dec_type
+    nf_model.layer_options.decay_half_time = mem_dec_halftime
+
+    nf_model.verbose = verbose
+
+    return nf_model
+
+
+
+
+
+
+
 
 def evaluate_container(container,options=['2','all']):
     """ Calculate non-array indicators to store in a pandas framework for further analysis and vizualization."""

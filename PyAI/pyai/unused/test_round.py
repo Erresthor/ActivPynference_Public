@@ -5,7 +5,7 @@ from pyai.base.plotting_toolbox import multi_matrix_plot
 from pyai.base.function_toolbox import normalize
 
 if __name__=="__main__":
-    matrix = (10*generate_normal_dist_along_matrix(np.eye(5),0.05)+1)
-    matrix = normalize(matrix)
-    multi_matrix_plot([matrix,matrix],["A matrix","the same"])
+    matrix = (10*generate_normal_dist_along_matrix(np.eye(5),0.75)+1)
+    matrix2 = normalize(matrix)
+    multi_matrix_plot([matrix,matrix2],["A matrix","the same"])
     plt.show()

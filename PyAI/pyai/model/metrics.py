@@ -7,13 +7,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from ..base.function_toolbox import normalize
 
-
-A = np.array([[0.5,0.3,0.2],
-              [0.0,0.3,0.7],
-              [0.0,0.0,1.0]])
-
-K = np.array([0,0,0.1,0.3,0.4,0.15,0.05,0.0])
-
 def avg_dist_entropy(matrix,eps=1e-8,MAXIMUM_INFO = 10000):
     """ Calculates the average of the marginal distributions entropy (dist are along axis 0)"""
     matrix = normalize(matrix)

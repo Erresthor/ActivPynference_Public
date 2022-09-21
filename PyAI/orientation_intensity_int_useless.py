@@ -421,8 +421,10 @@ if __name__ == "__main__":
     Ninst = 10
     overwrite = False 
     index = "002"
-    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","orientation_intensity_new","learn_b_low_prior")
+    # Great final accuracy :
+    # savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","orientation_intensity_new")
     
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","NEW_TEMPORARY_TEST_BED","bagherzadeh","ori_vs_int")
     p_i = 0.25 # probability of lowering the attentional level in case of monitoring attention
     p_o = 0.5 # probability of centering the directional attention in case of monitoring intensity
 
@@ -453,7 +455,7 @@ if __name__ == "__main__":
     print(modelL.A[0][:,:,1])
     print(modelL.A[0][:,:,2])
     modelR.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
-    overwrite = True
+    overwrite = False
     modelL.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
 
     fullpathR = os.path.join(save_pathR,modelnameR)

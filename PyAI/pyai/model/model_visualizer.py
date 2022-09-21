@@ -61,6 +61,7 @@ class MulticolorPatchHandler(object):
         return patch
 
 
+
 def show_figures(active_model,save_container,realA_override=None,realB_override=None,realD_override=None):
     t = save_container.t
     

@@ -285,7 +285,7 @@ def nf_model_imp(modelname,savepath,prop_poubelle = 0.0,
 
     nf_model.a = a_
     if (perfect_a):
-        nf_model.a = A_
+        nf_model.a = np.eye(5)
         learn_a = False
     nf_model.layer_options.learn_a = learn_a
 
@@ -342,7 +342,7 @@ def evaluate_container(container,options=['2','all']):
         if(actual_state==3):
             return [4]
         if(actual_state==4):
-            return [4,5,6]
+            return range(99)
         
     # DIFFERENCE BETWEEN OPTIMAL STATES AND ACTUAL STATES DURING THE WHOLE TRIAL: 
     factor = 0
@@ -490,7 +490,7 @@ def evaluate_container_temp(container,options=['2','all']):
         if(actual_state==3):
             return [4]
         if(actual_state==4):
-            return [4,5,6]
+            return range(4,99,1)
         
     # DIFFERENCE BETWEEN OPTIMAL STATES AND ACTUAL STATES DURING THE WHOLE TRIAL: 
     factor = 0

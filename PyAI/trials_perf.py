@@ -30,9 +30,9 @@ def sliding_window_mean(array_input,window_size = 5):
 
 if __name__=="__main__":
     save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","one_more_trial")
-    overwrite = False
+    overwrite = True
     Ntrials = 150
-    model_name = "learn_b_a_known_low_conf"
+    model_name = "learn_b_a_known_low_conf_3"
 
     model = nf_model(model_name,save_path,prop_poubelle=0.5,
                         perfect_a=True,learn_a= False,

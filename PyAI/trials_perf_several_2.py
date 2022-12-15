@@ -182,7 +182,6 @@ if __name__=="__main__":
     color4 = 'orange'
     fig_main = plt.figure()
     ax1 = fig_main.add_subplot(111)
-    #ax1.grid(True, which='both')
     
     ax1.spines['right'].set_color('none')
     ax1.spines['top'].set_color('none')
@@ -197,32 +196,32 @@ if __name__=="__main__":
     ax1.grid(color=gridcolor, linestyle='-',alpha = 0.2)
     ax1.tick_params(axis='y', labelcolor="black")
 
-    #ax1.set_xlabel('Trials',fontsize=10)
+
     ax1.set_ylabel('ACTION MODEL ERROR', color="black",fontsize=10)
     ax1.set_ylim([-0.1,1.1])
     
 
-    # ax2 = ax1.twinx()
-    # ax2.tick_params(axis='y', labelcolor="black")
-    # ax2.set_ylabel('MODEL ERROR (kl divergence)', color="black",fontsize=10)  # we already handled the x-label with ax1
-    # ax2.set_ylim([-0.1,1.1])
     wdt = 2.5
-    # instantiate a second axes that shares the same x-axis
-    
-    l1 = ax1.plot(trials, b_err, color=color1,label='PERFECT',ls='-',linewidth=wdt)
-    l2 = ax1.plot(trials, b_err_ok, color=color2,label='NOISY',ls='-',linewidth=wdt)
-    # l3 = ax1.plot(trials, b_err_imp, color=color3,label='VERY NOISY',ls='-',linewidth=wdt)
-    l4 = ax1.plot(trials, b_err_sham, color=color4,label='SHAM',ls='-',linewidth=wdt)
 
+    plot_index = 3
+    if (plot_index==1):
+        l1 = ax1.plot(trials, b_err, color=color1,label='PERFECT',ls='-',linewidth=wdt)
+        ls = l1 #+ l2 + l4
+    elif (plot_index==2):
+        l1 = ax1.plot(trials, b_err, color=color1,label='PERFECT',ls='-',linewidth=wdt)
+        l4 = ax1.plot(trials, b_err_sham, color=color4,label='SHAM',ls='-',linewidth=wdt)
+        ls = l1 + l4
+    elif (plot_index==3):
+        l1 = ax1.plot(trials, b_err, color=color1,label='PERFECT',ls='-',linewidth=wdt)
+        l2 = ax1.plot(trials, b_err_ok, color=color2,label='NOISY',ls='-',linewidth=wdt)
+        l4 = ax1.plot(trials, b_err_sham, color=color4,label='SHAM',ls='-',linewidth=wdt)
+        ls = l1 + l2 + l4
+    # l3 = ax1.plot(trials, b_err_imp, color=color3,label='VERY NOISY',ls='-',linewidth=wdt)
     # ls = l1 + l2 + l3 + l4
-    ls = l1 + l2 + l4
     labs = [l.get_label() for l in ls]
     ax1.legend(ls,labs,loc = 0)
 
-    
-    
     fig_main = plt.figure()
-
     figs=  fig_main.subfigures(1,2)
     
     fig = figs[0]
@@ -243,19 +242,35 @@ if __name__=="__main__":
 
     ax2.set_xticks([0,25,50,75,100,125,150])
     ax2.set_yticks([1,0.75,0.5,0.25,0])
+    ax2.set_ylim([0,1])
     ax2.grid(color=gridcolor, linestyle='-',alpha = 0.2)
+    
 
-    l1 = ax2.plot(trials,error_states,'+',color=color1l)
-    l2 = ax2.plot(trials,error_states_ok,'+',color=color2l)
+    if (plot_index==1):
+        l1 = ax2.plot(trials,error_states,'+',color=color1l)
+        l5 = ax2.plot(trials,state_error_mean,'-',color=color1)
+        ls = l1 + l5
+    elif (plot_index==2):
+        l1 = ax2.plot(trials,error_states,'+',color=color1l)
+        l5 = ax2.plot(trials,state_error_mean,'-',color=color1)
+
+        l4 = ax2.plot(trials,error_states_sham,'+',color=color4l)
+        l8 = ax2.plot(trials,state_error_mean_sham,'-',color=color4)
+
+        ls = l1 + l4 + l5 + l8
+    elif (plot_index==3):
+        l1 = ax2.plot(trials,error_states,'+',color=color1l)
+        l5 = ax2.plot(trials,state_error_mean,'-',color=color1) 
+
+        l2 = ax2.plot(trials,error_states_ok,'+',color=color2l)
+        l6 = ax2.plot(trials,state_error_mean_ok,'-',color=color2)
+
+        l4 = ax2.plot(trials,error_states_sham,'+',color=color4l)
+        l8 = ax2.plot(trials,state_error_mean_sham,'-',color=color4)
+        ls = l1 + l2 + l4 + l5 + l6 +l8
     #l3 = ax2.plot(trials,error_states_imp,'+',color=color3l)
-    l4 = ax2.plot(trials,error_states_sham,'+',color=color4l)
-
-    l5 = ax2.plot(trials,state_error_mean,'-',color=color1)
-    l6 = ax2.plot(trials,state_error_mean_ok,'-',color=color2)
     #l7 = ax2.plot(trials,state_error_mean_imp,'-',color=color3)
-    l8 = ax2.plot(trials,state_error_mean_sham,'-',color=color4)
-
-    ax2.set_ylim([-0.1,1.1])
+    #ax2.set_ylim([-0.1,1.1])
 
 
     ax3 = fig.add_subplot(212,sharex=ax2)
@@ -269,23 +284,37 @@ if __name__=="__main__":
     ax3.yaxis.set_ticks_position('left')
     ax3.spines['left'].set_position(('data',0))
 
-    l10 = ax3.plot(trials,error_observations,'x',color=color1l)
-    l20 = ax3.plot(trials,error_observations_ok,'x',color=color2l)
+
+    if (plot_index==1):
+        l10 = ax3.plot(trials,error_observations,'x',color=color1l)
+        l50 = ax3.plot(trials,error_obs_mean,'-',color=color1)                  
+        ls = l10 + l50
+    elif (plot_index==2):
+        l10 = ax3.plot(trials,error_observations,'x',color=color1l)
+        l50 = ax3.plot(trials,error_obs_mean,'-',color=color1)  
+        l40 = ax3.plot(trials,error_observations_sham,'x',color=color4l)
+        l80 = ax3.plot(trials,error_obs_mean_sham,'-',color=color4)
+        ls = l10 + l40 + l50 + l80
+    elif (plot_index==3):
+        l10 = ax3.plot(trials,error_observations,'x',color=color1l)
+        l20 = ax3.plot(trials,error_observations_ok,'x',color=color2l)
+        l40 = ax3.plot(trials,error_observations_sham,'x',color=color4l)
+
+        l50 = ax3.plot(trials,error_obs_mean,'-',color=color1)  
+        l60 = ax3.plot(trials,error_obs_mean_ok,'-',color=color2)
+        l80 = ax3.plot(trials,error_obs_mean_sham,'-',color=color4)
+        ls = l10 + l20 + l40 + l50 + l60 + l80
+
     #l30 = ax3.plot(trials,error_observations_imp,'x',color=color3l)
-    l40 = ax3.plot(trials,error_observations_sham,'x',color=color4l)
-
-    l50 = ax3.plot(trials,error_obs_mean,'--',color=color1)
-    l60 = ax3.plot(trials,error_obs_mean_ok,'--',color=color2)
     #l70 = ax3.plot(trials,error_obs_mean_imp,'--',color=color3)
-    l80 = ax3.plot(trials,error_obs_mean_sham,'--',color=color4)
-
-    ls = l4 + l5 +l6
+    
     labs = [l.get_label() for l in ls]
     ax3.legend(ls,labs,loc = 'best')
-
+    ax3.grid(color=gridcolor, linestyle='-',alpha = 0.2)
     ax3.set_xlabel('Trials',fontsize=15)
     ax3.set_ylabel('FEEDBACK ERROR / OPTIMAL', color="Black",fontsize=10)
     ax3.tick_params(axis='y', labelcolor='black',size= 15)
+    ax3.set_yticks([1,0.75,0.5,0.25,0])
     ax3.set_ylim([0,1])
     #ax3.set_ylim(ax1.get_ylim()[::-1])
 
@@ -296,48 +325,64 @@ if __name__=="__main__":
     
     
     fig_2 = figs[1]
-    colors = [color1,color2,color3]
+    colors = [color1,color2,color4]
+    #colors = [color1,color2,color3]
     N = 100
     ax = fig_2.add_subplot(211)
     ax.grid(zorder=0)
     sop_std = np.average(np.sqrt(full_dico["variance"]["state_error"][N:,:]))
     soo_std = np.average(np.sqrt(full_dico_ok["variance"]["state_error"][N:,:]))
-    #soi_std = np.average(np.sqrt(full_dico_imp["variance"]["state_error"][N:,:]))
+    soi_std = np.average(np.sqrt(full_dico_imp["variance"]["state_error"][N:,:]))
     sos_std = np.average(np.sqrt(full_dico_sham["variance"]["state_error"][N:,:]))
-    # so_err = [sop_std,soo_std,soi_std,sos_std]
-    so_err = [sop_std,soo_std,sos_std]
-    # ax.bar(["Perfect",'Noisy',"Very noisy","SHAM"],[np.average(error_states[N:,:]),np.average(error_states_ok[N:,:]),np.average(error_states_imp[N:,:]),np.average(error_states_sham[N:,:])],
-    #             yerr=so_err,color=colors,
-    #             zorder=3)
-    ax.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_states[N:,:]),np.average(error_states_ok[N:,:]),
-                np.average(error_states_sham[N:,:])],
-                yerr=so_err,color=colors,
-                zorder=3)
+    
+    eop_std = np.average(np.sqrt(full_dico["variance"]["observation_error"][N:,:]))
+    eoo_std = np.average(np.sqrt(full_dico_ok["variance"]["observation_error"][N:,:]))
+    eoi_std = np.average(np.sqrt(full_dico_imp["variance"]["observation_error"][N:,:]))
+    eos_std = np.average(np.sqrt(full_dico_sham["variance"]["observation_error"][N:,:]))
+
+
     ax.set_ylim([0,1])
     ax.set_xlabel("Feedback quality")
     ax.set_ylabel("Hidden state error (over the 50 last trials)")
     
-    ax = fig_2.add_subplot(212)
-    ax.grid(zorder=0)
-    eop_std = np.average(np.sqrt(full_dico["variance"]["observation_error"][N:,:]))
-    eoo_std = np.average(np.sqrt(full_dico_ok["variance"]["observation_error"][N:,:]))
-    # eoi_std = np.average(np.sqrt(full_dico_imp["variance"]["observation_error"][N:,:]))
-    eos_std = np.average(np.sqrt(full_dico_sham["variance"]["observation_error"][N:,:]))
-    # eo_err = [eop_std,eoo_std,eoi_std,eos_std]
-    eo_err = [eop_std,eoo_std,eos_std]
-
-    # ax.bar(["Perfect",'Noisy',"Very noisy","SHAM"],[np.average(error_observations[N:,:]),np.average(error_observations_ok[N:,:]),np.average(error_observations_imp[N:,:]),np.average(error_observations_sham[N:,:])],
-    #             yerr=eo_err,color=colors,
-    #             zorder=3)
+    axbis = fig_2.add_subplot(212)
+    axbis.grid(zorder=0)
     
-    ax.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_observations[N:,:]),np.average(error_observations_ok[N:,:]),
-                np.average(error_observations_sham[N:,:])],
+    axbis.set_ylim([0,1])
+    axbis.set_xlabel("Feedback quality")
+    axbis.set_ylabel("Feedback error (over the 50 last trials)")
+
+
+    if (plot_index==1):
+        so_err = [sop_std,0,0]
+        ax.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_states[N:,:]),0,0],
+            yerr=so_err,color=colors,
+            zorder=3)
+        eo_err = [eop_std,0,0]
+        axbis.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_observations[N:,:]),0,0],
                 yerr=eo_err,color=colors,
                 zorder=3)
-    ax.set_ylim([0,1])
-    ax.set_xlabel("Feedback quality")
-    ax.set_ylabel("Feedback error (over the 50 last trials)")
-    
+
+    elif (plot_index==2):
+        so_err = [sop_std,0,sos_std]
+        ax.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_states[N:,:]),0,np.average(error_states_sham[N:,:])],
+            yerr=so_err,color=colors,
+            zorder=3)
+        eo_err = [eop_std,0,eos_std]
+        axbis.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_observations[N:,:]),0,np.average(error_observations_sham[N:,:])],
+                yerr=eo_err,color=colors,
+                zorder=3)
+
+    elif (plot_index==3):
+        so_err = [sop_std,soo_std,sos_std]
+        ax.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_states[N:,:]),np.average(error_states_ok[N:,:]),np.average(error_states_sham[N:,:])],
+            yerr=so_err,color=colors,
+            zorder=3)
+        eo_err = [eop_std,eoo_std,eos_std]
+        axbis.bar(["Perfect",'Noisy',"SHAM"],[np.average(error_observations[N:,:]),np.average(error_observations_ok[N:,:]),np.average(error_observations_sham[N:,:])],
+                yerr=eo_err,color=colors,
+                zorder=3)
+    # so_err = [sop_std,soo_std,soi_std,sos_std]
     
     if not os.path.exists(save_folder):
                 try:
@@ -345,7 +390,7 @@ if __name__=="__main__":
                 except OSError as exc: # Guard against race condition
                     raise
     
-    figname = os.path.join(save_folder,"performances")
+    figname = os.path.join(save_folder,"performances.svg")
     plt.savefig(figname,bbox_inches='tight',dpi=1000)
     if(True):
         plt.draw()

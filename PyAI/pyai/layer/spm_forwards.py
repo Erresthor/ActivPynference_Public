@@ -95,9 +95,9 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
     # L is the posterior over hidden states based on likelihood (A & O)
     L = 1
     for modality in range (Nmod):
-        L = L * spm_dot(A[modality],O[modality])
+        L = L * spm_dot(A[modality],O[modality]) 
     # P is the posterior over hidden states at the current time t based on priors
-    P[t] =normalize(L.flatten()*P[t])
+    P[t] =normalize(L.flatten()*P[t]) # P(s|o) = P(o|s)P(s)
 
     if (t==T):
         # Search over, calculations make no sense here as no actions remain to be chosen
@@ -114,13 +114,13 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verb
             flattened_A = flatten_last_n_dimensions(A[modality].ndim-1,A[modality])
             flattened_W = flatten_last_n_dimensions(Nf,A_novelty[modality])
             qo = np.dot(flattened_A,Q[action]) # prediction over observations at time t
-            po = C[modality][:,t]              # what we want at that time
+            po = C[modality][:,t]              # what we want at that time , log(p(o))
             bayesian_risk_only = False 
             if (bayesian_risk_only):
                 G[action] = G[action] + np.dot(qo.T,po) # ROI if only bayesian risk is computed
             else :
                 ambiguity = np.dot(Q[action].T,A_ambiguity[modality].flatten()) # I'd rather solve uncertainty
-                risk =  - np.dot(qo.T,nat_log(qo)-po) # I want to go towards preferable results
+                risk =  - np.dot(qo.T,nat_log(qo)-po) # I want to go towards preferable results = - D_KL[q(o|pi)||p(o)]
                 # G[factor] =                              ambiguity              +                 risk
                 G[action] = G[action] + ambiguity + risk
 

@@ -15,7 +15,7 @@ from .model.active_model_save_manager import ActiveSaveManager
 from .model.active_model_container import ActiveModelSaveContainer
 from .base.file_toolbox import filename_in_files
 
-from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,general_performance_plot,trial_plot_figure
+from .model.model_visualizer import belief_matrices_plots,generate_model_sumup,general_performance_plot,trial_plot_figure,trial_plot_figure_2
 from .models_neurofeedback.climb_stairs import nf_model,evaluate_container
 
 # Extract neurofeedback performances indicators at each level (TRIALS --> INSTANCES --> MODEL --> INTER MODEL MEAN & VAR)
@@ -333,7 +333,7 @@ def evaluate_model_figure(evaluator,savepath,modelname,show=True):
     belief_matrices_plots(modelname,savepath,mean_A,mean_B,mean_D,plot_gifs=True)
 
 def trial_plot(savecontainer,a_pre,b_pre,plotmean=False,action_labels="alphabet",title=None,
-                hidden_state_factor = 0,perc_modality = 0):
+                hidden_state_factor = 0,perc_modality = 0,old=False):
     T = savecontainer.T
     
     obs = savecontainer.o[perc_modality,:]
@@ -369,7 +369,13 @@ def trial_plot(savecontainer,a_pre,b_pre,plotmean=False,action_labels="alphabet"
         b_mat = savecontainer.B_[hidden_state_factor]
     b_mat_pre = b_pre[hidden_state_factor]
 
-    figure = trial_plot_figure(T,beliefs,u_post,
+    if old :
+        figure = trial_plot_figure_2(T,beliefs,u_post,
+                obs,states,acts,
+                a_mat_pre,b_mat_pre,a_mat,b_mat,
+                plotmean=plotmean,action_labels=action_labels,title=title)
+    else :
+        figure = trial_plot_figure(T,beliefs,u_post,
                 obs,states,acts,
                 a_mat_pre,b_mat_pre,a_mat,b_mat,
                 plotmean=plotmean,action_labels=action_labels,title=title)
@@ -377,7 +383,7 @@ def trial_plot(savecontainer,a_pre,b_pre,plotmean=False,action_labels="alphabet"
 
 def trial_plot_from_name(save_path,model_name,instance,list_of_t,
                         plotmean=False,action_labels="alphabet",title="",
-                        hidden_state_factor = 0,perc_modality = 0) :
+                        hidden_state_factor = 0,perc_modality = 0,old=False) :
     for t in list_of_t:
         fullname = ActiveSaveManager.generate_save_name(os.path.join(save_path,model_name),instance,t,'f')
         if (t>0):
@@ -404,7 +410,7 @@ def trial_plot_from_name(save_path,model_name,instance,list_of_t,
             except :
                 b_pre = model.B
         container = ActiveModelSaveContainer.load_active_model_container(fullname)
-        trial_plot(container,a_pre,b_pre,plotmean,action_labels,title +str(t),hidden_state_factor,perc_modality)
+        trial_plot(container,a_pre,b_pre,plotmean,action_labels,title +str(t),hidden_state_factor,perc_modality,old=old)
 
 # Trial runners
 

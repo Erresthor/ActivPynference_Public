@@ -66,10 +66,11 @@ def kl_dir(P,Q,except_axis=None):
                              --> How the KLdir varies depending for different values of y1
     --> Axis = None : the global divergence between the two distributions for all conditionnal attachments
     """
-    eps = 1e-15
+    eps = 1e-3
+    P = P.astype('float64')
+    Q = Q.astype('float64')
     assert type(P)==np.ndarray,"Type should be numpy array, but is " + str(type(P))
     assert type(Q)==np.ndarray,"Type should be numpy array, but is " + str(type(Q))
-
     Q[Q<eps] = eps
     frac = P/Q
     frac[frac<eps] = eps

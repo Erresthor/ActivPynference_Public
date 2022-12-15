@@ -1,6 +1,5 @@
 from re import S
 from tabnanny import verbose
-from turtle import width
 import matplotlib.pyplot as plt
 from matplotlib.collections import PolyCollection
 from mpl_toolkits.mplot3d import Axes3D
@@ -10,7 +9,7 @@ import os, sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pyai.model.active_model_save_manager import ActiveSaveManager
-from pyai.models_neurofeedback.article_1_simulations.bagherzadeh.orientation_vs_intensity import neurofeedback_model
+from pyai.models_neurofeedback.article_1_simulations.bagherzadeh.orientation_vs_intensity import bagherzadeh_model
 from scipy.signal import savgol_filter
 
 def return_perf_from (fullpath,Ntrials):
@@ -242,6 +241,19 @@ def return_all_from(fullpath,Ntrials) :
 def plot_states_trials(s_R,s_L,T,Ntrials):
     fig,axes  = plt.subplots(2,2,sharex='col')
 
+    axes[0,1].set_ylim(-0,1)
+    axes[1,1].set_ylim(-0,1)
+    axes[1,0].set_ylim(-0,1)
+    axes[0,0].set_ylim(-0,1)
+    axes[0,0].axvline(0,color = "black")
+    axes[0,1].axvline(0,color = "black")
+    axes[1,0].axvline(0,color = "black")
+    axes[1,1].axvline(0,color = "black")
+    axes[0,0].axhline(0.5,color = "black")
+    axes[0,1].axhline(0,color = "black")
+    axes[1,0].axhline(0.5,color = "black")
+    axes[1,1].axhline(0,color = "black")
+
     across_trials = np.arange(0,Ntrials,1)
     across_timesteps = np.arange(0,T,1)
 
@@ -314,6 +326,20 @@ def plot_states_trials(s_R,s_L,T,Ntrials):
 def plot_states_timesteps(s_R,s_L,T,Ntrials):
     fig,axes  = plt.subplots(2,2,sharex='col')
 
+
+    axes[0,1].set_ylim(-0,1)
+    axes[1,1].set_ylim(-0,1)
+    axes[1,0].set_ylim(-0,1)
+    axes[0,0].set_ylim(-0,1)
+    axes[0,0].axvline(0,color = "black")
+    axes[0,1].axvline(0,color = "black")
+    axes[1,0].axvline(0,color = "black")
+    axes[1,1].axvline(0,color = "black")
+    axes[0,0].axhline(0.5,color = "black")
+    axes[0,1].axhline(0,color = "black")
+    axes[1,0].axhline(0.5,color = "black")
+    axes[1,1].axhline(0,color = "black")
+
     across_trials = np.arange(0,Ntrials,1)
     across_timesteps = np.arange(0,T,1)
     across_timesteps = across_timesteps*500
@@ -368,16 +394,12 @@ def plot_states_timesteps(s_R,s_L,T,Ntrials):
     axes[1,1].set_ylabel("Attention intensity",fontsize = 15)
     axes[1,0].set_xlabel("Time (ms)",fontsize = 15)
     axes[1,1].set_xlabel("Time (ms)",fontsize = 15)
-    
-    # axes[0,1].set_ylim(-0.1,1.1)
-    # axes[1,1].set_ylim(-0.1,1.1)
-    # axes[1,0].set_ylim(-0.1,1.1)
-    # axes[0,0].set_ylim(-0.1,1.1)
+
 
     axes[0,0].set_yticks([0,0.5,1], ['LEFT', 'MIDDLE', 'RIGHT'])  # Set text labels.
     axes[1,0].set_yticks([0,0.5,1], ['LEFT', 'MIDDLE', 'RIGHT'])  # Set text labels.
-    axes[0,1].set_yticks([0,0.5,1], ['LOW', 'MIDDLE', 'HIGH'])  # Set text labels.
-    axes[1,1].set_yticks([0,0.5,1], ['LOW', 'MIDDLE', 'HIGH'])  # Set text labels.
+    axes[0,1].set_yticks([0,0.5,1], ['LOW', 'MEDIUM', 'HIGH'])  # Set text labels.
+    axes[1,1].set_yticks([0,0.5,1], ['LOW', 'MEDIUM', 'HIGH'])  # Set text labels.
 
     axes[0,0].grid()
     axes[1,0].grid()
@@ -386,12 +408,18 @@ def plot_states_timesteps(s_R,s_L,T,Ntrials):
     #plt.show()
 
 if __name__ == "__main__":
-    T = 10
+    T = 11
     Ntrials = 100
     Ninst = 10
     overwrite = False 
     index = "001"
-    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","ori_int","bagherzadeh","model_8_imperfect_b_imperfect_a")
+    prior_b_precision = 50
+    
+    # savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","ori_int","orientation_intensity_new")
+    # Perfect B ?
+
+    savepath = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","ori_int","wide_ori_shift_true_b_uncertain002")
+
     
     p_i = 0.25 # probability of lowering the attentional level in case of monitoring attention
     p_o = 0.5 # probability of centering the directional attention in case of monitoring intensity
@@ -399,120 +427,38 @@ if __name__ == "__main__":
 
     modelnameR = "model_rnt"
     save_pathR = savepath
-    modelR = neurofeedback_model(modelnameR,save_pathR,p_i,p_o,'right',perfect_a=False,perfect_b = True,perfect_d=True,prior_b_precision=5,prior_a_precision=1,prior_a_confidence=0.5,verbose=True)
+
+    
+
+    modelR = bagherzadeh_model(modelnameR,save_pathR,p_i,p_o,'right',
+                                                    perfect_a=False,prior_a_precision=1,prior_a_confidence=0.5,
+                                                    perfect_b = False,prior_b_precision=prior_b_precision,
+                                                    perfect_d=True,verbose=True)
     modelR.index = [p_i,p_o,index]
     modelR.T = T
     modelR.initialize_n_layers(Ninst)
 
     modelnameL = "model_lnt"
     save_pathL = savepath
-    modelL = neurofeedback_model(modelnameL,save_pathL,p_i,p_o,'left' ,perfect_a=False,perfect_b = True,perfect_d=True,prior_b_precision=5,prior_a_precision=1,prior_a_confidence=0.5,verbose=True)
+    modelL = bagherzadeh_model(modelnameL,save_pathL,p_i,p_o,'left' ,
+                                                    perfect_a=False,prior_a_precision=1,prior_a_confidence=0.5,
+                                                    perfect_b = False,prior_b_precision=prior_b_precision,
+                                                    perfect_d=True,verbose=True)
     modelL.index = [p_i,p_o,index]
     modelL.T = T
     modelL.initialize_n_layers(Ninst)
     
     
-    # modelR.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
-    # modelL.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
+    modelR.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
+    modelL.run_n_trials(Ntrials,overwrite=overwrite,global_prop=None)
     fullpathR = os.path.join(save_pathR,modelnameR)
     fullpathL = os.path.join(save_pathR,modelnameL)
 
     s_R, o_R = return_all_from(fullpathR,Ntrials)
     s_L, o_L = return_all_from(fullpathL,Ntrials)
-    
-
-
-
-    from mpl_toolkits.axisartist.axislines import SubplotZero
-
-    ts = np.arange(0,T,1)
-    fig =plt.figure()
-    ax = SubplotZero(fig, 111)
-    fig.add_subplot(ax)
-    ax.set_xlim(-1,1)
-    ax.set_ylim(0,T)
-    for i in range(Ninst):
-        avg_states_R = (np.average(np.array(s_R[i]),0)[0,:]-2)/2
-        avg_states_L = (np.average(np.array(s_L[i]),0)[0,:]-2)/2
-        print(avg_states_R)
-        blue_cust = np.array([0,0,1,0.4])
-        red_cust = np.array([1,0,0,0.4])
-        ax.plot(avg_states_R,ts,color=blue_cust,linewidth=0.5)
-        ax.plot(avg_states_L,ts,color=red_cust,linewidth=0.5)
-    
-    avg_states_R = (np.average(np.array(s_R),(0,1))[0,:]-2)/2
-    avg_states_L = (np.average(np.array(s_L),(0,1))[0,:]-2)/2
-    ax.plot(avg_states_R,ts,color='blue',linewidth=2.5)
-    ax.plot(avg_states_L,ts,color='red',linewidth=2.5)
-    for direction in ["xzero", "yzero"]:
-        # adds arrows at the ends of each axis
-        ax.axis[direction].set_axisline_style("-|>")
-
-        # adds X and Y-axis from the origin
-        ax.axis[direction].set_visible(True)
-
-    for direction in ["left", "right", "bottom", "top"]:
-        # hides borders
-        ax.axis[direction].set_visible(False)
-
-    # print(len(s_R))
-    # print(len(s_R[0]))
-    # print(s_R[0][0].shape)
-    ax.set_xlabel("Orientation")
-    ax.set_ylabel("Timesteps",loc='top')
-    # plt.show()
-    
-    
-
-    fig =plt.figure()
-    ax = SubplotZero(fig, 111)
-    fig.add_subplot(ax)
-    ax.set_xlim(-1,1)
-    ax.set_ylim(0,T)
-    
-
-    first_quarter = int(Ntrials/4.0)
-    last_quarter = int(3.0*Ntrials/4.0)
-    print(last_quarter)
-    print(np.array(s_L).shape)
-    print(np.array(s_R).shape)
-    avg_states_R_1 = (np.average(np.array(s_R)[:,first_quarter:,:,:],(0,1))[0,:]-2)/2
-    avg_states_R_2 = (np.average(np.array(s_R)[:,last_quarter:,:,:],(0,1))[0,:]-2)/2
-    
-    avg_states_L_1 = (np.average(np.array(s_L)[:,first_quarter:,:,:],(0,1))[0,:]-2)/2
-    avg_states_L_2 = (np.average(np.array(s_L)[:,last_quarter:,:,:],(0,1))[0,:]-2)/2
-
-    print(avg_states_L)
-    print(avg_states_R)
-
-    ax.plot(avg_states_R_1,ts,color='blue',linewidth=2.5,linestyle="--")
-    ax.plot(avg_states_R_2,ts,color='blue',linewidth=2.5)
-
-    ax.plot(avg_states_L_1,ts,color='red',linewidth=2.5,linestyle="--")
-    ax.plot(avg_states_L_2,ts,color='red',linewidth=2.5)
-
-    for direction in ["xzero", "yzero"]:
-        # adds arrows at the ends of each axis
-        ax.axis[direction].set_axisline_style("-|>")
-
-        # adds X and Y-axis from the origin
-        ax.axis[direction].set_visible(True)
-
-    for direction in ["left", "right", "bottom", "top"]:
-        # hides borders
-        ax.axis[direction].set_visible(False)
-
-    # print(len(s_R))
-    # print(len(s_R[0]))
-    # print(s_R[0][0].shape)
-    ax.set_xlabel("Orientation")
-    ax.set_ylabel("Timesteps",loc='top')
+    plot_states_trials(s_R,s_L,T,Ntrials)
+    plot_states_timesteps(s_R,s_L,T,Ntrials)
     plt.show()
-    
-
-    # plot_states_trials(s_R,s_L,T,Ntrials)
-    # plot_states_timesteps(s_R,s_L,T,Ntrials)
-    # plt.show()
     # fig,axes  = plt.subplots(2,2,sharex='col')
 
     # across_trials = np.arange(0,Ntrials,1)

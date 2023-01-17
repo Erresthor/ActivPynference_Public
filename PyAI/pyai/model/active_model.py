@@ -60,6 +60,7 @@ class ActiveModel():
         self.e = None
 
         self.U = None
+        self.state_dependent_u = None 
 
         self.T = None
 
@@ -122,6 +123,7 @@ class ActiveModel():
         layer.e_ = flexible_copy(self.e)
 
         layer.U_ = flexible_copy(self.U)
+        layer.state_u = flexible_copy(self.state_dependent_u)
 
         layer.s_ = flexible_copy(self.s_)
         layer.o_ = flexible_copy(self.o_)

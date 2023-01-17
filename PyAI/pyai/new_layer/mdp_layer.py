@@ -47,7 +47,6 @@ from .spm_backwards import spm_backwards
 from .layer_prep import prep_layer
 from .layer_precisions import *
 from .layer_learn import *
-from .electrophysiological_responses import generate_electroph_responses
 
 from ..base.function_toolbox import normalize,softmax,nat_log,precision_weight
 from ..base.function_toolbox import spm_wnorm,cell_md_dot,md_dot, spm_cross,spm_KL_dir,spm_psi, spm_dot
@@ -56,10 +55,7 @@ from ..base.function_toolbox import spm_kron,spm_margin,spm_dekron
 from ..base.miscellaneous_toolbox import isField, isNone
 from ..base.miscellaneous_toolbox import flexible_copy
 
-from .parameters.policy_method import Policy_method
-
-
-class layer_parameters :
+class hyperparameters :
     def __init__(self):
         self.alpha = 32 # action precision
         self.beta = 1    # policy precision
@@ -69,18 +65,14 @@ class layer_parameters :
         self.chi = 1/64  # Occam window updates
         self.zeta = 3    # Occam window policies
 
-class mdp_layer_options :
+class mdp_layer_learnoptions :
     def __init__(self):
         self.T_horizon = 1
         self.update_frequency = 1 # ]0,1] --> At most, you can be updated once every loop, at worst, only once in total
                                     # To be implemented
         
-        self.learn_during_experience = False
-
-        self.memory_decay = MemoryDecayType.NO_MEMORY_DECAY
-        self.decay_half_time = 1
-
-        self.Ni = 16
+        self.learn_during_trial = False
+        self.memloss = 0
 
         self.learn_a = True
         self.learn_b = True
@@ -88,32 +80,8 @@ class mdp_layer_options :
         self.learn_d = True
         self.learn_e = False
 
-class mdp_layer :
-    # Agent constructor
-    def __init__(self,in_seed = 0):
-        self.verbose = False
-
-        
-        self.seed = in_seed
-
-        self.name = 'default name'
-        self.options = mdp_layer_options()
-        self.parent = None
-        self.child = None
-        self.level = 0
-
-        # Simulation parameters
-        self.T = 0          # The temporal horizon for this layer (a.k.a, how many timescales it will have to experience)
-        self.t = 0          # The current time step, if t==T, the experience is over        
-        
-        #Model building blocks -----------------------------------------------------------------------------------------------
-        # INPUT Beliefs (learning process, =/= generative process) --> What our agent believes about the dynamics of the world
-        self.a_ = None       # A matrix beliefs (learning)
-        self.b_ = None       # B matrix beliefs (learning)
-        self.c_ = None       # C matrix beliefs (learning)
-        self.d_ = None       # D matrix beliefs (learning)
-        self.e_ = None       # E matrix beliefs (learning)
-
+class process_layer :
+    def __init__(self):
         # INPUT Ground Truth matrices (generative process, will be used in the generative model if no value is provided above) --> What actually happens
         self.A_ = None       # A matrix real (generative process)    
         self.B_ = None       # B matrix real (generative process)    
@@ -124,27 +92,37 @@ class mdp_layer :
         self.policy_method = Policy_method.UNDEFINED
         self.V_ = None       # Allowable policies (T-1 x Np x F)
         self.U_ = None       # Allowable actions (1 x Np x F)
-        self.state_u = None # State dependent allowable actions
-        #--------------------------------------------------------------------------------------------------------------------
-
-        
-        self.precisions = mdp_layer_precisions()
-              # Precision matrix for correspondance between upper lvl observations and precisions priors / GT values
-                             # There should be the same number of outcomes for each modality at lvl (self + 1) as 
-                             # the number of weight for precisions.
-                             # e.g. : We have 3 outcomes for a given modality (attention for example) in a level n+1 state
-                             #        Each outcome will translate to a given precision value (prec_j  = sum_i(O_(n+1)_i,j * BETA_i,j))
-                    # TODO : if there are no parents, filling up this dictionnary should provide priors for inference on a monolevel basis
-        
-        self.o = None   # Sequence of observed outcomes
-        self.s = None   # Sequence of true states
-        self.u = None   # Chosen Actions
-        
 
         self.o_ = None   # IMPOSED Sequence of observed outcomes (input by exp)
         self.s_ = None   # IMPOSED Sequence of true states (input by exp)
         self.u_ = None   # IMPOSED Chosen Actions (input by exp)
 
+class model_layer :
+    # Agent constructor
+    def __init__(self,in_seed = 0):
+        self.name = 'default name'
+        self.verbose = False
+
+        self.seed = in_seed
+
+        self.hyperparams = hyperparameters()
+        self.learn_options = mdp_layer_learnoptions()
+
+        #Model building blocks -----------------------------------------------------------------------------------------------
+        # INPUT Beliefs (learning process, =/= generative process) --> What our agent believes about the dynamics of the world
+        self.a_ = None       # A matrix beliefs (learning)
+        self.b_ = None       # B matrix beliefs (learning)
+        self.c_ = None       # C matrix beliefs (learning)
+        self.d_ = None       # D matrix beliefs (learning)
+        self.e_ = None       # E matrix beliefs (learning)
+
+        # Simulation parameters
+        self.T = 0          # The temporal horizon for this layer (a.k.a, how many timescales it will have to experience)
+        self.t = 0          # The current time step, if t==T, the experience is over        
+
+        self.o = None   # Sequence of observed outcomes
+        self.s = None   # Sequence of true states
+        self.u = None   # Chosen Actions     
         self.K = None   # Chosen action combination index
 
         self.reinit()
@@ -469,8 +447,7 @@ class mdp_layer :
         # If t horizon = 0, N = t, no loop
         # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
-        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,self.b_complexity,t,T,min(T-1,t+N),t0=t,
-                        state_dependent_allowable_actions = self.state_u,verbose=self.verbose)
+        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,self.b_complexity,t,T,min(T-1,t+N),t0=t,verbose=self.verbose)
         
         
 

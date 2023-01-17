@@ -50,11 +50,9 @@ import numpy as np
 from types import SimpleNamespace
 
 from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax
-from ..base.miscellaneous_toolbox import isField
 from ..base.miscellaneous_toolbox import isNone,flatten_last_n_dimensions,flexible_toString,flexible_print,flexible_copy
 
-def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
-                    state_dependent_allowable_actions=None, verbose = False) :
+def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,verbose = False) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -87,6 +85,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
     A = self.a
     B = self.b"""
     
+    
     # Nf = len(B) --> not because B is in Kronecker form
     Nf = A[0].ndim-1  # granted A has at least 1 modality, but any situation without observation isn't explored here
     Nmod = len(A)
@@ -100,10 +99,6 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
     # P is the posterior over hidden states at the current time t based on priors
     P[t] =normalize(L.flatten()*P[t]) # P(s|o) = P(o|s)P(s)
 
-    if (isField(state_dependent_allowable_actions)):
-        G = G + np.log(np.dot(state_dependent_allowable_actions,P[t])+1e-300)
-    
-    
     if (t==T):
         # Search over, calculations make no sense here as no actions remain to be chosen
         return normalize(np.ones(G.shape)), P
@@ -141,7 +136,7 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
                 # if we learn a :
                 A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
                 # Problem : 
-                # If b is unknown too, state posterior may be very flat (0.2 0.2 0.2 0.2 0.2) (i don't know where this action leads)
+                # If b is unknown too, state posterior may be very flat (0.2 0.2 0.2 0.2 0.2) (i don't know whare this action leads)
                 # If a is a gaussian with very low values (1e-5 1 1e-5 1e-100 1e-200) for a given state, 
                 # AND Predictive observation would be flat (0.2 0.2 0.2 0.2 0.2)
                 # 
@@ -156,8 +151,8 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
 
                 # We calculate how much new information would be gained by picking action B knowing that we would be 
                 # starting from a distribution of state P and going towards a distribution of states Q
-                # Q = q(s[t+1]|pi[t]) at time t
-                # P = q(s[t]) at time t
+                # Q = q(s+1|pi) at time t
+                # P = q(s) at time t
                 B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P[t]))
 
                 debug = False
@@ -219,6 +214,10 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
             print("      ambiguity[" + str(action) + "]     = " + flexible_toString(np.dot(Q[action].T,A_ambiguity[modality].flatten())))
             print("      risk[" + str(action) + "]          = " + flexible_toString(np.dot(qo.T,nat_log(qo)-po)))
             print("      novelty[" + str(action) + "]       = " + flexible_toString(np.dot(qo.T,np.dot(flatten_last_n_dimensions(Nf,A_novelty[modality]),Q[action]))))
+        # print("Ambiguity :")
+        # for action in range(U.shape[0]):
+        #     print("    G[" + str(action) + "] = " + str(G[action]))
+        # print("Risk")
 
     plausible_threshold = 1.0/16.0
     debug = False 
@@ -227,7 +226,6 @@ def spm_forwards(O,P,U,A,B,C,E,A_ambiguity,A_novelty,B_novelty,t,T,N,t0 = 0,
         print(np.round(G,2))
         print(softmax(G))
         print("#########################")
-    
     if (t<N): # t within temporal horizon
         u = softmax(G)
         k = (u<plausible_threshold)

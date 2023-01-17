@@ -124,7 +124,6 @@ class mdp_layer :
         self.policy_method = Policy_method.UNDEFINED
         self.V_ = None       # Allowable policies (T-1 x Np x F)
         self.U_ = None       # Allowable actions (1 x Np x F)
-        self.state_u = None # State dependent allowable actions
         #--------------------------------------------------------------------------------------------------------------------
 
         
@@ -139,7 +138,6 @@ class mdp_layer :
         self.o = None   # Sequence of observed outcomes
         self.s = None   # Sequence of true states
         self.u = None   # Chosen Actions
-        
 
         self.o_ = None   # IMPOSED Sequence of observed outcomes (input by exp)
         self.s_ = None   # IMPOSED Sequence of true states (input by exp)
@@ -421,6 +419,318 @@ class mdp_layer :
         #-------------------------------------------------------------------------------------------------
         #print("Success !")
 
+    # POLICY DRIVEN LOOP
+    def perform_state_inference(self):
+        Nmod = self.Nmod
+        No = self.No
+
+        Nf = self.Nf
+        Ns = self.Ns 
+
+        Np = self.Np
+        Nu = self.Nu
+
+        Ni = self.options.Ni
+        t = self.t
+        T = self.T
+        t = self.t
+
+
+        intro_msg = "Infering hidden states at time "  + str(t+1) +" / " + str(T) + " (layer " + str(self.level) + " ) ..."
+        #print(intro_msg,end=' ' ) #'\n')
+
+        #Posterior predictive density over hidden external states
+        xq = []
+        xqq = []
+        for f in range(self.Nf) :
+            if (t ==0) :
+                xqq.append(self.X[f][:,t])
+            else :
+                xqq.append(np.dot(np.squeeze(self.b[f][:,:,self.u[f,t-1]]),self.X[f][:,t-1]))
+            xq.append(self.X[f][:,t])
+            
+            if (self.policy_method == Policy_method.ACTION):
+                xq[f] = xqq[f]
+
+        # Likelihood of hidden states
+        self.L.append(1)
+        for modality in range (Nmod):
+            self.L[t] = self.L[t] * spm_dot(self.a[modality],self.O[modality][:,t])
+
+        # Policy reduction if too unlikely --> TODO : Place it at the end of the tick ?
+        if (isField(self.parameters.zeta)):
+                if (self.policy_method == Policy_method.POLICY) and (t>0):
+                    F = nat_log(self.p_posterior[self.p,t-1])
+                    self.p = self.p[(F-np.max(F))>-self.parameters.zeta]
+        
+                        
+        tstart = time.time()
+        for f in range(Nf):
+            self.x[f] = softmax(nat_log(self.x[f])/self.parameters.erp,axis = 0,center = False)
+        
+        # % Variational updates (hidden states) under sequential policies
+        #%==============================================================
+        S = self.V.shape[0] + 1
+        if (self.U_):
+            R = t
+        else :
+            R = S
+        F = np.zeros((Np,))
+        G = np.zeros((Np,))
+
+        for policy in self.p :
+            dF = 1 # Criterion for given policy
+            for iteration in range(Ni) :
+                
+                F[policy] = 0
+                
+                for tau in range(S): #Loop over future time points
+                    
+                    #posterior over outcomes
+                    if (tau <= t) :
+                        for factor in range(Nf):
+                            xq[factor]=np.copy(self.x[factor][:,tau,policy])
+                    for factor in range (Nf):
+                        #  hidden state for this time and policy
+                        sx = np.copy(self.x[factor][:,tau,policy])
+                        qL = np.zeros((Ns[factor],))
+                        v = np.zeros((Ns[factor],))
+                        
+                        # evaluate free energy and gradients (v = dFdx)
+                        if ((dF > np.exp(-8)) or (iteration > 3)) :
+                            
+                            # marginal likelihood over outcome factors
+                            if (tau <= t) :
+                                qL = spm_dot(self.L[tau],xq,factor)
+                                qL = nat_log(qL)
+                            qx = nat_log(sx)
+                            
+                            
+                            #Empirical priors (forward messages)
+                            if (tau == 0):
+                                px = nat_log(self.d[factor])
+                            else :
+                                px = nat_log(np.dot(np.squeeze(self.b[factor][:,:,self.V[tau-1,policy,factor]]),self.x[factor][:,tau-1,policy]))
+                            v = v +px + qL - qx
+                            #Empirical priors (backward messages)
+                            if (tau == R-1) :
+                                px = 0
+                            else : 
+                                px = nat_log(np.dot(normalize(self.b[factor][:,:,self.V[tau,policy,factor]].T),self.x[factor][:,tau+1,policy]))
+                                v = v +px + qL - qx
+                            
+                            if ((tau==0) or (tau==S-1)):
+                                F[policy] = F[policy] + 0.5*np.dot(sx.T,v)
+                            else :
+                                F[policy] = F[policy] + np.dot(sx.T,0.5*v - (Nf-1)*qL/Nf)
+                                
+                            v = v - np.mean(v)
+                            sx = softmax(qx + v/self.parameters.tau)
+
+                        else :
+                            F[policy] = G[policy] # End of condition
+                            
+                        self.x[factor][:,tau,policy] = sx
+                        xq[factor] = np.copy(sx)
+                        self.xn[factor][iteration,:,tau,t,policy] = sx
+                        self.vn[factor][iteration,:,tau,t,policy] = v
+                        
+                # end of loop onn tau --> convergence :
+                if (iteration > 0):
+                    dF = F[policy] - G[policy]
+                G = np.copy(F)
+
+        self.F[:,t] = F
+        #print("Success !")
+        return time.time() - tstart
+
+    def calculate_EFE(self):
+        """Using our current estimation of hidden states, try to estimate the value of our exxpected free energy depending on policy. 
+            Of course if we only have one policy, the result is useless"""
+        Q = np.zeros((self.Np,)) # Actual EFE
+        S = self.V.shape[0] + 1
+
+        # EFE Calculation
+        for policy in self.p:
+            # Bayesian surprise about initial conditions
+            if isField(self.d_):
+                for factor in range (self.Nf):
+                    Q[policy] = Q[policy] - spm_dot(self.d_complexity[factor],self.x[factor][:,0,policy])
+
+            for timestep in range(self.t,S):
+                xq = []
+                for factor in range (self.Nf):
+                    xq.append(self.x[factor][:,timestep,policy])
+                
+                #Bayesian surprise about states
+                Q[policy] = Q[policy] + G_epistemic_value(self.a,xq) 
+                for modality in range(self.Nmod):
+                    #Prior preferences about outcomes
+                    qo = spm_dot(self.a[modality],xq)   #predictive observation posterior
+                    Q[policy] = Q[policy] + np.dot(qo.T,self.C[modality][:,timestep])
+                    #Bayesian surprise about parameters
+                    if (isField(self.a_)):
+                        Q[policy] = Q[policy] - spm_dot(self.a_complexity[modality],[qo]  + xq[:])
+                #[predictive_observation_posterior] + Expected_states[:])
+                #print(Q[policy])
+                #End of loop on policies                                
+        self.G[:,self.t] = Q
+    
+    def perform_policy_inference(self):
+        #print("I perform policy inference using the infered states")
+
+        Nmod = self.Nmod
+        No = self.No
+
+        Nf = self.Nf
+        Ns = self.Ns 
+
+        Np = self.Np
+        Nu = self.Nu
+
+        Ni = self.options.Ni
+        t = self.t
+        T = self.T
+        t = self.t
+        p = self.p
+
+        tstart = time.time()
+        if (Np>1) :
+            self.calculate_EFE()
+
+            Q = self.G[:,self.t]
+
+            # PRECISION INFERENCE
+            if (t>0):
+                beta = self.precisions.policy.BETA[0,t-1]
+            else :
+                beta = self.precisions.policy.prior[0]
+            qb = beta
+            gamma_t = 1/beta
+
+            
+            for iteration in range(Ni):
+                # posterior and prior beliefs about policies
+                q_p = softmax(nat_log(self.E)[p] + gamma_t*Q[p] + self.F[p,t])      # Posterior over policies
+                p_p = softmax(nat_log(self.E)[p] + gamma_t*Q[p])             # Prior over policies
+
+                if (self.precisions.policy.to_infer):
+                    eg = np.dot((q_p-p_p).T,Q[p])                           # Affective Charge (C. Hesp 2021)
+                    dFdg = qb - self.precisions.policy.prior[0] + eg 
+                    qb = qb - dFdg/2.                                       # update of beta posterior
+                    #qb = qb - (qb - beta_prior + eg
+                    gamma_t = 1/qb                                          # update of gamma posterior
+                else :
+                    gamma_t = 1/beta
+
+                #dopamine responses
+                n = t*Ni + iteration
+                self.precisions.policy.beta_n[0,n] = 1/gamma_t
+                self.p_posterior_n[p,n] = q_p
+            
+            self.p_posterior[p,t] = q_p
+            
+            self.precisions.policy.beta[0,t] = 1/gamma_t         
+            self.precisions.policy.BETA[0,t] = 1/gamma_t
+
+
+        #BMA states calculation (given the posterior over policies, what do our hidden states look like ?)
+        S = self.V.shape[0] + 1
+        for factor in range(Nf):
+            for tau in range(S):
+                self.X[factor][:,tau] =np.dot(self.x[factor][:,tau,:],self.p_posterior[:,t])    # BMA state = posterior over state depending on policy chosen * posterior over policy
+                self.X_archive[factor][:,t,tau] = self.X[factor][:,tau]                  # Let's stock its value
+        policy_inference_time = time.time() - tstart
+
+        if (Np > 1) :
+            self.H[t] = np.dot(q_p.T,self.F[p,t]) - np.dot(q_p.T,(nat_log(q_p) - nat_log(p_p)))
+        else :
+            self.H[t] = self.F[p,t] # - (nat_log(q_p) - nat_log(p_p))  --> = 0 ?
+        # TODO : check for residual uncertainty (in hierarchical schemes) + VOX mode
+        #            if isfield(MDP,'factor')
+        #                
+        #                for f = MDP(m).factor(:)'
+        #                    qx     = X{m,f}(:,1);
+        #                    H(m,f) = qx'*spm_log(qx);
+        #                end
+        #                
+        #                % break if there is no further uncertainty to resolve
+        #                %----------------------------------------------------------
+        #                if sum(H(:)) > - chi && ~isfield(MDP,'VOX')
+        #                    T = t;
+        #                end
+        #            end
+
+        return policy_inference_time
+
+    def perform_action_selection(self):
+        Nmod = self.Nmod
+        No = self.No
+
+        Nf = self.Nf
+        Ns = self.Ns 
+
+        Np = self.Np
+        Nu = self.Nu
+
+        Ni = self.options.Ni
+        t = self.t
+        T = self.T
+        t = self.t
+        tstart = time.time()
+
+        # Action selection !!
+        if (t<T-1):
+            #Marginal posterior over action
+            u_posterior_intermediate = np.zeros(tuple(Nu))  # Action posterior intermediate
+            
+            for policy in range(Np):
+                
+                sub = self.V[t,policy,:] # coordinates for the corresponding action wrt t and policy
+                action_coordinate = tuple(sub)
+                u_posterior_intermediate[action_coordinate] = u_posterior_intermediate[action_coordinate] + self.p_posterior[policy,t]
+            
+            u_posterior_intermediate = softmax(self.parameters.alpha*nat_log(u_posterior_intermediate)) # randomness in action selection --> Low alpha = random
+            self.u_posterior[...,t] = u_posterior_intermediate
+            #action_posterior[...,t] = action_posterior_intermediate
+            # Next action : sampled from marginal posterior
+            for factor in range(Nf):
+                if (self.u[factor,t]<0) : # The choice of action is not overriden
+                    if(Nu[factor]>1) :
+                        randomfloat = r.random()
+                        #print(np.cumsum(action_posterior_intermediate,axis=factor))
+                        ind = np.argwhere(randomfloat <= np.cumsum(u_posterior_intermediate,axis=factor))[0]
+                        #ind est de taille n où n est le nombre de transitions à faire :
+                        self.u[factor,t] = ind[factor]
+                        #print(b, np.cumsum(action_posterior_intermediate,axis=1),ind[0])                
+                    else :
+                        self.u[factor,t] = 0
+            
+            if isField(self.U_) :
+                for factor in range(Nf):
+                    self.V[t,:,factor] = self.u[factor,t]
+                
+                for j in range (self.U_.shape[0]) :
+                    if (t+1 < T-1) :
+                        self.V[t+1,:,:] = self.U_[:,:]
+                    
+                for factor in range(Nf):
+                    for policy in range (Np):
+                        self.x[factor][:,:,policy] = 1.0/Ns[factor]
+            #End of condition on U_
+        # End of Action selection
+
+        if (t==T-1): #Accumulate all evidences
+            if (T==1):
+                self.u = np.zeros((Nf,1)) 
+        return time.time()- tstart
+
+    def perform_precision_inference(self):
+        """ Given the outcomes / states infered, let's try to figure out which precisions are the most likely ! It will in turn allow us to predict the higher lvl outcomes"""
+        print("I will infer precisions")
+
+
+
     def action_driven_loop(self):
         # Called after the GT values generation (generative process)
         Nmod = self.Nmod
@@ -469,8 +779,7 @@ class mdp_layer :
         # If t horizon = 0, N = t, no loop
         # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
-        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,self.b_complexity,t,T,min(T-1,t+N),t0=t,
-                        state_dependent_allowable_actions = self.state_u,verbose=self.verbose)
+        G,self.Q  = spm_forwards(reduced_O,self.Q,self.U,self.a,self.b_kron,self.c,self.e,self.a_ambiguity,self.a_complexity,self.b_complexity,t,T,min(T-1,t+N),t0=t,verbose=self.verbose)
         
         
 

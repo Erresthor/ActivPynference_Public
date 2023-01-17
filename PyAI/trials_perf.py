@@ -29,7 +29,7 @@ def sliding_window_mean(array_input,window_size = 5):
         return list_output
 
 if __name__=="__main__":
-    save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","one_more_trial")
+    save_path = os.path.join("C:",os.sep,"Users","annic","Desktop","Phd","TEMPORARY_TEST_BED","LIGNEUL_TASK")
     overwrite = True
     Ntrials = 150
     model_name = "learn_b_a_known_low_conf_3"

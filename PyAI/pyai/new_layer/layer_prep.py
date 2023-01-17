@@ -283,12 +283,6 @@ def initialize_fields(layer_input):
         layer_input.d_complexity = d_complexity
     
     layer_input.e = E
-
-
-    if isField(layer_input.state_u) :
-        # TODO :  We should flatten its state space ! 
-        # For now, only works for one dimensionnal state spaces
-        pass
     # --------------------------------------------------------
 
     # the value inside observations/ true states  can be:

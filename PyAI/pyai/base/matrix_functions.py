@@ -12,6 +12,7 @@ import math as m
 from .miscellaneous_toolbox import isField
 from .function_toolbox import normalize
 
+
 def matrix_distance(mat1,mat2,metric="2"):
     """evaluate matrix distance between two same dimension matrices."""
 

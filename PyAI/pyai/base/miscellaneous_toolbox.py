@@ -124,6 +124,23 @@ def smooth_1D_array(arr,smooth_size = 5):
         smoothed_one[i] = tot/cnt
     return smoothed_one
 
+def sliding_window_mean(array_input,window_size = 5):
+    list_output = np.zeros(array_input.shape)
+    N = array_input.shape[0]
+    for trial in range(N):
+        mean_value = 0
+        counter = 0
+        for k in range(trial - window_size,trial + window_size + 1):
+            if(k>=0):
+                try :
+                    mean_value += array_input[k]
+                    counter += 1
+                except :
+                    a = 0
+                    #Nothing lol
+        list_output[trial] = mean_value/counter
+    return list_output
+
 if __name__ == "__main__":
     A = np.round(np.random.rand(5,6,3,3),1)
     B = np.round(np.random.rand(5,6,3,3),1)

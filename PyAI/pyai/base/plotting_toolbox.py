@@ -3,6 +3,8 @@
 Created on Mon May 17 17:23:53 2021
 
 @author: cjsan
+
+A set of plotting functions
 """
 
 import matplotlib.pyplot as plt

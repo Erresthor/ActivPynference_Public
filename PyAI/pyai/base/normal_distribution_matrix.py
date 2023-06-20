@@ -45,14 +45,6 @@ def cast_to_array(x,y,scale_array):
     
     return normal_casted
 
-# x = np.linspace(0,10,1000)
-# y = normal_pdf(3,0.3,x)
-# cast_to = np.array([1,2,3,4,5,6,7,8,9])
-# #cast_to = np.array([0.5,4.5,7.,7.8,7.9])
-# casted = cast_to_array(x,y,cast_to)
-# print(casted,np.sum(casted))
-
-# print(np.linspace(0,10,10+1))
 def generate_distribution(empty_array,mu,sig2,n_points = 500,ecart = 3) :
     epsilon = 1e-5
     assert empty_array.ndim ==1,"Array should be 1 dimensionnal"
@@ -95,8 +87,6 @@ def generate_normal_dist_along_mulist(zero_matrix,mulist,sig2,n_points=500,ecart
         X,casted_dist,x,y = generate_distribution(np.zeros(zero_matrix[slicer].shape),i,sig2,n_points,ecart)
         output_matrix[slicer] = casted_dist
     return output_matrix
-
-
 
 if __name__=="__main__":
     # X,casted_dist,x,y = generate_distribution(np.zeros(5,),4.2,1,ecart=10)

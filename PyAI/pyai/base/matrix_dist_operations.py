@@ -1,3 +1,12 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri May  7 11:58:11 2021
+
+@author: cjsan based on SPM12's documentation
+
+A dictionnary of useful functions to generate some matrices based on probability distributions
+Probably far from optimal :/
+"""
 import numpy as np
 from .function_toolbox import normalize
 import matplotlib.pyplot as plt
@@ -46,14 +55,6 @@ def cast_to_array(x,y,scale_array):
     
     return normal_casted
 
-# x = np.linspace(0,10,1000)
-# y = normal_pdf(3,0.3,x)
-# cast_to = np.array([1,2,3,4,5,6,7,8,9])
-# #cast_to = np.array([0.5,4.5,7.,7.8,7.9])
-# casted = cast_to_array(x,y,cast_to)
-# print(casted,np.sum(casted))
-
-# print(np.linspace(0,10,10+1))
 def generate_distribution(empty_array,mu,sig2,n_points = 500,ecart = 3) :
     assert empty_array.ndim ==1,"Array should be 1 dimensionnal"
     k = empty_array.shape[0]
@@ -92,11 +93,6 @@ def generate_normal_dist_along_mulist(zero_matrix,mulist,sig2,n_points=500,ecart
         X,casted_dist,x,y = generate_distribution(np.zeros(zero_matrix[slicer].shape),i,sig2,n_points,ecart)
         output_matrix[slicer] = casted_dist
     return output_matrix
-
-# X,casted_dist,x,y = generate_distribution(np.zeros(5,),4.2,1,ecart=10)
-# plt.bar(X,casted_dist,0.95)
-# # plt.plot(x,y,color='r')
-# plt.show()
 
 if(__name__=="__main__") :
     from pyai.base.plotting_toolbox import multi_3dmatrix_plot,multi_matrix_plot

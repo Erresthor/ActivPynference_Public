@@ -3,6 +3,8 @@
 Created on Fri May  7 11:58:11 2021
 
 @author: cjsan
+
+A set of metrics for matrices
 """
 import numpy as np
 from scipy.special import gammaln
@@ -49,7 +51,6 @@ def matrix_distance_list(listmat1,listmat2,metric="2"):
     for k in range(len(listmat1)):
         distance_list.append(matrix_distance(listmat1[k],listmat2[k],metric=metric))
     return distance_list
-
 
 def uncertainty(distribution,factor = 1/2):
     """ For factor in [0,1[, a measure of how "dispersed" the information is in subject beliefs."""
@@ -116,15 +117,6 @@ def mean_uncertainty(matlist,factor=.5):
         return (matlist)
     else :
         raise Exception("Inputs for mean_uncertainty should be either numpy arrays or list of numpy arrays.")
-
-# a = np.random.random((9,9,8,2))
-# b = np.random.random((9,9,8,2))
-
-# print(matrix_distance(a,b,"1"))
-# print(matrix_distance(a,b,"2"))
-# print(matrix_distance(a,b,"1200"))
-# print(matrix_distance(a,b,"inf"))
-# print(9*9*8*2)
 
 def argmean(matrix,axis=0):
     """For spacially coherent matrices.

@@ -2,7 +2,9 @@
 """
 Created on Fri May  7 11:58:11 2021
 
-@author: cjsan
+@author: cjsan based on SPM12's documentation
+
+A dictionnary of all mathematical functions needed in the inference scheme.
 """
 from dis import dis
 import numpy as np
@@ -10,6 +12,24 @@ from scipy.special import gammaln
 from scipy.special import psi
 import random as random
 
+from .miscellaneous_toolbox import isField
+
+def sample_distribution(distribution, N=1):
+    original_distribution_shape = distribution.shape
+
+    sum_of_dist = np.sum(distribution)
+    assert abs(sum_of_dist-1.0) < 1e-10, "A probabilistic distribution should sum to 1 (sums to " + str(sum_of_dist) + " )"
+    
+    normalized_cumsum = np.reshape(np.cumsum(distribution),original_distribution_shape)
+
+    L = []
+    for k in range(N):
+        value = np.argwhere(random.random() <= normalized_cumsum)[0]
+        value = tuple(value)
+        if (N==1):
+            return value 
+        L.append(value)
+    return L
 
 def precision_weight(A,gamma,center = False):
     if (type(A)==list):
@@ -22,8 +42,6 @@ def precision_weight(A,gamma,center = False):
         return result
     else :
         return softmax(A**gamma,0,center)
-
-
 
 def softmax_appr(X):                                                                 ###converts log probabilities to probabilities
       norm = np.sum(np.exp(X)+10**-5)
@@ -50,20 +68,49 @@ def softmax_dim2(X):                                                            
     Y = (np.exp(X)+10**-5)/norm
     return Y
 
-def normalize(X,axis=0,epsilon=1e-15):                                                               ###normalises a matrix of probabilities
+def pick_tuple_elements(A, indices):
+    if isinstance(indices, (list, tuple)):
+        return tuple(A[i] for i in indices)
+    elif isinstance(indices, int):
+        return A[indices]
+    else:
+        raise TypeError("indices must be a list, tuple, or int")
+
+def re_expand(original_array_shape, array_to_re_expand, axes):
+    to_do_shapes = pick_tuple_elements(original_array_shape,axes)
+    if (type(axes)==int):
+        axes_as_list = [axes]
+    else: 
+        axes_as_list = axes
+    if (type(to_do_shapes)==int):
+        to_do_shapes = [to_do_shapes]
+
+    for shap_idx in range(len(to_do_shapes)):
+        array_to_re_expand = np.repeat(array_to_re_expand,to_do_shapes[shap_idx],axis=axes_as_list[shap_idx])
+    return array_to_re_expand
+
+def normalize(X,axis=0,all_axes=False,epsilon=1e-15):
+    if (all_axes):
+        axis= tuple(range(X.ndim))                                                ###normalises a matrix of probabilities
     if(type(X) == list):
         x =[]
         for i in range(len(X)):
             x.append(normalize(X[i],axis=axis))
-    
     elif (type(X)==np.ndarray) :
+        # If this is material we can work with :
         X = X.astype(float)
-
         X[X<0] = 0
-
+        # Check if normalization would result in 0 divisions: 
+        # 1 : Check is sum of all elements in (axis) below threshold
         Xint =  np.sum(X,axis,keepdims=True) < epsilon
-        Xint = np.repeat(Xint,X.shape[axis],axis=axis)
+        # 2 : Make the mask the same size as the original matrix by repeating
+        # along the sumed axes 
+        Xint = re_expand(X.shape,Xint,axis)
+
+        # In case of divisions by zero, we add epsilon
         X[Xint] = X[Xint] + epsilon
+
+        # Finally, we return the actual normalized matrix
         x= X/(np.sum(X,axis))
     elif(X==None):
         return None
@@ -99,7 +146,7 @@ def spm_wnorm_toocomplex(A):
     return A_wnormed
 
 def spm_wnorm(A,epsilon = 1e-2) :
-        # no idea what it does ¯\_(ツ)_/¯ 
+    # no idea what it does ¯\_(ツ)_/¯ 
     """ Used for calculating a novelty term and push agent towards long term model exploration. 
     In practice, we want to encourage unexplored options, even though we have some slight priors. Strong priors 
     lead to an increase in EFE.
@@ -115,10 +162,12 @@ def spm_wnorm(A,epsilon = 1e-2) :
     # If this does not exist, low prior models weights lead to very high novelties
 
     A_wnormed = ((1./np.sum(Acopy,axis=0,keepdims=True)) - (1./Acopy))/2. # Always <0 --> Unwanted ?
+    # CHECK IF THIS CAUSES ERRORS ?
+    return A_wnormed
     return np.squeeze(A_wnormed)
 
 def inverted_spm_wnorm(A,epsilon = 1e-16) :
-        # Same as before but with sign inverted so that it is always >0
+    # Same as before but with sign inverted so that it is always >0
     A = A +  epsilon#♣np.exp(-16)
     print(1./np.sum(A,axis=0,keepdims=True))
     A_wnormed = ((1./A)-(1./np.sum(A,axis=0,keepdims=True)) )/2.
@@ -170,6 +219,7 @@ def spm_cross(*argv) :
     A = np.reshape(arg1,(arg1.shape + tuple([1 for x in range(n2)])))
     B = np.reshape(arg2,(tuple([1 for x in range(n1)]) + arg2.shape)) 
     Y = np.squeeze(A*B)
+
     
     if (n>2):
         newarg = (Y,) + argv[2:]
@@ -315,7 +365,6 @@ def spm_dot(X,in2,i={}):
     X = np.squeeze(X)
     return X
 
-
 def spm_kron(*argv) :
     n = (len(argv))
     ret = 0
@@ -337,22 +386,30 @@ def spm_dekron(X,Ns):
     # Roughly a way to "de-kronify" our state representation ?
     return spm_complete_margin(X.reshape(tuple(Ns)))
 
-
-def spm_margin(X,factor):
+def spm_margin(X,factor,ignore_axis=None):
     # marginalize joint distribution
-    
+    axes_to_ignore = [factor]
+    if (isField(ignore_axis)):
+        assert type(ignore_axis)==int,"Only a single exception axis is supported for marginalization."
+        axes_to_ignore.append(ignore_axis)
+
     if (X.ndim == 1):
         assert (factor == 0), "The joint distribution shape " + str(X.shape) + " doesn't match the factor index " + str(factor)
-
         return X
     else :
-        dimensions_to_sum_over = [i for i in range(X.ndim)if(i != factor)]
+        dimensions_to_sum_over = [i for i in range(X.ndim) if (i not in axes_to_ignore)]
         return np.sum(X,tuple(dimensions_to_sum_over))
 
-def spm_complete_margin(X):
+def spm_complete_margin(X,ignore_axis=None):
     ret = []
-    for factor in range(X.ndim):
-        ret.append(spm_margin(X,factor))
+    axes_to_marginalize_over = list(range(X.ndim))
+    
+    if (isField(ignore_axis)):
+        assert type(ignore_axis)==int,"Only a single exception axis is supported for marginalization."
+        axes_to_marginalize_over.remove(ignore_axis)
+
+    for factor in axes_to_marginalize_over:
+        ret.append(spm_margin(X,factor,ignore_axis))
     return ret 
 
 def spm_all_combinations(*argv):
@@ -380,9 +437,6 @@ def combinations_two(A,B):
             ret[idx+idy,1] = y
             L.append([x,y])
     return ret,L
-
-
-
 
 def all_combinations(U,n):
     action_num = U.shape[0]

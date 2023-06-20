@@ -34,8 +34,8 @@ from ..base.function_toolbox import normalize
 from ..base.function_toolbox import spm_dot,spm_kron
 from ..base.plotting_toolbox import multi_matrix_plot
 from ..base.file_toolbox import load_flexible,save_flexible
-from ..layer.mdp_layer import mdp_layer
-from ..layer.layer_postrun import evaluate_run
+from ..layer_old.mdp_layer import mdp_layer
+from ..layer_old.layer_postrun import evaluate_run
 
 def initialize_layer(T,a,b,c,d,e,u,o):
     layer = mdp_layer()

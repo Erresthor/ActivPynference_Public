@@ -38,28 +38,25 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 
-from .parameters.policy_method import Policy_method
-from ..base.miscellaneous_toolbox import isField
+from ..base.miscellaneous_toolbox import isField,flexible_copy,flatten_last_n_dimensions
 from ..base.function_toolbox import normalize , spm_wnorm, nat_log , spm_psi, softmax , spm_cross
-from ..base.function_toolbox import spm_kron,spm_margin,spm_dekron,spm_KL_dir
+from ..base.function_toolbox import spm_kron,spm_margin,spm_dekron,spm_KL_dir,spm_complete_margin
 from .spm_backwards import spm_backwards
 
+# MEMORY DECAY MECHANICS : 
 class MemoryDecayType(Enum):
     NO_MEMORY_DECAY = 0
     PROPORTIONAL = 1
     STATIC = 2
 
-
 def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100):
-
     if(mem_dec_type== MemoryDecayType.PROPORTIONAL):
         t05 = (T/2)  # Memory loss factor : guarantee that at the end of the experiment , only remain_percentage % of initial knowledge remain
     elif (mem_dec_type==MemoryDecayType.STATIC):
         t05 = t05
     elif(mem_dec_type==MemoryDecayType.NO_MEMORY_DECAY) :
         t05 = 0.0
-
-
+    
     eps = 1e-7
     if (t05 <= eps):
         return old_matrix + new_matrix
@@ -71,148 +68,105 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100):
         new_matrix = old_matrix*multiplier + new_matrix
         new_matrix[new_matrix<epsilon] = epsilon
         return new_matrix
+    
+class layerPlasticity:
+    def __init__(self,eta):
+        self.mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY
+        self.t05 = 100
+        self.eta = eta
 
-
-        epsilon = k*(multiplier)
-        min_value = 1 # We forget following a forgetting rate epsilon, but never below a min value
-        return_knowledge_matrix = old_matrix
-        return_knowledge_matrix[return_knowledge_matrix>min_value] = return_knowledge_matrix[return_knowledge_matrix>min_value] - (return_knowledge_matrix[return_knowledge_matrix>min_value]-min_value)*(1-epsilon)
-        return_knowledge_matrix[return_knowledge_matrix<min_value] = min_value # Just in case ?
-
-        return_knowledge_matrix = return_knowledge_matrix + new_matrix
-
-        # # Problem with memory decay :
-        # # If a specific distribution is NOT impossible BUT very low weigths
-        # # (eg. a = [1e-5, 1e-9, 1e-9, 1e-9, 1e-9])
-        # # the multiplier can cause some terms to go to 0 due to computational approxs
-        # # (eg. a = [1e-5,    0,    0,    0,     0])
-        # # This is not that much of a problem usually (if no paradigm changes)
-        # # but if the multiplier keeps affecting the only remaining term, the distribution will become :
-        # # (eg. a = [   0,    0,    0,    0,     0])
-        # # Leading to a renormalization and a spike in uncertainty and error --> unwanted behaviour
-        # # Therefore, we want to prevent such a behaviour by checking if any term should get to 0 
-        # # If it is the case, we do not apply the multiplier to this line anymore ? No
-        # # We keep the same relative weights and multiply their "strength" by a fixed factor K : "auto-reupper"
-        # K = 2
-        # epsilon = 1e-15 # same value used in normalize function. If below, normalize shows unwanted behaviour
-        # is_too_low = (np.sum(return_knowledge_matrix,axis=-1)<=epsilon) 
-        # # A distribution is too low if the sum of its terms is below eps
-        
-        # is_too_low = (np.min(return_knowledge_matrix,axis=-1)<=epsilon)&((np.min(return_knowledge_matrix,axis=-1)>0))
-        # # A distribution is too low if the minimum of its non null terms is below eps
-        # # If there is a weight below the threshold, the entire line is multiplied by K to prevent it from going below reinitialization thresh
-        # # The "0" solution is a dirty trick to account for certain matrices that shouldn't be updated.
-        
-        # #print(np.min(return_knowledge_matrix,axis=-1))
-        # return_knowledge_matrix[is_too_low,:] = return_knowledge_matrix[is_too_low,:]*K
-        
-        # # Check line by line if only one 
-        return  return_knowledge_matrix
-
-
-
-
-
-def a_learning(layer,t,mem_dec_type = MemoryDecayType.PROPORTIONAL,t05 = 100):
-    Nmod = layer.Nmod
-    Nf = layer.Nf
-    T = layer.T
-
-    eta = layer.parameters.eta
-
+def a_learning(o_d_history,s_kron_d_history,old_a_matrix,
+               plasticityOptions):
+    """Returns an updated perception matrix given an history of :
+    - observations o_d
+    - state inferences s_d
+    - old perception matrix a
+    """
+    Nmod = len(old_a_matrix)
+    new_a = flexible_copy(old_a_matrix)
+    
+    T = s_kron_d_history.shape[-1]    
     for modality in range(Nmod):
-        da = (layer.O[modality][:,t])
-        if(layer.policy_method==Policy_method.ACTION):
-            da = spm_cross(da,layer.Q[t])
-        else: 
-            for factor in range(Nf):
-                da = spm_cross(da,layer.X[factor][:,t])
-        #print(spm_dekron(da,tuple(layer.a_[modality].shape)))
-        da = (np.reshape(da,layer.a_[modality].shape))
-        da = da*(layer.a_[modality]>0)
+        da = 0
+        for t in range(T):   
+            od_t = o_d_history[modality][:,t]
+            xd_t = s_kron_d_history[:,t]
+            da_t = spm_cross(od_t,xd_t)
 
-        layer.a_[modality] = update_rule(layer.a_[modality],da*eta,mem_dec_type,T,t05)
+            da_t = (np.reshape(da_t,old_a_matrix[modality].shape))
+            da_t = da_t*(old_a_matrix[modality]>0)
+
+            da = da + da_t
+        new_a[modality] = update_rule(old_a_matrix[modality],da*plasticityOptions.eta,plasticityOptions.mem_dec_type,T,plasticityOptions.t05)
         #layer.a_[modality] = k*layer.a_[modality] + da*eta
+    return new_a
 
-def b_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
-    Nf = layer.Nf
-    Np = layer.Np
-    Nmod = layer.Nmod
-    T = layer.T
+def b_learning(u_d_history,s_margin_history,old_b_matrix,action_transition_mapping,
+               plasticityOptions):
+    """Returns an updated transition matrix given an history of :
+    - state inferences across times s_d
+    - action inferences across times u_d
+    - old transition matrix b
+    """
+    Nf = len(old_b_matrix)
+    Ntransitions = [factor_b.shape[-1] for factor_b in old_b_matrix]
+    T = u_d_history.shape[-1] + 1
+    new_b = flexible_copy(old_b_matrix)
 
-    eta = layer.parameters.eta 
-
-    
-    # Custom implementation of b learning :
-    def output_action_probability_density(chosen_actions,b):
-        output = []
-        for factor in range(len(b)):
-            output.append(np.zeros((chosen_actions.shape[-1],b[factor].shape[2])))
-            # output.append(np.zeros((chosen_actions.shape[-1],b[factor].shape[1])))  # Size = T-1 x Ns[factor]
-            for t in range(output[factor].shape[0]):
-                output[factor][t,chosen_actions[factor,t]]=1
-        return output
-    
-
-    action_probability_density = output_action_probability_density(layer.u,layer.b_)
-
-    db = []
-    for f in range(Nf):
-        db.append(np.zeros(layer.b[f].shape))
+    # Timewise distribution of factorwise transitions selected
+    transition_prob_matrix = []
+    for factor in range(Nf):
+        action_leads_to_transition_at_factor = action_transition_mapping[:,factor]
+        transition_prob_matrix.append(np.zeros((Ntransitions[factor],T-1)))
+        for t in range(T-1):
+            transition_prob_matrix[factor][:,t] = np.bincount(action_leads_to_transition_at_factor,u_d_history[:,t])
     
     for factor in range(Nf):
-        for policy in range(Np):
-            if (layer.policy_method ==Policy_method.POLICY):
-                u = layer.V[t-1,policy,factor]  # Action corresponding to currently examined policy   
-                action_implemented = (action_probability_density[factor][t-1,u])  # Was this action implemented ? 1 (yes) / 0 (no)
-            elif (layer.policy_method ==Policy_method.ACTION):
-                u = layer.U[policy,factor]  # Action corresponding to currently examined policy       
-                action_implemented = (action_probability_density[factor][t-1,u])  # Was this action implemented ? 1 (yes) / 0 (no)  
+        db = 0
+        for t in range(1,T):
+            factor_action_implemented = transition_prob_matrix[factor][:,t-1]
+            action_independent_transition =np.outer(s_margin_history[factor][:,t],s_margin_history[factor][:,t-1])
+            db_t = spm_cross(action_independent_transition,factor_action_implemented)
+            db_t = db_t*(old_b_matrix[factor]>0)
+            
+            db = db + db_t
+        new_b[factor] = update_rule(old_b_matrix[factor],db*plasticityOptions.eta,plasticityOptions.mem_dec_type,T,plasticityOptions.t05)
+    return new_b
 
-            transition_for_policy = np.outer(layer.x[factor][:,t,policy],layer.x[factor][:,t-1,policy])
-                    # The following transition is expected to have happenned during this time
-                    # if this policy was followed
-                    # Column = To
-                    # Line = From
-                    # 3rd dim = Upon which action ?
-            db[factor][:,:,u] = db[factor][:,:,u] + action_implemented*transition_for_policy
-    
-    for factor in range (Nf):
-        db[factor] = db[factor]*(layer.b_[factor]>0)
-        db[factor] = db[factor]/np.sum(db[factor])
-        layer.b_[factor] = update_rule(layer.b_[factor],eta*db[factor],mem_dec_type,T,t05)
+def c_learning(o_d_history,old_c_matrix,plasticityOptions):
+    print("C LEARNING :")
+    print("This function has not been implemented yet ...")
+    return
+    # Nf = layer.Nf
+    # Np = layer.Np
+    # Nmod = layer.Nmod
+    # T = layer.T
 
-def c_learning(layer,t,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
-    Nf = layer.Nf
-    Np = layer.Np
-    Nmod = layer.Nmod
-    T = layer.T
+    # eta = layer.parameters.eta 
 
-    eta = layer.parameters.eta 
+    # for modality in range(Nmod):
+    #     dc = layer.O[modality][:,t]
+    #     if (layer.c_[modality].shape[1]>1) : #If preferences are dependent on time
+    #         dc = dc*(layer.c_[modality][:,t]>0)
+    #         layer.c_[modality][:,t] = layer.c_[modality][:,t] + dc*layer.eta
+    #     else : 
+    #         dc = dc*(layer.c_[modality] > 0)
+    #         layer.c_[modality] = layer.c_[modality] + dc*eta
 
-    for modality in range(Nmod):
-        dc = layer.O[modality][:,t]
-        if (layer.c_[modality].shape[1]>1) : #If preferences are dependent on time
-            dc = dc*(layer.c_[modality][:,t]>0)
-            layer.c_[modality][:,t] = layer.c_[modality][:,t] + dc*layer.eta
-        else : 
-            dc = dc*(layer.c_[modality] > 0)
-            layer.c_[modality] = layer.c_[modality] + dc*eta
+def d_learning(o_margin_history,x_kron_history,a_kron,
+                kronecker_transition_history,
+                old_d_matrix,plasticityOptions):
+    Nf = len(old_d_matrix)
+    Ns = tuple([k.shape[0] for k in old_d_matrix])
+    L = spm_backwards(o_margin_history, x_kron_history, a_kron, kronecker_transition_history)
+    dek = spm_dekron(L, Ns)
 
-def d_learning(layer,mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY,t05 = 100):
-    Nf = layer.Nf
-    T = layer.T
-    
-    eta = layer.parameters.eta 
-
-    L = spm_backwards(layer.O, layer.Q, layer.a, layer.b_kron, layer.K,layer.T)
-
-    dek = spm_dekron(L, layer.Ns)
-
+    new_d_matrix = flexible_copy(old_d_matrix)
     for factor in range(Nf):
-        i = layer.d_[factor]>0
+        i = old_d_matrix[factor]>0
         #layer.d_[factor][i] = layer.d_[factor][i] + dek[factor][i]*layer.parameters.eta 
-        layer.d_[factor][i] = update_rule(layer.d_[factor][i],layer.parameters.eta*dek[factor][i],mem_dec_type,T,t05)
+        new_d_matrix[factor][i] = update_rule(old_d_matrix[factor][i],plasticityOptions.eta*dek[factor][i],plasticityOptions.mem_dec_type,1,plasticityOptions.t05)
+    return new_d_matrix
 
 def e_learning(layer,t05 = 100):
     T = layer.T
@@ -223,49 +177,55 @@ def e_learning(layer,t05 = 100):
         de = de + layer.u[:,t]
     layer.e_ = layer.e_ + de*eta 
 
-def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05 = 100):
+def learn_from_experience(layer):
     # print("----------------  LEARNING  ----------------")
     T = layer.T
-    N = layer.options.T_horizon
+    N = layer.T_horizon
     Nmod = layer.Nmod
     Nf = layer.Nf
+
+    eta = layer.learn_options.eta
+    general_plasticity = layerPlasticity(eta)
+
+    STM = layer.STM
+    o_history = STM.o
+    o_d_history = STM.o_d
+    
+    x_history = STM.x
+    x_d_history = STM.x_d
+    x_kron_history = layer.joint_to_kronecker_accross_time(x_d_history)
+    
+    u_history = STM.u
+    u_d_history = STM.u_d
     
     # LEARNING :
-    for t in range(T):
-        if isField(layer.a_)and(layer.options.learn_a): 
-            a_learning(layer, t,mem_dec_type=mem_dec_type,t05 = t05)
-                
-        if isField(layer.b_)and (t>0) and(layer.options.learn_b):
-            b_learning(layer, t,mem_dec_type,t05 = t05)
-                    
-        if isField(layer.c_)and(layer.options.learn_c) :
-            c_learning(layer, t,mem_dec_type,t05 = t05)
-        
-    if isField(layer.d_)and(layer.options.learn_d) : #Update initial hidden states beliefs
-        d_learning(layer,mem_dec_type,t05 = t05)
-        
-    if isField(layer.e_) and(layer.options.learn_e): # Update agent habits
-        e_learning(layer,t05 = t05)
+    marginalized_o = spm_complete_margin(o_d_history,o_d_history.ndim-1)
+    marginalized_x = spm_complete_margin(x_d_history,x_d_history.ndim-1)
+    # print(np.round(marginalized_o[0],2))
     
-    # # Negative freeee eneergiiiies
-    for modality in range (Nmod):
-        if isField(layer.a_):
-            Fa = -spm_KL_dir(layer.a_[modality],layer.a_prior[modality])
-            layer.FE_dict['Fa'].append(Fa)
-        if isField(layer.c_) :
-            Fc = - spm_KL_dir(layer.c_[modality],layer.c_prior[modality])
-            layer.FE_dict['Fc'].append(Fc)
-    for factor in range(Nf):
-        if isField(layer.b_):
-            Fb = -spm_KL_dir(layer.b_[factor],layer.b_prior[factor])
-            layer.FE_dict['Fb'].append(Fb)
-        if isField(layer.d_):
-            Fd = -spm_KL_dir(layer.d_[factor],layer.d_prior[factor])
-            layer.FE_dict['Fd'].append(Fd)
+    if (layer.learn_options.learn_a): 
+        new_a = a_learning(marginalized_o,x_kron_history,layer.a,general_plasticity)
+        layer.a = new_a
     
-    if (isField(layer.e_)):
-        Fe = -spm_KL_dir(layer.e_,layer.e_prior)
-        layer.FE_dict['Fe'].append(Fe)
+    if (layer.learn_options.learn_b):
+        new_b = b_learning(u_d_history,marginalized_x,layer.b,layer.U,
+               general_plasticity) 
+        layer.b = new_b
+
+    if (layer.learn_options.learn_c) :
+        c_learning(marginalized_o,layer.c,general_plasticity)
+
+    if (layer.learn_options.learn_d) : #Update initial hidden states beliefs
+        b_kron_action_model_avg = []
+        for t in range(T-1):
+            b_kron_action_model_avg.append(layer.kronecker_action_model_average(u_d_history[:,t]))
+        new_d = d_learning(marginalized_o,x_kron_history,layer.var.a_kron,
+                           b_kron_action_model_avg,layer.d,general_plasticity)
+        layer.d = new_d   
+        
+    # if (layer.learn_options.learn_e): # Update agent habits
+    #     e_learning(layer,t05 = t05)
+
     # if (Np>1):
     #     dn = 8*np.gradient(layer.wn) + layer.wn/8.0
     # else :
@@ -288,27 +248,3 @@ def learn_from_experience(layer,mem_dec_type=MemoryDecayType.PROPORTIONAL,t05 = 
     # if isField(layer.U_):
     #     u = u[:,:-1]
     #     un =  un[:,:-Ni]
-
-def learn_during_experience(layer,ratio = 0.5):
-    #print("Wow this was insightful : i'm gonna learn from that !")
-    Nmod = layer.Nmod
-    No = layer.No
-
-    Nf = layer.Nf
-    Ns = layer.Ns 
-
-    Np = layer.Np
-    Nu = layer.Nu
-
-    Ni = layer.options.Ni
-    current_t = layer.t
-    T = layer.T
-
-    N = layer.options.T_horizon
-
-    # LEARNING :
-    if isField(layer.a_): 
-        a_learning(layer, current_t,layer.parameters.eta*ratio,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,t05=0) # We learn at a reduced rate during experience, and without loss of information
-            
-    if isField(layer.b_)and (current_t>0) :
-        b_learning(layer, current_t,layer.parameters.eta*ratio,mem_dec_type=MemoryDecayType.NO_MEMORY_DECAY,t05=0)  # We learn at a reduced rate during experience, and without loss of informatio

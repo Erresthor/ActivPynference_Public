@@ -3,9 +3,12 @@
 Created on Wed May 19 14:57:40 2021
 
 @author: cjsan
+
+A set of very basic functions
 """
 import numpy as np
 import pandas as pd
+import random
 
 def isField(x):
     return not(isNone(x))
@@ -18,7 +21,10 @@ def clamp(x,lower,upper):
     return x
 
 def isNone(inp): 
-    """ Binary classificition, returns bool. If all but one elemements of a sequence are None, it will be classified as << not None >> """
+    """ 
+    Binary classificition, returns bool. 
+    If all but one elemements of a sequence are None, it will be classified as << not None >> 
+    """
     isnone = True
 
     if (type(inp)==list)or(type(inp)==tuple):
@@ -34,8 +40,14 @@ def isNone(inp):
 
     return isnone
 
+def listify(object):
+    if (type(object)==list):
+        return object
+    else :
+        return [object]
 
 def flexible_copy(X):
+    """ Replace this by deepcopy ?"""
     if (type(X)==list):
         new_list = []
         for i in range(len(X)):
@@ -70,8 +82,6 @@ def flexible_toString(object,rounder=2):
 
 def flexible_print(object,round = 2):
     print(flexible_toString(object,rounder=round))
-
-
 
 def index_to_dist(index,array_example):
     returner = np.zeros(array_example.shape)
@@ -140,6 +150,22 @@ def sliding_window_mean(array_input,window_size = 5):
                     #Nothing lol
         list_output[trial] = mean_value/counter
     return list_output
+
+def numpy_array_of_Nan(shape):
+    a = np.empty(shape)
+    a[:] = np.nan
+    return a
+
+def nan_in_array(array):
+    return np.isnan(array).any()
+
+def sample_distribution(distribution, N=1):
+    sum_of_dist = np.sum(distribution)
+    assert abs(sum_of_dist-1.0) < 1e-10, "A probabilistic distribution should sum to 1 (sums to " + str(sum_of_dist) + " )"
+    
+    L = []
+    for k in range(len(N)):
+        np.argwhere(random.random() <= np.cumsum(distribution,axis=0))[0]
 
 if __name__ == "__main__":
     A = np.round(np.random.rand(5,6,3,3),1)

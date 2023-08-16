@@ -7,7 +7,6 @@ Created on Wed May 19 14:57:40 2021
 A set of very basic functions
 """
 import numpy as np
-import pandas as pd
 import random
 
 def isField(x):
@@ -168,19 +167,3 @@ def sample_distribution(distribution, N=1):
     L = []
     for k in range(len(N)):
         np.argwhere(random.random() <= np.cumsum(distribution,axis=0))[0]
-
-if __name__ == "__main__":
-    A = np.round(np.random.rand(5,6,3,3),1)
-    B = np.round(np.random.rand(5,6,3,3),1)
-    
-    Alist = A.tolist()
-    Blist = B.tolist()
-    
-    data = {'first_column':["A","B"],
-            'flattened':[Alist,Blist]}
-    
-    df =pd.DataFrame(data)
-    print(df)
-    
-    list = (flexible_to_array([Alist,Blist]))
-    print( list[0].shape)

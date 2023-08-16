@@ -627,7 +627,7 @@ class mdp_layer :
 
                     x_d_kron = np.dot(kron_transition_tprevious,kron_form_x_d_tprevious)
                 x_d = self.kronecker_to_joint(x_d_kron)
-                x = np.asarray(sample_distribution(x_d,random_number_generator=self.RNG)).astype(np.int)
+                x = np.asarray(sample_distribution(x_d,random_number_generator=self.RNG)).astype(int)
             # x and x_d are available : let's use them and a to 
             # generate the corresponding 
             o = np.zeros((self.Nmod,))
@@ -646,7 +646,7 @@ class mdp_layer :
                     o_d_mod = np.dot(flattened_a_mat,qx)
                     o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
                     po_list.append(o_d_mod)
-                o = o.astype(np.int)
+                o = o.astype(int)
 
             # Deterministic from the sampled state (x) :
             if (generate_outcome=="from_sampled_state"):

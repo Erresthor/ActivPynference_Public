@@ -71,9 +71,14 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100):
         return new_matrix
     
 class layerPlasticity:
-    def __init__(self,eta):
-        self.mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY
-        self.t05 = 100
+    def __init__(self,eta,mem_loss):
+        if (mem_loss>0):
+            self.t05 = mem_loss
+            self.mem_dec_type = MemoryDecayType.STATIC
+        else : 
+            self.t05 = 0.0
+            self.mem_dec_type = MemoryDecayType.NO_MEMORY_DECAY
+        
         self.eta = eta
 
 def a_learning(o_d_history,s_kron_d_history,old_a_matrix,
@@ -159,7 +164,11 @@ def d_learning(o_margin_history,x_kron_history,a_kron,
                 old_d_matrix,plasticityOptions):
     Nf = len(old_d_matrix)
     Ns = tuple([k.shape[0] for k in old_d_matrix])
+
+    # print(o_margin_history[1])
+
     L = spm_backwards(o_margin_history, x_kron_history, a_kron, kronecker_transition_history)
+    # print(L)
     dek = spm_dekron(L, Ns)
 
     new_d_matrix = flexible_copy(old_d_matrix)
@@ -185,8 +194,11 @@ def learn_from_experience(layer):
     Nmod = layer.Nmod
     Nf = layer.Nf
 
+
+    backwards_pass = layer.learn_options.backwards_pass
     eta = layer.learn_options.eta
-    general_plasticity = layerPlasticity(eta)
+    mem_loss = layer.learn_options.memory_loss
+    general_plasticity = layerPlasticity(eta,mem_loss)
 
     STM = layer.STM
     o_history = STM.o
@@ -218,9 +230,8 @@ def learn_from_experience(layer):
         b_kron_action_model_avg.append(layer.kronecker_action_model_average(transition_history_u_d[:,t]))
     
     # print(np.round(x_kron_history,2))
-
-    improvement_smooth = False
-    if improvement_smooth :
+    
+    if backwards_pass :
         smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)
         marginalized_smoothed_x = spm_complete_margin(layer.kronecker_to_joint_accross_time(smoothed_x_kron_history),x_d_history.ndim-1)
     else :

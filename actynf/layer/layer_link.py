@@ -67,7 +67,7 @@ def establish_layerLink(from_object,to_object,
     
     is_link_exist, existing_links = has_shared_layerLink(from_object.parent, to_object.parent)
     if (is_link_exist):
-        print("/!\ There is already a layerLink from " + from_object.parent.name + " to " + to_object.parent.name +". Adding a new connection instead ...")
+        print("/!\ There is already a layerLink from " + from_object.parent.name + " to " + to_object.parent.name +". Adding a new connection / attempting merge instead ...")
         assert len(existing_links) == 1, "There should only be a single layerLink here... something went wrong :(."
         existing_links[0].connect_list(list_of_connections,merge_verbose,auto_merge)
         return existing_links[0]
@@ -98,6 +98,11 @@ class linkConnection:
         return_this += str(self.to_field) + " " + str(self.to_axes) + ""
         return  return_this
 
+    def get_full_field_axes_str(self):
+        return_this = str(self.from_object.parent.name) + "["+str(self.from_field) + "." + str(self.from_axes) + "] --> "
+        return_this += str(self.to_object.parent.name) + "["+ str(self.to_field) + "." + str(self.to_axes) + "]"
+        return  return_this
+
     def is_same_target_linkConnection(self,other_linkConnection):
         same_object = (other_linkConnection.from_object == self.from_object)and(other_linkConnection.to_object==self.to_object)
         same_fields = (other_linkConnection.from_field == self.from_field)and(other_linkConnection.to_field==self.to_field)
@@ -123,20 +128,36 @@ class linkConnection:
         self.to_axes = new_to_axes
 
     def attempt_merge(self,other_linkConnection):
-        """ Return a merged version of the two connections, where duplicate pipelines have been removed."""
+        """ 
+        Return a merged version of the two connections, where duplicate pipelines have been removed.
+        Returns : 
+            - Boolean : the merge was successful
+            - Boolean : if it was not, all connections already existed
+            - Str :  reason for unsuccessful merge
+        """
         if (not(self.is_same_target_linkConnection(other_linkConnection))):
-            return False
-        my_fromtos = [[self.from_axes[k],self.to_axes[k]] for k in range(len(self.from_axes))]
-        other_fromtos = [[other_linkConnection.from_axes[k],other_linkConnection.to_axes[k]] for k in range(len(other_linkConnection.from_axes))]
-        for myft_idx in range(len(my_fromtos)) :
-            myft = my_fromtos[myft_idx]
-            if (myft in other_fromtos):
-                my_fromtos.pop(myft_idx)
-        new_from_axes,new_to_axes = axes_from_list(my_fromtos + other_fromtos)
+            return False,False,"Can't merge connections between two separate objects / fields"
+        
+        str_existing_connection = ""
+        candidate_connection_channels = [[self.from_axes[k],self.to_axes[k]] for k in range(len(self.from_axes))]
+        existing_connection_channels = [[other_linkConnection.from_axes[k],other_linkConnection.to_axes[k]] for k in range(len(other_linkConnection.from_axes))]
+
+        validated_candidates = []
+        for candidate_channel_idx in range(len(candidate_connection_channels)) :
+            candidate_channel = candidate_connection_channels[candidate_channel_idx]
+            if not(candidate_channel in existing_connection_channels):
+                # This connection doesn't exist. We validate this candidate
+                validated_candidates.append(candidate_channel)
+            else :
+                str_existing_connection += " - "+str(candidate_channel)+"\n"
+
+        if len(validated_candidates)==0:
+            return False,True,"The following connections already exist in << "+ self.get_full_field_axes_str() +" >>: \n" + str_existing_connection +"      --> Nothing was changed."
+        new_from_axes,new_to_axes = axes_from_list(existing_connection_channels+validated_candidates)
         self.from_axes = new_from_axes
         self.to_axes = new_to_axes
         self.remove_duplicates()
-        return True # other_linkConnection should be removed
+        return True,None,None # other_linkConnection should be removed
     
     def transmit(self):
         """ 
@@ -241,7 +262,9 @@ class layerLink:
                 conn_A = self.connections[connection_A_idx]
                 conn_B = self.connections[connection_B_idx]
                 old_str_A = str(conn_A)
-                if (conn_A.attempt_merge(conn_B)):
+
+                merge_successful,all_exist_already,error_msg = conn_A.attempt_merge(conn_B)
+                if (merge_successful):
                     if(verbose):
                         print("   * Automatic merge between : \n       - " + old_str_A + "\n       - " + str(conn_B))
                         print("       == Resulting connection : " + str(conn_A))
@@ -249,6 +272,15 @@ class layerLink:
                     # There was a successful merging 
                     self.connections.pop(connection_B_idx)
                     return self.check_merge_connections()
+                else :
+                    if (all_exist_already):
+                        self.connections.pop(connection_B_idx)
+                        if(verbose):
+                            print(error_msg)
+                        return self.check_merge_connections()
+                    else :
+                        if(verbose):
+                            print(error_msg)
         return
     
     def connect_list(self, list_of_connection_prompts,verbose=True,auto_merge=True):

@@ -79,7 +79,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
         (Number of possible actions x Number of possible states)^(temporal horizon) 
                 steps. This may be a lot (if 5 actions & 10 states on 4 Th,  thats 6.25million tree branches).
                 Clever solutions probably exist to solve this but for now one can use a simple cap that limits how many
-                branches are explored. For now, let's sample randomly from the expected distribution.                  
+                branches are explored. For now, let's sample randomly from the expected distribution OR sample through how likely a given policy / state is
+                OR sample from a distribution with a temperature parameter                 
 
     O = O
     P = Q
@@ -114,10 +115,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
     post_unnormalized = L.flatten()*P # posterior unnormalised
     F = nat_log(np.sum(post_unnormalized))
 
-    
-
     # P is the posterior over hidden states at the current time t based on priors
-    # print(G)
     P =normalize(post_unnormalized) # P(s|o) = P(o|s)P(s)
     policy_tree_node.update_state_posterior(P)
 
@@ -179,18 +177,13 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
     # P = q(s) at time t
     # u = softmax(G) = q(pi) at time t
 
-    # if (t==0):
-    #     print("#### G pre ####")
-    #     print(np.round(G,2))
-    #     print(flatten_a_novelty)
-
     # Not over yet, G still needs to include the "value" of the next timesteps !
     # Let's imagine action k is realized :
     # 1.  Let's check if it is actually plausible or not ? If not, why even bother
-    # 2.  LEt's then check the plausible states for this transition (Q[k])
+    # 2.  Let's then check the plausible states for this transition (Q[k])
     #       2.a : are they plausible ? If not, just skip it
     #       2.b : if yes, then what are the associated observation distribution according to my model ?
-    # 3. Using those computed values, if all plausible, let's approximate the
+    # 3. Using those computed values, if all plausible, let's approximate the free energy for the analyzed action
     plausible_threshold = 1.0/16.0
     if (t<N): # t within temporal horizon
         u = softmax(G)
@@ -198,10 +191,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
  
         mask_action_not_explored = (u<plausible_threshold)
         u[mask_action_not_explored] = 0
-        # sorted_u = np.argsort(-u)
-        # print(u,sorted_u)
-
         G[mask_action_not_explored] = -1000
+
         K = np.zeros((Q[0].shape))
         
         idx_action_to_explore = range(U.shape[0])
@@ -221,10 +212,6 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                     if(idx_state_to_explore.size == 0):
                         idx_state_to_explore = np.where(Q[action]>1/Q[action].size)[0]
                         # These are the corresponding plausible states
-                
-                # print(Q[action])
-                # indexes = tuple(indexes) 
-                    # All the &éindices of plausible next states for this action
                 
                 for index in idx_state_to_explore :
                     for modality in range (Nmod):
@@ -246,9 +233,6 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                 G[action] = G[action] + np.dot(K[indexes_L],Q[action][indexes_L])
         u = softmax(G)
         R = 0
-        # if (t==0):
-        #     print("#### G ####")
-        #     print(np.round(G,2))
 
         # Posterior over next state marginalised over subsequent action
         for action in range(U.shape[0]):
@@ -258,7 +242,3 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
         policy_tree_node.update_policy_posterior(u)
         policy_tree_node.update_pol_weighted_next_state_posterior(pol_w_next_s_posterior)
     return G,P
-
-
-# TODO : for T = 3, t = 0, prediction of the last step is the same as P[0] = [1,0,...,0]
-# Probably due to backpropagation of P. Wanted behaviour ?

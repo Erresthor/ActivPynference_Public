@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class network():
-    def __init__(self,in_layers=None,name=None,override_T = None):
+    def __init__(self,in_layers=None,name=None,override_T = None,override_seed=None):
         if (not(isField(name))):
             self.name = "default_network"
         else :
@@ -16,6 +16,7 @@ class network():
             self.name = name
         self.layers = []
         self.run_order=[]
+        self.override_seed = override_seed
 
         if (isField(in_layers)):
             for lay in in_layers:
@@ -27,6 +28,9 @@ class network():
             self.T = override_T
         else : 
             self.update_T()
+
+        self.reseed() # If an override_seed was provided, the network object will change 
+                      # its layers seeds !
             
 
     def __str__(self):
@@ -45,6 +49,15 @@ class network():
         network_str += "___________________________________________________\n"
         return network_str
     
+    def reseed(self,new_seed=None):
+        if (isField(new_seed)):
+            self.override_seed = new_seed
+        if (isField(self.override_seed)):
+            layer_cnt = 0
+            for lay in self.layers:
+                lay.reseed(self.override_seed+layer_cnt) # to avoid all layers with the same seed
+                layer_cnt += 1
+
     def update_T(self):
         """ Using the layers of the network, guess how many timesteps per trial the network should run."""
         layers_T_list = []
@@ -105,7 +118,7 @@ class network():
         for order_idx in self.run_order:
             self.layers[order_idx].postrun()
         
-    def run(self,verbose=True):
+    def run(self,verbose=True,return_STMs = False):
         assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.run ."
         if (len(self.run_order)==0):
             self.update_order_run()
@@ -114,19 +127,34 @@ class network():
                 raise ValueError("Could not find a suitable value for T. Aborting run ...")
         self.prerun()
         list_of_layer_tickgenerators = ([layr.tick_generator() for layr in self.layers])
-        # print(list_of_layer_tickgenerators)
         for timestep in range(self.T):
             if (verbose) : 
                 print(" Network [" + self.name + "] : Timestep " + str(timestep+1) + " / " + str(self.T), end='\r')
             for order_idx in self.run_order:
                 updated_layer = self.layers[order_idx]
                 searchtree = next(list_of_layer_tickgenerators[order_idx])
-                # print(searchtree)
                 updated_layer.transmit_outputs()
         if (verbose):
             print()
-            print(" Done !")
+            seeds = [str(lay.seed)+"-"+str(lay.trials_with_this_seed) for lay in self.layers]
+            print(" Done !   -------- (seeds : [" + ';'.join(seeds) + "])")
         self.postrun()
+
+        if (return_STMs):
+            # Indicators for all the layers :
+            STMs_for_each_layer = []
+            for lay in self.layers :
+                # Store the STM at that point (before it is reinitialized)
+                STMs_for_each_layer.append(lay.STM.copy())
+            return STMs_for_each_layer
+
+    def run_N_trials(self,N,small_verbose=True,big_verbose=False):
+        for n in range(N):
+            self.run(big_verbose)
+        if (small_verbose):
+            seeds = [str(lay.seed) for lay in self.layers]
+            print("Done !  -------- (seeds : [" + ';'.join(seeds) + "])")
+
     
     def copy_network(self,copied_id,override_name=False,verbose=False):
         if (verbose):

@@ -24,7 +24,7 @@ class layer_input :
         if (not isField(to_value)):
             total_input_shape = check_prompt_shape(key,self.parent)
             definite_input_size = (len(total_input_shape),)
-            to_value = np.full(definite_input_size,-1,dtype=np.int)
+            to_value = np.full(definite_input_size,-1,dtype=int)
         if not(isField(along_axes)):
             along_axes = tuple(range(to_value.ndim))
 

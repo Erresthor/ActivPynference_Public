@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 from demo.new_layer_test import run_test
 from demo.link_test import linktest,network_test
-from demo.t_maze_test import example_tmaze_plot
+from t_maze_test import example_tmaze_plot
 from demo.maze_x import build_maze,get_maze_network,mazeplot
 
 from architecture.network import network

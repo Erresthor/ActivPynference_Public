@@ -30,11 +30,11 @@ For more informations on package installation, check [the complete installation 
 
 - [Navigating a T-maze using Sophisticated Inference](READUS/T-maze_demo.ipynb)
 
-![Image1](.\resources\tmaze\renders\render_good_clue_2.gif)
+![Image1](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_good_clue_2.gif)
 
-![Image2](.\resources\tmaze\renders\render_good_clue_cheese_stabilizes_at_10.gif)
+![Image2](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_good_clue_cheese_stabilizes_at_10.gif)
 
-![Image3](.\resources\tmaze\renders\render_bad_clue_random_env.gif)
+![Image3](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_bad_clue_random_env.gif)
 
 - [Navigating a complex "soft" maze](READUS/mazeX_demo.ipynb)
 

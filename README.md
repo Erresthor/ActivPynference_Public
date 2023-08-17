@@ -30,10 +30,10 @@ For more informations on package installation, check [the complete installation 
 
 - [Navigating a T-maze using Sophisticated Inference](READUS/T-maze_demo.ipynb)
 
-|(Image1)[ressources\tmaze\renders\render_good_clue_2.gif]|(Image2)[ressources\tmaze\renders\render_good_clue_cheese_stabilizes_at_10.gif]|(Image3)[ressources\tmaze\renders\render_bad_clue_random_env.gif]|
+|![Image1](ressources\tmaze\renders\render_good_clue_2.gif)|![Image2](ressources\tmaze\renders\render_good_clue_cheese_stabilizes_at_10.gif)|![Image3](ressources\tmaze\renders\render_bad_clue_random_env.gif)|
 
 - [Navigating a complex "soft" maze](READUS/mazeX_demo.ipynb)
 
 ## Paper / cite me !
 
-We'll see about that later 	¯\_(ツ)_/¯.
+We'll see about that later 	¯\\_(ツ)_/¯.

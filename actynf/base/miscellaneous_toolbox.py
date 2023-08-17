@@ -72,7 +72,7 @@ def flexible_toString(object,rounder=2):
         message += "]"
     elif (type(object)==np.ndarray):
         d = object.dtype 
-        isInt = (d==np.int)or(d==np.int8)or(d==np.int16)or(d==np.int32)
+        isInt = (d==np.int)or(d==np.int8)or(d==np.int16)or(d==np.int32)or(d==int)
         if not(isInt):
             message = str(np.round(object,2))
         else : 

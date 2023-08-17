@@ -92,11 +92,11 @@ def get_T_maze_gen_process(pinit,pHA,pWin):
     #Habits
     e = np.ones((u.shape[0],))
 
-    layer = mdp_layer("T-maze_environment","process",a,b,c,d,e,u,T)
+    layer = mdp_layer("T-maze_environment","process",a,b,c,d,e,u,T,in_seed=in_seed)
     print("Done.")
     return layer
 
-def get_new_T_maze_gen_process(pinit,pHA,pWin):
+def get_new_T_maze_gen_process(pinit,pHA,pWin,in_seed=None):
     """
     pinit : prob of reward initial position being left / right
     pHA : probability of clue giving the correct index position
@@ -198,11 +198,11 @@ def get_new_T_maze_gen_process(pinit,pHA,pWin):
     #Habits
     e = np.ones((u.shape[0],))
 
-    layer = mdp_layer("T-maze_environment","process",a,b,c,d,e,u,T)
+    layer = mdp_layer("T-maze_environment","process",a,b,c,d,e,u,T,in_seed=in_seed)
     print("Done.")
     return layer
 
-def get_T_maze_model(true_process_layer,la,rs,T_horizon,K = 0.1):
+def get_T_maze_model(true_process_layer,la,rs,T_horizon,K = 0.1,in_seed=None):
     """
     pinit : prob of reward initial position being left / right
     pHA : probability of clue giving the correct index position
@@ -246,7 +246,7 @@ def get_T_maze_model(true_process_layer,la,rs,T_horizon,K = 0.1):
     #Habits
     e = np.ones((u.shape[0],))
 
-    layer = mdp_layer("mouse_model","model",a,b,c,d,e,u,T,T_horiz=T_horizon)
+    layer = mdp_layer("mouse_model","model",a,b,c,d,e,u,T,T_horiz=T_horizon,in_seed=in_seed)
 
     # PARAMETERS !
     layer.hyperparams.alpha = 32 # action precision
@@ -283,7 +283,7 @@ def example_tmaze_plot():
     Thorizon = 2
     K = 0.01 # 0.5
 
-    tmaze_net = get_t_maze_network(pinit,pHA,pWin,la,rs,Thorizon,K)
+    tmaze_net = get_T_maze_network(pinit,pHA,pWin,la,rs,Thorizon,K)
     print(tmaze_net)
 
     N = 60
@@ -385,7 +385,7 @@ def generate_data(N = 60,Nswitch = 10,
             tmaze_net.layers[0].d[0] = np.array([pinit2,1-pinit2])
         process_reward_prob.append(tmaze_net.layers[0].d[0])
 
-        tmaze_net.run(verbose=False)
+        tmaze_net.run(verbose=True)
 
 
         reward_dim = np.sum(tmaze_net.layers[1].STM.x_d,axis = 1)

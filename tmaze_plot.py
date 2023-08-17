@@ -174,29 +174,27 @@ if __name__=="__main__":
     ressources_path = os.path.join("ressources/tmaze")
     drawer = tmaze_drawer(ressources_path)
     
-    bad_imgs = []
-    good_imgs = []
-    for k in range(40):
-        r = ran.randint(0,1)
-        r2 = ran.randint(0,1)
-        # Good clue :
-        clueval = "right" if r == 0 else "left"
-        imgl = drawer.get_step_mazeplot(5,1,0,[r,1-r], clue=clueval,
-                            trial=0,max_trial=0)
-        good_imgs.append(imgl[3])
-        # bad clue :
-        clueval = "right" if r2 == 0 else "left"
-        imgl = drawer.get_step_mazeplot(5,1,0,[r,1-r], clue=clueval,
-                            trial=0,max_trial=0)
-        bad_imgs.append(imgl[3])
-        # imgl[12].save(os.path.join(ressources_path,"point_right.png"))
+    # bad_imgs = []
+    # good_imgs = []
+    # for k in range(40):
+    #     r = ran.randint(0,1)
+    #     r2 = ran.randint(0,1)
+    #     # Good clue :
+    #     clueval = "right" if r == 0 else "left"
+    #     imgl = drawer.get_step_mazeplot(5,1,0,[r,1-r], clue=clueval,
+    #                         trial=0,max_trial=0)
+    #     good_imgs.append(imgl[3])
+    #     # bad clue :
+    #     clueval = "right" if r2 == 0 else "left"
+    #     imgl = drawer.get_step_mazeplot(5,1,0,[r,1-r], clue=clueval,
+    #                         trial=0,max_trial=0)
+    #     bad_imgs.append(imgl[3])
+    #     # imgl[12].save(os.path.join(ressources_path,"point_right.png"))
 
-        # total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
+    #     # total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
     
-    good_imgs[0].save("ressources/tmaze/renders/goodclue.gif", save_all=True, append_images=good_imgs[1:],duration=400,loop=0)
-    bad_imgs[0].save("ressources/tmaze/renders/badclue.gif", save_all=True, append_images=bad_imgs[1:],duration=400,loop=0)
-    
-    
+    # good_imgs[0].save("ressources/tmaze/renders/goodclue.gif", save_all=True, append_images=good_imgs[1:],duration=400,loop=0)
+    # bad_imgs[0].save("ressources/tmaze/renders/badclue.gif", save_all=True, append_images=bad_imgs[1:],duration=400,loop=0)
     
     
     
@@ -205,22 +203,24 @@ if __name__=="__main__":
     
     
     
-    # # GENERATE A GIF :
-    # total_gif = []
-    # N = 30
-    # generated_data = generate_data(30,pinit=0.5,pinit2=0.5,pHA=0.5,rs=2,la=1)
-    # true_cheese_pos,true_agent_pos,reward_state_perception,agent_post_act,agent_actions,clue_obss = generated_data
-    # for trial in range(N):
-    #     print("Trial " + str(trial+1) + " / " + str(N))
-    #     true_reward_state = true_cheese_pos[:,trial]
-    #     true_agent_state = true_agent_pos[:,trial]
-    #     cheese_perception = reward_state_perception[:,:,trial]
-    #     clue_obs = clue_obss[:,trial]
-    #     imglist = drawer.get_trial_mazeplot(trial+1,N,
-    #                           15,true_reward_state,true_agent_state,
-    #                           cheese_perception,clue_obs,
-    #                           None,None)
-    #     total_gif += imglist
-    # total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
+    
+    
+    # GENERATE A GIF :
+    total_gif = []
+    N = 30
+    generated_data = generate_data(30,pinit=0.5,pinit2=0.5,pHA=0.5,rs=2,la=1)
+    true_cheese_pos,true_agent_pos,reward_state_perception,agent_post_act,agent_actions,clue_obss = generated_data
+    for trial in range(N):
+        print("Trial " + str(trial+1) + " / " + str(N))
+        true_reward_state = true_cheese_pos[:,trial]
+        true_agent_state = true_agent_pos[:,trial]
+        cheese_perception = reward_state_perception[:,:,trial]
+        clue_obs = clue_obss[:,trial]
+        imglist = drawer.get_trial_mazeplot(trial+1,N,
+                              15,true_reward_state,true_agent_state,
+                              cheese_perception,clue_obs,
+                              None,None)
+        total_gif += imglist
+    total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
 
 

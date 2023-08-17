@@ -290,7 +290,7 @@ def cell_md_dot(X,x) :
     for f in range(len(x)):
         s = np.ones((X.ndim,))
         s[DIM[f]] = len(x[f])
-        X = X*np.reshape(x[f],tuple(s.astype(np.int)))   
+        X = X*np.reshape(x[f],tuple(s.astype(int)))   
         X = np.sum(X,axis = DIM[f],keepdims=True)
     return np.squeeze(X)
 

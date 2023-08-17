@@ -2,6 +2,7 @@ import numpy as np
 from enum import Enum
 import random
 import time
+import copy 
 
 from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
 from ..base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax,spm_dekron
@@ -136,6 +137,9 @@ class layer_STM :
         # self.x_kron = []
         # for t in range(T):
         #     self.x_kron.append(spm_kron(d))
+
+    def copy(self):
+        return copy.deepcopy(self)
     
     def is_value_exists(self,key,t):
         if (key=="o"):
@@ -235,6 +239,7 @@ class mdp_layer :
         if (not(isField(in_seed))):
             in_seed = random.randint(0,9999)
         self.seed = in_seed
+        self.trials_with_this_seed=0
         self.RNG = None
         self.reseed()
 
@@ -300,6 +305,7 @@ class mdp_layer :
         else : 
             self.seed = new_seed
         self.RNG = random.Random(self.seed)
+        self.trials_with_this_seed=0
 
     def copy(self,newName=None):
         if (isField(newName)):
@@ -585,10 +591,10 @@ class mdp_layer :
             # The new observations are preset in memory 
             o_d = self.STM.o_d[...,t]
             if (self.STM.is_value_exists("o",t)):
-                o = self.STM.o[:,t].astype(np.int)
+                o = self.STM.o[:,t].astype(int)
             else : 
                 o = sample_distribution(o_d,random_number_generator=self.RNG) # This is a tuple
-                o = np.asarray(o).astype(np.int)
+                o = np.asarray(o).astype(int)
                 # outputArray = np.asarray(inputTuple)
             x = self.STM.x[:,t]         # Input states stay the same
             x_d = self.STM.x_d[...,t]   # 
@@ -597,10 +603,10 @@ class mdp_layer :
                 # The new states are preset in memory
                 x_d = self.STM.x_d[...,t]
                 if (self.STM.is_value_exists("x",t)):
-                    x = self.STM.x[:,t].astype(np.int)
+                    x = self.STM.x[:,t].astype(int)
                 else : 
                     x = sample_distribution(x_d,random_number_generator=self.RNG) # This is a tuple
-                    x = np.asarray(x).astype(np.int)
+                    x = np.asarray(x).astype(int)
             else : 
                 # Nothing preset in memory ! 
                 # We should use the data stocked in the STM 
@@ -655,7 +661,7 @@ class mdp_layer :
                     o_d_mod = self.var.a[modality][ind]
                     o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
                     po_list.append(o_d_mod)
-                o = o.astype(np.int)
+                o = o.astype(int)
             
             # joint distribution : 
             o_d = np.reshape(spm_kron(po_list),self.No)
@@ -827,6 +833,7 @@ class mdp_layer :
             returns = self.model_learn()
         elif self.layerMode == layerMode.PROCESS : 
             pass
+        self.trials_with_this_seed += 1
 
     def tick_generator(self):
         t = self.t

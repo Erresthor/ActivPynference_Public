@@ -234,10 +234,12 @@ def learn_from_experience(layer):
     if backwards_pass :
         smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)
         marginalized_smoothed_x = spm_complete_margin(layer.kronecker_to_joint_accross_time(smoothed_x_kron_history),x_d_history.ndim-1)
+        # Let's save it to the layer's STM !
+        STM.x_d_smoothed = smoothed_x_kron_history
     else :
         smoothed_x_kron_history = x_kron_history
         marginalized_smoothed_x = marginalized_x
-        # print(marginalized_smoothed_x)
+        # Nothing to save to the STM 
 
     if (layer.learn_options.learn_a): 
         new_a = a_learning(marginalized_o,smoothed_x_kron_history,layer.a,

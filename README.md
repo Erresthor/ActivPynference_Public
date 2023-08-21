@@ -4,8 +4,9 @@ Python package for simulating perception, decision-making & learning in uncertai
 This package started off as a simple Python port of the Wellcome Centre for Human Neuroimaging's SPM12 "MDP_VB_XX" files but we're continuously working on additionnal orignal features ! Work in progress !
 
 What you can do using <b>active-pynference</b> :
-- Build your own Active Inference structures (model & process) using a generic <i> layer </i> component
-- <i>Link</i> those structures together to simulate environments and various subject models of those environments
+- Build your own Markov Decision Processes - based environments
+- Build Active-Inference models of those environments
+- <i>Link</i> those process and model together to simulate environments and various subject models structures
 - Run simulations of agent behaviour & learning
 
 What you cannot do (yet):
@@ -30,11 +31,13 @@ For more informations on package installation, check [the complete installation 
 
 - [Navigating a T-maze using Sophisticated Inference](READUS/T-maze_demo.ipynb)
 
-![Image1](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_good_clue_2.gif)
+Some gifs should appear below but they don't for some reason.. 
 
-![Image2](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_good_clue_cheese_stabilizes_at_10.gif)
+![Image1](./resources/tmaze/renders/render_good_clue_2.gif)
 
-![Image3](https://github.com/Erresthor/ActivPynference_Public/tree/R7/resources/tmaze/render_bad_clue_random_env.gif)
+![Image2](./resources/tmaze/renders/render_good_clue_cheese_stabilizes_at_10.gif)
+
+![Image3](./resources/tmaze/renders/render_bad_clue_random_env.gif)
 
 - [Navigating a complex "soft" maze](READUS/mazeX_demo.ipynb)
 

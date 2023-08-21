@@ -26,6 +26,7 @@ class layerMode(Enum):
     MODEL = 2
 
 class layer_variables :
+    ''' A placeholder class used to store the variables needed for our layer's fundamental functions.'''
     def __init__(self,layer):
         # Likelihood model a / A
         a_norm = normalize(layer.a)   # <=> A{m,g}
@@ -124,19 +125,19 @@ class layer_variables :
         self.e_prior= e_prior
     
 class layer_STM :
-    def __init__(self,Nmod,No,Nf,Ns,Np,T):
+    def __init__(self,Nmod,No,Nf,Ns,Np,T,name="default"):
+        self.layername = name
         self.o_d = np.full(tuple(No)+(T,),-1.0) # Observation DISTRIBUTIONS
         self.x_d = np.full(tuple(Ns)+(T,),-1.0) # State DISTRIBUTIONS
+        self.x_d_smoothed = np.full(tuple(Ns)+(T,),-1.0) # Placeholder for state distributions after a backward pass (prototype)
         self.u_d = np.full((Np,)+(T-1,),-1.0) # Action DISTRIBUTIONS
+
         self.o = np.full((Nmod,)+(T,),-1) # Observation 
         self.x = np.full((Nf,)+(T,),-1) # State 
         self.u = np.full((T-1,),-1) # 1dimensionnal : which action did I pick last time ? 
             # (one action may be comprised of several state transitions )
             # ==> one can access state transitions from action by using self.U :
             # picked_state_transition(at a given time t across all factors) = self.U[self.u[t],:]
-        # self.x_kron = []
-        # for t in range(T):
-        #     self.x_kron.append(spm_kron(d))
 
     def copy(self):
         return copy.deepcopy(self)
@@ -160,7 +161,7 @@ class layer_STM :
 
     def getString(self,t=None):
         string_val = "_________________________________________________\n"
-        string_val += "STM [Short Term Memory] : \n"
+        string_val += "STM [Short Term Memory] :       (Layer " + self.layername + ") \n"
         if (t==None):
             string_val += "o : \n"
             string_val += str(np.round(self.o,2))
@@ -384,7 +385,7 @@ class mdp_layer :
                 self.c[mod] = np.expand_dims(self.c[mod],1)
 
     def initialize_STM(self): 
-        self.STM = layer_STM(self.Nmod,self.No,self.Nf,self.Ns,self.Np,self.T)
+        self.STM = layer_STM(self.Nmod,self.No,self.Nf,self.Ns,self.Np,self.T,self.name)
 
     # COSMETIC
     def getCurrentMatrices(self):
@@ -564,7 +565,7 @@ class mdp_layer :
         self.var = layer_variables(self)
 
     # GENERATIVE PROCESS :
-    def generate_observations(self):
+    def generate_observations(self,use_definite_distribution_for_observations):
         """ 
         Uses true states & previous actions contained in memory
         to populate the distribution of states, if none is provided.
@@ -638,12 +639,32 @@ class mdp_layer :
             # generate the corresponding 
             o = np.zeros((self.Nmod,))
 
-            generate_outcome = "from_sampled_state"
-            generate_outcome = "from_distribution"
+
+
+            # WHAT IS use_definite_distribution_for_observations ?
+            # -------------------------------------------------------
+            # should the distribution from which the observation is sampled be : 
+            #   - issued from the state distribution (we may have sampled a state x from x_d, but the 
+            #               observation will be sampled from a.x_d) -> 
+            #                     use_definite_distribution_for_observations = False
+            #   - issued from the sampled_state (we may have sampled a state x from x_d, and the 
+            #               observation will be a[x]) -> 
+            #                     use_definite_distribution_for_observations = True
+            # 
+            # When would the former be used ?
+            # --------------------------------
+            # If we work exclusively with distributions, and our system does not use "definite" outcomes
+            # Ex : a high hierarchical layer that we're using to generate observation distributions ?
 
             po_list = []
-            # Probabilistic outcome distribution (from x_d)
-            if (generate_outcome == "from_distribution"):
+            if (use_definite_distribution_for_observations): # Deterministic from the sampled state (x) :
+                for modality in range(self.Nmod):
+                    ind = (slice(None),) + tuple(x[:])  # Index corresponding to the current active states
+                    o_d_mod = self.var.a[modality][ind]
+                    o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
+                    po_list.append(o_d_mod)
+                o = o.astype(int)
+            else: # Probabilistic outcome distribution (from x_d)
                 for modality in range (self.Nmod):
                     # a_matrix = self.var.a[modality]
                     # flattened_a = flatten_last_n_dimensions(a_matrix.ndim-1,a_matrix)
@@ -653,25 +674,17 @@ class mdp_layer :
                     o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
                     po_list.append(o_d_mod)
                 o = o.astype(int)
-
-            # Deterministic from the sampled state (x) :
-            if (generate_outcome=="from_sampled_state"):
-                for modality in range(self.Nmod):
-                    ind = (slice(None),) + tuple(x[:])  # Index corresponding to the current active states
-                    o_d_mod = self.var.a[modality][ind]
-                    o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
-                    po_list.append(o_d_mod)
-                o = o.astype(int)
             
             # joint distribution : 
             o_d = np.reshape(spm_kron(po_list),self.No)
+        
         # x, x_d, o and o_d are available 
         # Warning, some may be "None"
         return o,o_d,x,x_d
 
-    def process_update(self,use_definite_distribution=True):
+    def process_update(self):
         t = self.t
-        o,o_d,x,x_d = self.generate_observations()
+        o,o_d,x,x_d = self.generate_observations(self.hyperparams.process_definite_state_to_obs)
         # o is the whole task's observations
         # o_d is the distribution from  which o
         # is sampled, just for this timestep
@@ -679,10 +692,13 @@ class mdp_layer :
         self.STM.o[:,t] = o
         self.STM.o_d[...,t] = o_d
         self.STM.x[:,t] = x
-        if (use_definite_distribution):
+
+        if (self.hyperparams.process_definite_state_to_state):
             self.STM.x_d[...,t] = dist_from_definite_outcome(x,self.Ns)[0]
         else :
             self.STM.x_d[...,t] = x_d
+        # TODO : add a STM variable for inspecting the distribution from which the hidden state
+        # was sampled, while allowing a process_definite_state_to_state transition
         
     def process_tick(self,
                 update_t_when_over=True,clear_inputs_when_over=True):
@@ -701,7 +717,6 @@ class mdp_layer :
             self.clear_inputs()
 
     # GENERATIVE MODEL :
-
     def belief_propagation(self,verbose=False):
         """ 
         Use prior beliefs about :

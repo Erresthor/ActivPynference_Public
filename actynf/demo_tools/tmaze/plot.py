@@ -51,7 +51,7 @@ def get_current_pos(traj_arr,x):
 class tmaze_drawer:
     """ 
     This class is used to plot the t-maze.
-    One can use simulated data to plot animatins of the t maze at the trial / step scale.
+    One can use simulated data to plot animations of the t-maze at the trial / step scale.
     """ 
     def __init__(self,ressources_path):
         self.backg = Image.open(os.path.join(ressources_path, "background.png"))

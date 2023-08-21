@@ -148,13 +148,17 @@ class network():
                 STMs_for_each_layer.append(lay.STM.copy())
             return STMs_for_each_layer
 
-    def run_N_trials(self,N,small_verbose=True,big_verbose=False):
+    def run_N_trials(self,N,small_verbose=True,big_verbose=False,return_STMs = False):
+        STMlist = []
         for n in range(N):
-            self.run(big_verbose)
+            potential_STM_list = self.run(big_verbose,return_STMs) # None if return_STMs is False, otherwise a list of STMs for each layer
+            if (return_STMs):
+                STMlist.append(potential_STM_list)
         if (small_verbose):
             seeds = [str(lay.seed) for lay in self.layers]
-            print("Done !  -------- (seeds : [" + ';'.join(seeds) + "])")
-
+            print(" Done !  -------- (seeds : [" + ';'.join(seeds) + "])")
+        if (return_STMs):
+            return STMlist
     
     def copy_network(self,copied_id,override_name=False,verbose=False):
         if (verbose):

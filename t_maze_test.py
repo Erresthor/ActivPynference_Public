@@ -377,18 +377,16 @@ def generate_data(N = 60,Nswitch = 10,
     agent_post_act = np.zeros((3,T-1,N))
     agent_actions = np.zeros((T-1,N))
 
-    agent_state_belief = [tmaze_net.layers[1].d[1]]
-    process_reward_prob = [tmaze_net.layers[0].d[1]]
+    # agent_state_belief = [tmaze_net.layers[1].d[1]]
+    # process_reward_prob = [tmaze_net.layers[0].d[1]]
     for i in range(N):
-        agent_state_belief.append(tmaze_net.layers[1].d[1])
+        # agent_state_belief.append(tmaze_net.layers[1].d[1])
         if i == Nswitch:
             tmaze_net.layers[0].d[0] = np.array([pinit2,1-pinit2])
-        process_reward_prob.append(tmaze_net.layers[0].d[0])
+        # process_reward_prob.append(tmaze_net.layers[0].d[0])
 
         tmaze_net.run(verbose=True)
 
-
-        reward_dim = np.sum(tmaze_net.layers[1].STM.x_d,axis = 1)
         true_reward_state[:,i] = tmaze_net.layers[0].STM.x[0,:] #d[0]
         true_agent_state[:,i] = tmaze_net.layers[0].STM.x[1,:]        
         clue_observation = tmaze_net.layers[0].STM.o[0,:]

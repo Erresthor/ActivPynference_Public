@@ -54,6 +54,7 @@ def sample_distribution_no_dupl(distribution,N=1,random_number_generator=None,
         list_of_sampled_indices.append(sampled_index)
     return True, list_of_sampled_indices
 
+
 def prune_tree_auto(distribution, N=1,
                     deterministic = True,random_number_generator=None,
                     max_retry_factor=1.0,plausible_threshold=1.0/16.0):

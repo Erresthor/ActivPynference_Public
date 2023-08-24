@@ -3,7 +3,7 @@ import numpy as np
 
 from PIL import Image, ImageDraw, ImageFont 
 
-from t_maze_test import generate_data
+from .t_maze_test import generate_data
 
 # A few functions to help us deal with images
 def selective_transparency_shift(img,new_transparency):

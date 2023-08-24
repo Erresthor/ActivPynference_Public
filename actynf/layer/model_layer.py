@@ -81,7 +81,6 @@ class layer_variables :
             layer.e += EPSILON
         e_prior = np.copy(layer.e)
         e_log = nat_log(layer.e/np.sum(layer.e))
-        
         # Preferences C
         c_base = []
         c_prior = []
@@ -368,6 +367,7 @@ class mdp_layer :
 
         self.Np = self.U.shape[0] # Number of allowable set of actions
         if (self.U.ndim==1):
+            # check if there is only one transition dimension !
             assert len(self.b) == 1,"Error : action matrix for layer " + str(self.name) + " is 1-dimensional but transition matrix is " + str(len(self.b)) + "-dimensionnal."
             self.U = np.expand_dims(self.U,1)
 
@@ -756,7 +756,8 @@ class mdp_layer :
         # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
-                    self.T,min(self.T-1,t+self.T_horizon),tree,self.debug)
+                    self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
+                    self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo)
         # DEBUG : 
         if (self.debug):
             print("Free energy at time " + str(t) + " :")

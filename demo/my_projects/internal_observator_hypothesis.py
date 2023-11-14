@@ -169,14 +169,6 @@ def get_nf_network(action_selection_temperature,mem_loss):
     generative_model.hyperparams.alpha = action_selection_temperature # action precision : 
         # for high values the mouse will always perform the action it perceives as optimal, with very little exploration 
         # towards actions with similar but slightly lower interest
-
-    generative_model.hyperparams.alpha = action_selection_temperature # action precision : 
-    # for high values the mouse will always perform the action it perceives as optimal, with very little exploration 
-    # towards actions with similar but slightly lower interest
-    generative_model.hyperparams.alpha = action_selection_temperature # action precision : 
-    # for high values the mouse will always perform the action it perceives as optimal, with very little exploration 
-    # towards actions with similar but slightly lower interest
-
     generative_model.learn_options.eta = 1 # learning rate (shared by all channels : a,b,c,d,e)
     generative_model.learn_options.learn_a = True  # The agent learns the reliability of the clue
     generative_model.learn_options.learn_b = True # The agent does not learn transitions

@@ -22,6 +22,7 @@ class network():
             for lay in in_layers:
                 assert (type(lay)==mdp_layer), "Error : " + str(lay) + " is of type " + str(type(lay)) + " instead of 'mdp_layer'"
                 self.layers.append(lay)
+            self.update_order_run()
 
         self.T = None
         if (isField(override_T)):
@@ -32,7 +33,6 @@ class network():
         self.reseed() # If an override_seed was provided, the network object will change 
                       # its layers seeds !
             
-
     def __str__(self):
         network_str = "___________________________________________________\n"
         network_str += "LAYER NETWORK " + self.name + " : \n"
@@ -132,7 +132,10 @@ class network():
                 print(" Network [" + self.name + "] : Timestep " + str(timestep+1) + " / " + str(self.T), end='\r')
             for order_idx in self.run_order:
                 updated_layer = self.layers[order_idx]
-                searchtree = next(list_of_layer_tickgenerators[order_idx])
+                try:
+                    searchtree = next(list_of_layer_tickgenerators[order_idx])
+                except :
+                    raise RuntimeError("ERROR in network <"+ self.name + "> - layer [" + (self.layers[order_idx]).name + "] :")
                 updated_layer.transmit_outputs()
         if (verbose):
             print()
@@ -148,7 +151,7 @@ class network():
                 STMs_for_each_layer.append(lay.STM.copy())
             return STMs_for_each_layer
 
-    def run_N_trials(self,N,small_verbose=True,big_verbose=False,return_STMs = False):
+    def run_N_trials(self,N,small_verbose=True,big_verbose=True,return_STMs = False):
         STMlist = []
         for n in range(N):
             potential_STM_list = self.run(big_verbose,return_STMs) # None if return_STMs is False, otherwise a list of STMs for each layer

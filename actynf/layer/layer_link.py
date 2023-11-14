@@ -4,9 +4,6 @@ from ..base.miscellaneous_toolbox import flexible_copy
 from .utils import check_prompt_shape,get_joint_distribution_along
 
 from .layer_components import layer_output,layer_input
-
-# TODO : one should be able to merge two or more links between 
-# the same two layers.
     
 def axes_from_list(my_list):
     from_axes = tuple()
@@ -52,6 +49,25 @@ def str_layerLinks_between(a,b):
 
 def establish_layerLink(from_object,to_object,
                         list_of_connections=None,verbose=True,merge_verbose=True,auto_merge=True):
+    """ 
+    Creates a data connection between two layer object (or between a layer input and a layer output object)
+    To define which fields are transmitted, you can define list_of_connections as either :
+     - a list of type ["fromcode", "tocode"]
+     - a list of type [["fromcode1", "tocode1"],...,["fromcodeN","tocodeN"]]
+    where "fromcode" & "tocode" are either of form 'a.k' or of form 'a' 
+    with 
+        - a = ('u' or ('s' or 'x') or 'o') + ("_d" OR nothing)
+        - k being either :
+            - an integer if we connect just a dimension
+            - "k1-k2" if we want to connect specific dimensions (doesn't have to be ascending order)
+            - Nothing if we want to connect all dimensions of that field
+
+    Example : 
+    I want to connect the infered state field of layer lay1 along its 3rd and 4th axes
+    to the observation layer of a second layer lay2 along its 2nd and 1st axes respectively :
+    >> establish_layerLink(lay1,lay2,["x_d.3-4","o.2-1"])
+    Of course, the dimensions have to match some
+    """
     if(type(from_object)!=layer_output):
         # Assume this object has a layer_output attribute
         try :
@@ -69,7 +85,7 @@ def establish_layerLink(from_object,to_object,
     if (is_link_exist):
         print("/!\ There is already a layerLink from " + from_object.parent.name + " to " + to_object.parent.name +". Adding a new connection / attempting merge instead ...")
         assert len(existing_links) == 1, "There should only be a single layerLink here... something went wrong :(."
-        existing_links[0].connect_list(list_of_connections,merge_verbose,auto_merge)
+        existing_links[0].between_list(list_of_connections,merge_verbose,auto_merge)
         return existing_links[0]
     
     # if (check_duplicate_links(from_out,to_in)):
@@ -78,13 +94,36 @@ def establish_layerLink(from_object,to_object,
     return layerLink(from_object,to_object,
                         list_of_connections,verbose,merge_verbose,auto_merge)
 
-class linkConnection:
+class linkWire:
+    """ 
+    A layerLink is a collection of 1+ linkWire.
+    A linkWire stores the information relative to ONE from field and ONE to field,
+    of some layer object(s).
+    
+    the layers 
+    which communicate as well as the fields and dimensions along which
+    they communicate.
+    The transmission is also managed by this object by automatically
+    fetching the data from the connected objects and forwarding it !
+    """
     def __init__(self,
                  from_o,from_f,from_axs,
-                 to_o,to_f,to_axs):
+                 to_o,to_f,to_axs,
+                 kron_index=None):
         self.from_object = from_o
         self.from_field = from_f
         self.from_axes = from_axs
+
+        self.from_kronecker_index = kron_index 
+            # IN THE CASE WE HAVE MULTIPLE "FROM OBJECTS" POINTING TOWARDS THE SAME FIELD AND AXIS
+            # FOR A SINGLE "TO OBJECT"
+
+            # If kronecker index is None, this connection is enough 
+            # to fully define the connected input object-field-axes triad.
+            # If not, it needs intel from other wire(s) to be computed using
+            # a kronecker product.
+            # to_value = spm_kron(from_value_k1,from_value_k2,...,from_value_kn)
+            #                  (kron_index_k1=1/kron_index_k2=2/.../kron_index_kn=n)
 
         self.to_object = to_o
         self.to_field = to_f
@@ -103,14 +142,14 @@ class linkConnection:
         return_this += str(self.to_object.parent.name) + "["+ str(self.to_field) + "." + str(self.to_axes) + "]"
         return  return_this
 
-    def is_same_target_linkConnection(self,other_linkConnection):
-        same_object = (other_linkConnection.from_object == self.from_object)and(other_linkConnection.to_object==self.to_object)
-        same_fields = (other_linkConnection.from_field == self.from_field)and(other_linkConnection.to_field==self.to_field)
+    def is_same_target_linkConnection(self,other_linkWire):
+        same_object = (other_linkWire.from_object == self.from_object)and(other_linkWire.to_object==self.to_object)
+        same_fields = (other_linkWire.from_field == self.from_field)and(other_linkWire.to_field==self.to_field)
         return same_object and same_fields
 
-    def is_same_linkConnection(self,other_linkConnection):
-        same_axes = (other_linkConnection.from_axes == self.from_axes)and(other_linkConnection.to_axes==self.to_axes)
-        return self.is_same_target_linkConnection(other_linkConnection) and same_axes
+    def is_same_linkConnection(self,other_linkWire):
+        same_axes = (other_linkWire.from_axes == self.from_axes)and(other_linkWire.to_axes==self.to_axes)
+        return self.is_same_target_linkConnection(other_linkWire) and same_axes
 
     def remove_duplicates(self):
         my_fromtos = [[self.from_axes[k],self.to_axes[k]] for k in range(len(self.from_axes))]
@@ -127,7 +166,7 @@ class linkConnection:
         self.from_axes = new_from_axes
         self.to_axes = new_to_axes
 
-    def attempt_merge(self,other_linkConnection):
+    def attempt_merge(self,other_linkWire):
         """ 
         Return a merged version of the two connections, where duplicate pipelines have been removed.
         Returns : 
@@ -135,12 +174,12 @@ class linkConnection:
             - Boolean : if it was not, all connections already existed
             - Str :  reason for unsuccessful merge
         """
-        if (not(self.is_same_target_linkConnection(other_linkConnection))):
+        if (not(self.is_same_target_linkConnection(other_linkWire))):
             return False,False,"Can't merge connections between two separate objects / fields"
         
         str_existing_connection = ""
         candidate_connection_channels = [[self.from_axes[k],self.to_axes[k]] for k in range(len(self.from_axes))]
-        existing_connection_channels = [[other_linkConnection.from_axes[k],other_linkConnection.to_axes[k]] for k in range(len(other_linkConnection.from_axes))]
+        existing_connection_channels = [[other_linkWire.from_axes[k],other_linkWire.to_axes[k]] for k in range(len(other_linkWire.from_axes))]
 
         validated_candidates = []
         for candidate_channel_idx in range(len(candidate_connection_channels)) :
@@ -205,12 +244,56 @@ class linkConnection:
             else :
                 from_value = from_value_full[np.array(from_axes)]
             self.to_object.update_definite_input(self.to_field,self.to_axes,from_value)
-  
+
 class layerLink:
     """ 
     A layerLink establishes a data pipeline between a layer output and a layer input
     of two layers (or the same).
     """
+    def connect(from_object,to_object,
+            list_of_connections=None,verbose=True,merge_verbose=True,auto_merge=True):
+        """ 
+        Creates a data connection between two layer object (or between a layer input and a layer output object)
+        To define which fields are transmitted, you can define list_of_connections as either :
+        - a list of type ["fromcode", "tocode"]
+        - a list of type [["fromcode1", "tocode1"],...,["fromcodeN","tocodeN"]]
+        where "fromcode" & "tocode" are either of form 'a.k' or of form 'a' 
+        with 
+            - a = ('u' or ('s' or 'x') or 'o') + ("_d" OR nothing)
+            - k being either :
+                - an integer if we connect just a dimension
+                - "k1-k2" if we want to connect specific dimensions (doesn't have to be ascending order)
+                - Nothing if we want to connect all dimensions of that field
+
+        Example : 
+        I want to connect the infered state field of layer lay1 along its 3rd and 4th axes
+        to the observation layer of a second layer lay2 along its 2nd and 1st axes respectively :
+        >> establish_layerLink(lay1,lay2,["x_d.3-4","o.2-1"])
+        Of course, the dimensions have to match some
+        """
+        if(type(from_object)!=layer_output):
+            # Assume this object has a layer_output attribute
+            try :
+                from_object = from_object.outputs
+            except : 
+                raise TypeError("Object : \n" + str(from_object) + " should either be a "+str(layer_output)+" object or have a "+str(layer_output)+"  attribute, but is " + str(type(from_object)))
+        if(type(to_object)!=layer_input):
+            # Assume this object has a layer_input attribute
+            try :
+                to_object = to_object.inputs
+            except : 
+                raise TypeError("Object : \n" + str(to_object) + " should either be a "+str(layer_input)+" object or have a "+str(layer_input)+" attribute, but is " + str(type(to_object)))
+        
+        is_link_exist, existing_links = has_shared_layerLink(from_object.parent, to_object.parent)
+        if (is_link_exist):
+            print("/!\ There is already a layerLink from " + from_object.parent.name + " to " + to_object.parent.name +". Adding a new connection / attempting merge instead ...")
+            assert len(existing_links) == 1, "There should only be a single layerLink here... something went wrong :(."
+            existing_links[0].wires_list_between(list_of_connections,merge_verbose,auto_merge)
+            return existing_links[0]
+        
+        return layerLink(from_object,to_object,
+                            list_of_connections,verbose,merge_verbose,auto_merge)
+
     # INITIALIZE & COPY
     def __init__(self,from_out, to_in,
                 list_of_connections=None,verbose=True,merge_verbose=True,auto_merge=True):               
@@ -219,8 +302,8 @@ class layerLink:
         self.connection_prompts = [] 
             # A history of the user prompts that led to successful connections
             # Used when copying this link
-            # WARNING : may not be the same size as self.connections (merging)
-        self.connections = []
+            # WARNING : may not be the same size as self.wires (due to wire merging)
+        self.wires = []
 
         # Let's inform the from_out and to_in that we are connecting !
         self.from_output.links.append(self)
@@ -229,7 +312,8 @@ class layerLink:
         # If a list of connections has been provided in the constructor, 
         # initialize the following connections
         if (isField(list_of_connections)):
-            self.connect_list(list_of_connections,merge_verbose,auto_merge)
+            self.wires_list_between(list_of_connections,merge_verbose,auto_merge)
+                # Attempt to create wires between fields
         if(verbose):
             print("Established layerLink between " + str(from_out.parent.name) + " and " + str(to_in.parent.name) + ".") 
 
@@ -244,65 +328,65 @@ class layerLink:
     def __str__(self):
         my_str = ""
         my_str += "Layer link << " + self.from_output.parent.name + " ---> " + self.to_input.parent.name + "  >> along field" + ("s" if (len(self.connection_prompts)>1) else "") + " : \n"
-        for conn in self.connections :
-            my_str += "    + " + conn.get_field_axes_str()
+        for wire in self.wires :
+            my_str += "    + " + wire.get_field_axes_str()
         return my_str
     
     # ESTABLISH / SEVER CONNECTIONS :
-    def check_merge_connections(self,verbose=True):
+    def check_merge_wires(self,verbose=True):
         """ 
-        Check if in the connection list there exist two 
-        paths with the same from field and to the same field
+        Check if in the wire list there exist two 
+        wires from the same field and to the same field
         If it is the case, we merge those.
         """
-        for connection_A_idx in range(len(self.connections)) :
+        for wire_A_idx in range(len(self.wires)) :
             # If we manage to find a connection that ressembles connection_A
             # among all connections except A : 
-            for connection_B_idx in [i for i in range(len(self.connections)) if i!=connection_A_idx] :
-                conn_A = self.connections[connection_A_idx]
-                conn_B = self.connections[connection_B_idx]
-                old_str_A = str(conn_A)
+            for wire_B_idx in [i for i in range(len(self.wires)) if i!=wire_A_idx] :
+                wire_A = self.wires[wire_A_idx]
+                wire_B = self.wires[wire_B_idx]
+                old_str_A = str(wire_A)
 
-                merge_successful,all_exist_already,error_msg = conn_A.attempt_merge(conn_B)
+                merge_successful,all_exist_already,error_msg = wire_A.attempt_merge(wire_B)
                 if (merge_successful):
                     if(verbose):
-                        print("   * Automatic merge between : \n       - " + old_str_A + "\n       - " + str(conn_B))
-                        print("       == Resulting connection : " + str(conn_A))
+                        print("   * Automatic merge between : \n       - " + old_str_A + "\n       - " + str(wire_B))
+                        print("       == Resulting connection : " + str(wire_A))
                         print("   ((If this is unwanted behaviour, deactivate auto_merge in the layerLink builder.))")
                     # There was a successful merging 
-                    self.connections.pop(connection_B_idx)
-                    return self.check_merge_connections()
+                    self.wires.pop(wire_B_idx)
+                    return self.check_merge_wires(verbose)
                 else :
                     if (all_exist_already):
-                        self.connections.pop(connection_B_idx)
+                        self.wires.pop(wire_B_idx)
                         if(verbose):
                             print(error_msg)
-                        return self.check_merge_connections()
+                        return self.check_merge_wires(verbose)
                     else :
                         if(verbose):
                             print(error_msg)
         return
     
-    def connect_list(self, list_of_connection_prompts,verbose=True,auto_merge=True):
+    def wires_list_between(self, list_of_connection_prompts,verbose=True,auto_merge=True):
         assert type(list_of_connection_prompts)==list,"list_of_connections should be of form ['a','b'] or [['a1','b1'],['a2','b2']]."
         for connection_demand in list_of_connection_prompts:
             if not(type(connection_demand)==list):
-                self.connect(list_of_connection_prompts[0],list_of_connection_prompts[1],verbose,auto_merge)
+                self.wires_between(list_of_connection_prompts[0],list_of_connection_prompts[1],verbose,auto_merge)
                 return 
             else :
-                self.connect(connection_demand[0],connection_demand[1],verbose,auto_merge)
+                self.wires_between(connection_demand[0],connection_demand[1],verbose,auto_merge)
 
-    def connect(self,from_code, to_code,verbose=True,auto_merge=True):
+    def wires_between(self,from_code, to_code,verbose=True,auto_merge=True):
         """ 
         THIS CODE COMPARES DIMENSIONS ACROSS FROM AND TO LAYERS AND CHECK THAT A CONNECTION IS POSSIBLE
         From code & to code are either of form 'a.k' or of form 'a' 
         with a :
-            - ('u' or 's' or 'o')  + ("_d" OR nothing)
+            - ('u' or ('s' or 'x') or 'o')  + ("_d" OR nothing)
         and k :
             - an integer if we connect just a dimension
-            - "k1-k2" if we want to connect specific dimensions (doesn't have to be ascending order)
+            - "k1-k2-...-kn", where ki are integers, 
+                 if we want to connect specific dimensions (doesn't have to be ascending order)
             - Nothing if we want to connect all dims
-
         """
         from_code_extract = from_code+(".ALL" if not("." in from_code) else "")
         to_code_extract = to_code+(".ALL" if not("." in to_code) else "")
@@ -310,11 +394,22 @@ class layerLink:
         dimension_from = from_code_extract.split(".")[0]
         dimension_to = to_code_extract.split(".")[0]
 
+        # States can be called "s" or "x"
+        if (dimension_from=="x"):
+            dimension_from = "s"
+        if (dimension_to == "x"):
+            dimension_to = "s"
+        if (dimension_from=="x_d"):
+            dimension_from = "s_d"
+        if (dimension_to == "x_d"):
+            dimension_to = "s_d"
+
         mod_from = from_code_extract.split(".")[1]
+        mod_to = to_code_extract.split(".")[1]
+
+        # If no modality was specified, we assume that the wire links all modalities
         if (mod_from==""):
             mod_from="ALL"
-        
-        mod_to = to_code_extract.split(".")[1]
         if (mod_to==""):
             mod_to = "ALL"
         
@@ -324,7 +419,6 @@ class layerLink:
             compare_from = total_size_from
             if (type(total_size_from)==int):
                 from_axes = (0,)
-                # from_axes = (total_size_from,)
             else :
                 from_axes = tuple(range(len(total_size_from)))
         else :
@@ -341,7 +435,6 @@ class layerLink:
             compare_to = total_size_to
             if (type(total_size_to)==int):
                 to_axes = (0,)
-                # to_axes = (total_size_to,)
             else :
                 to_axes = tuple(range(len(total_size_to)))
         else :
@@ -357,15 +450,18 @@ class layerLink:
 
         # Create a new connection in the layer link
         # self.connections.append([[dimension_from,from_axes],[dimension_to,to_axes]])
-        self.connections.append(linkConnection(self.from_output,dimension_from,from_axes,self.to_input,dimension_to,to_axes))
+        self.wires.append(linkWire(self.from_output,dimension_from,from_axes,self.to_input,dimension_to,to_axes))
         self.connection_prompts.append([from_code,to_code])
         if (auto_merge):
-            self.check_merge_connections(verbose)
+            self.check_merge_wires(verbose)
+                # Check if the new added wires can be merged with wires from the same objects
+                # and the same modalities (in order to provide a wider range of possible outcomes
+                # <=> allow modeling non independent variables)
         else :
             if (verbose):
                 connections_str = ''
-                for conn in self.connections :
-                    connections_str += "                 -" + str(conn) + " \n"
+                for wire in self.wires :
+                    connections_str += "                 -" + str(wire) + " \n"
                 print("     --> Warning : No input field connections were merged for connections : \n" +connections_str+ "          ((If this is unwanted behaviour, activate auto_merge in the layerLink builder.))")
         return 
     
@@ -381,10 +477,10 @@ class layerLink:
         """
         Transmit data along all the predefined transmissions paths.
         """
-        if (len(self.connections) == 0):
-            raise RuntimeError("No connections were specified for the layerLink [[\n " + str(self) + " ]].Can't transmit any data.")
+        if (len(self.wires) == 0):
+            raise RuntimeError("No linkWires were specified for the layerLink [[\n " + str(self) + " ]].Can't transmit any data.")
         
-        for connection in self.connections:
-            connection.transmit()
+        for wire in self.wires:
+            wire.transmit()
             if(verbose):
-                print("Transmitted data through connection : " + str(connection))
+                print("Transmitted data through connection : " + str(wire))

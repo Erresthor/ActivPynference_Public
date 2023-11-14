@@ -35,7 +35,6 @@ class layer_variables :
         a_ambiguity = []          # <=> H{m,g}
         a_kron = []
         a_kron_novelty = []
-        a_kron_ambiguity = []
         for modality in range(layer.Nmod):
             a_prior.append(flexible_copy(layer.a[modality]))
             a_novelty.append(spm_wnorm(a_prior[modality])*(a_prior[modality]>0) )
@@ -81,6 +80,7 @@ class layer_variables :
             layer.e += EPSILON
         e_prior = np.copy(layer.e)
         e_log = nat_log(layer.e/np.sum(layer.e))
+        
         # Preferences C
         c_base = []
         c_prior = []
@@ -287,14 +287,13 @@ class mdp_layer :
 
         # STM : Short term memory for the layer : 
         self.STM = None
-        # CONTAINS THE FOLLOWING :
+        # CONTAINS THE FOLLOWING in its STM:
         # self.o_d = None # Observation DISTRIBUTIONS
         # self.x_d = None # State DISTRIBUTIONS
         # self.u_d = None # Action DISTRIBUTIONS
         # self.o = None # Observation 
         # self.x = None # State 
         # self.u = None # Action 
-        # NOT self.x_kron = None # Kronecker distribution of posterior over states
 
         self.check() # Run a few checks & initialize property fields
         self.initialize_STM()
@@ -327,10 +326,10 @@ class mdp_layer :
         return new_layer
     
     def clear_inputs(self):
-        self.inputs = layer_input(self)
+        self.inputs = layer_input.clearMemory()
 
     def clear_outputs(self):
-        self.outputs = layer_output(self)
+        self.outputs = layer_output.clearMemory()
 
     def check(self):
         if(self.name == '') :
@@ -370,6 +369,7 @@ class mdp_layer :
             # check if there is only one transition dimension !
             assert len(self.b) == 1,"Error : action matrix for layer " + str(self.name) + " is 1-dimensional but transition matrix is " + str(len(self.b)) + "-dimensionnal."
             self.U = np.expand_dims(self.U,1)
+            self.U = self.U.astype(int)
 
         self.Nu = []  # Number of allowable actions for each factor
         for f in range(self.Nf) :
@@ -501,25 +501,33 @@ class mdp_layer :
         t = self.t 
         T = self.T
 
-        if(self.inputs.is_no_input()):
+        if(self.inputs.is_input_memory_empty()):
             if (t==0):
                 if (self.verbose):
                     print("No inputs to this layer. This ought to be the initial step of the generative process.")
+            # This may be normal, if there is only one action possible : 
             else : 
-                raise ValueError("No valid inputs were detected for the layer at time "+str(t)+". The layer can't be updated.")
+                only_one_action_possible = (self.U.shape[0]==1)
+                if only_one_action_possible:
+                    self.STM.u[t-1] = 0
+                    if not(self.STM.is_value_exists("u_d",t-1)):
+                        self.STM.u_d[:,t-1] = np.array([1.0])
+                    return
+                else :  
+                    raise ValueError("No valid inputs were detected for the layer at time "+str(t)+". The layer can't be updated.")
         
-        if (isField(self.inputs.o_d)):
-            assert self.STM.o_d[...,t].shape == self.inputs.o_d.shape ,"Observation dist input size " + str(self.inputs.o_d.shape) + " should fit layer awaited outcome size " + str(self.STM.o_d[...,t].shape) + " ."
-            self.STM.o_d[...,t] = self.inputs.o_d
+        if (isField(self.inputs.val_o_d)):
+            assert self.STM.o_d[...,t].shape == self.inputs.val_o_d.shape ,"Observation dist input size " + str(self.inputs.val_o_d.shape) + " should fit layer awaited outcome size " + str(self.STM.o_d[...,t].shape) + " ."
+            self.STM.o_d[...,t] = self.inputs.val_o_d
         if (isField(self.inputs.s_d)):
-            assert self.STM.x_d[...,t].shape == self.inputs.s_d.shape ,"State dist input size " + str(self.inputs.s_d.shape) + " should fit layer awaited state size " + str(self.STM.x_d[...,t].shape) + " ."
-            self.STM.x_d[...,t] = self.inputs.s_d
-        if (isField(self.inputs.u_d)):
-            assert self.STM.u_d[:,t].shape == self.inputs.u_d.shape ,"Action dist input size " + str(self.inputs.u_d.shape) + " should fit layer awaited action dist size " + str(self.STM.u_d[:,t].shape) + " ."
-            self.STM.u_d[:,t] = self.inputs.u_d
+            assert self.STM.x_d[...,t].shape == self.inputs.val_s_d.shape ,"State dist input size " + str(self.inputs.val_s_d.shape) + " should fit layer awaited state size " + str(self.STM.x_d[...,t].shape) + " ."
+            self.STM.x_d[...,t] = self.inputs.val_s_d
+        if (isField(self.inputs.val_u_d)):
+            assert self.STM.u_d[:,t].shape == self.inputs.val_u_d.shape ,"Action dist input size " + str(self.inputs.val_u_d.shape) + " should fit layer awaited action dist size " + str(self.STM.u_d[:,t].shape) + " ."
+            self.STM.u_d[:,t] = self.inputs.val_u_d
 
         if (isField(self.inputs.o)):
-            assert self.inputs.o.shape == self.STM.o[:,t].shape ,"Observation input size " + str(self.inputs.o.shape) + " should fit layer awaited modality size " + str(self.STM.o[:,t].shape) + " ."
+            assert self.inputs.val_o.shape == self.STM.o[:,t].shape ,"Observation input size " + str(self.inputs.val_o.shape) + " should fit layer awaited modality size " + str(self.STM.o[:,t].shape) + " ."
             self.STM.o[:,t] = self.inputs.o
 
             # If o is an input for the layer AND
@@ -527,36 +535,35 @@ class mdp_layer :
             # Then o_d is a distribution with value 1 at
             # the observed index and 0 elsewhere.
             if not(self.STM.is_value_exists("o_d",t)):
-                O,list_O = dist_from_definite_outcome(self.inputs.o,self.No)
+                O,list_O = dist_from_definite_outcome(self.inputs.val_o,self.No)
                 self.STM.o_d[...,t] = O
         
-        if (isField(self.inputs.s)):
-            assert self.inputs.s.shape == self.STM.x[:,t].shape ,"State input size " + str(self.inputs.s.shape) + " should fit layer awaited factor size " + str(self.STM.x[:,t].shape) + " ."
-            self.STM.x[:,t] = self.inputs.s
+        if (isField(self.inputs.val_s)):
+            assert self.inputs.val_s.shape == self.STM.x[:,t].shape ,"State input size " + str(self.inputs.val_s.shape) + " should fit layer awaited factor size " + str(self.STM.x[:,t].shape) + " ."
+            self.STM.x[:,t] = self.inputs.val_s
             
             # If s is an input for the layer AND
             # If s_d does not exist in the stm at time t
             # Then s_d is a distribution with value 1 at
             # the observed index and 0 elsewhere.
-            if not(self.STM.is_value_exists("x_d",t)):
-                
-                S,list_S = dist_from_definite_outcome(self.inputs.s,self.Ns)               
+            if not(self.STM.is_value_exists("x_d",t)): 
+                S,list_S = dist_from_definite_outcome(self.inputs.val_s,self.Ns)               
                 self.STM.x_d[...,t] = S
 
 
         if (t>0):
             # Action inputs can only change previous timesteps
             # Before the last timestep
-            if (isField(self.inputs.u)):
-                assert self.inputs.u.shape == (1,) ,"Action input size " + str(self.inputs.u.shape) + " should be (1,)."
-                self.STM.u[t-1] = self.inputs.u
+            if (isField(self.inputs.val_u)):
+                assert self.inputs.val_u.shape == (1,) ,"Action input size " + str(self.inputs.val_u.shape) + " should be (1,)."
+                self.STM.u[t-1] = self.inputs.val_u
 
                 # If u is an input for the layer AND
                 # If u_d does not exist in the stm at time t
                 # Then u_d is a distribution with value 1 at
                 # the observed index and 0 elsewhere.
                 if not(self.STM.is_value_exists("u_d",t-1)):
-                    U,list_U = dist_from_definite_outcome(self.inputs.u,[self.Np])
+                    U,list_U = dist_from_definite_outcome(self.inputs.val_u,[self.Np])
                     self.STM.u_d[:,t-1] = U
 
     # Full trial mechanics
@@ -643,7 +650,8 @@ class mdp_layer :
 
             # WHAT IS use_definite_distribution_for_observations ?
             # -------------------------------------------------------
-            # should the distribution from which the observation is sampled be : 
+            # This parameter answers the following question :
+            # Should the distribution from which the observation is sampled be ... ? 
             #   - issued from the state distribution (we may have sampled a state x from x_d, but the 
             #               observation will be sampled from a.x_d) -> 
             #                     use_definite_distribution_for_observations = False
@@ -651,6 +659,7 @@ class mdp_layer :
             #               observation will be a[x]) -> 
             #                     use_definite_distribution_for_observations = True
             # 
+            # (by default use_definite_distribution_for_observations = True)
             # When would the former be used ?
             # --------------------------------
             # If we work exclusively with distributions, and our system does not use "definite" outcomes
@@ -677,7 +686,7 @@ class mdp_layer :
             
             # joint distribution : 
             o_d = np.reshape(spm_kron(po_list),self.No)
-        
+        # print(x_d)
         # x, x_d, o and o_d are available 
         # Warning, some may be "None"
         return o,o_d,x,x_d
@@ -900,12 +909,16 @@ class mdp_layer :
         downstream_weighted = []
         for upstream_layer in linkd_layers_dict["from_self"]:
             is_model_to_process = (upstream_layer[1].layerMode == layerMode.MODEL) and (self.layerMode == layerMode.PROCESS)
-            upstream_weighted.append([upstream_layer[1],len(upstream_layer[0].connections),is_model_to_process])
+            upstream_weighted.append([upstream_layer[1],len(upstream_layer[0].wires),is_model_to_process])
         for downstream_layer in linkd_layers_dict["to_self"]:
             is_model_to_process = (downstream_layer[1].layerMode == layerMode.PROCESS) and (self.layerMode == layerMode.MODEL)
-            downstream_weighted.append([downstream_layer[1],len(downstream_layer[0].connections),is_model_to_process])
+            downstream_weighted.append([downstream_layer[1],len(downstream_layer[0].wires),is_model_to_process])
         return {"to_self" : upstream_weighted,"from_self" : downstream_weighted}
     
     def transmit_outputs(self):
         for link in self.outputs.links :
+            link.fire_all()
+    
+    def get_inputs(self):
+        for link in self.inputs.links :
             link.fire_all()

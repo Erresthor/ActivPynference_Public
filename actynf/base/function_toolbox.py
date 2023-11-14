@@ -63,11 +63,13 @@ def prune_tree_auto(distribution, N=1,
         deterministic_list = []
         sorted_distribution_indices = np.argsort(-distribution)
             # Bigger probabilities first
-        for k in range(N):
-            
+        for k in range(min(N,sorted_distribution_indices.shape[0])):
+            # print(k)
             # Painful method for converting 1D array to tuple
             # should probably replace tuples with lists ...
             idx = sorted_distribution_indices[k,...]
+            # print(idx)
+            # print(distribution[idx])
             if (distribution[idx]<plausible_threshold) :
                 return deterministic_list
             idx = idx.tolist()

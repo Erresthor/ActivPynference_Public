@@ -5,23 +5,11 @@ from PIL import Image
 import sys
 
 if __name__ == '__main__':  
-
-
-
-
-
-
-
-
-
-
-    
     my_net = get_nf_network(32,100)
     new_width = 400
     new_height = 400
     
     Ntrials = 100
-
 
     imglist = []
     maze_perception = []

@@ -171,9 +171,15 @@ class tmaze_drawer:
 import random as ran
 
 if __name__=="__main__":
-    ressources_path = os.path.join("ressources/tmaze")
-    drawer = tmaze_drawer(ressources_path)
     
+    sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))))
+    print(sys.path)
+    ressources_path = os.path.join("resources","tmaze")
+    drawer = tmaze_drawer(ressources_path)
+    r = 1.0
+    img = drawer.get_step_mazeplot(5,0,0,[r,1-r],
+                             trial=0,max_trial=0)[0]
+    img.save("result.png")
     # bad_imgs = []
     # good_imgs = []
     # for k in range(40):
@@ -197,22 +203,22 @@ if __name__=="__main__":
     # bad_imgs[0].save("ressources/tmaze/renders/badclue.gif", save_all=True, append_images=bad_imgs[1:],duration=400,loop=0)
     
     
-    # GENERATE A GIF :
-    total_gif = []
-    N = 30
-    generated_data = generate_data(30,pinit=0.5,pinit2=0.5,pHA=0.5,rs=2,la=1)
-    true_cheese_pos,true_agent_pos,reward_state_perception,agent_post_act,agent_actions,clue_obss = generated_data
-    for trial in range(N):
-        print("Trial " + str(trial+1) + " / " + str(N))
-        true_reward_state = true_cheese_pos[:,trial]
-        true_agent_state = true_agent_pos[:,trial]
-        cheese_perception = reward_state_perception[:,:,trial]
-        clue_obs = clue_obss[:,trial]
-        imglist = drawer.get_trial_mazeplot(trial+1,N,
-                              15,true_reward_state,true_agent_state,
-                              cheese_perception,clue_obs,
-                              None,None)
-        total_gif += imglist
-    total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
+    # # GENERATE A GIF :
+    # total_gif = []
+    # N = 30
+    # generated_data = generate_data(30,pinit=0.5,pinit2=0.5,pHA=0.5,rs=2,la=1)
+    # true_cheese_pos,true_agent_pos,reward_state_perception,agent_post_act,agent_actions,clue_obss = generated_data
+    # for trial in range(N):
+    #     print("Trial " + str(trial+1) + " / " + str(N))
+    #     true_reward_state = true_cheese_pos[:,trial]
+    #     true_agent_state = true_agent_pos[:,trial]
+    #     cheese_perception = reward_state_perception[:,:,trial]
+    #     clue_obs = clue_obss[:,trial]
+    #     imglist = drawer.get_trial_mazeplot(trial+1,N,
+    #                           15,true_reward_state,true_agent_state,
+    #                           cheese_perception,clue_obs,
+    #                           None,None)
+    #     total_gif += imglist
+    # total_gif[0].save("ressources/tmaze/renders/render.gif", save_all=True, append_images=total_gif[1:],duration=30,loop=0)
 
 

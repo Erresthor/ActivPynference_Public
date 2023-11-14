@@ -125,7 +125,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
         return G,P
         return normalize(np.ones(G.shape)), P
         
-    Q = [] # Q is the predictive posterior of states at the current time t depending on the selected action
+    Q = [] # Q is the predictive posterior of states at the next time t+1 depending on the selected action
             # Q = q(s|pi)
     # For now, G is the prior over policies p(pi)
     # The following loop will compute an approximation of the free energy of the future (?)

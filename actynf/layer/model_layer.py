@@ -18,15 +18,13 @@ from .policy_tree import policy_tree_node
 from .utils import dist_from_definite_outcome,minus1_in_arr
 from .layer_components import layer_output,layer_input
 
-EPSILON = 1e-12
-
 class layerMode(Enum):
     PROCESS = 1
     MODEL = 2
 
 class layer_variables :
     ''' A placeholder class used to store the variables needed for our layer's fundamental functions.'''
-    def __init__(self,layer):
+    def __init__(self,layer,epsilon = 1e-12):
         # Likelihood model a / A
         a_norm = normalize(layer.a)   # <=> A{m,g}
         a_prior = []             # <=> pA{m,g}
@@ -51,7 +49,7 @@ class layer_variables :
         b_complex_kron = []
         for factor in range(layer.Nf):   # For all factors
             b_prior.append(flexible_copy(layer.b[factor]))
-            b_complexity.append(spm_wnorm(b_prior[factor])*(b_prior[factor]>EPSILON))
+            b_complexity.append(spm_wnorm(b_prior[factor])*(b_prior[factor]>epsilon))
 
         # Some way of "compressing" multiple factors into a single matrix 
         # Slightly different from Matlab script, because our kronecker product orders dimension differently
@@ -68,15 +66,15 @@ class layer_variables :
         d_complexity = []
         for f in range(layer.Nf):
             # Account for when we start with zero matrix
-            if (np.sum(layer.d[f])<EPSILON) :
-                layer.d[f] += EPSILON
+            if (np.sum(layer.d[f])<epsilon) :
+                layer.d[f] += epsilon
             d_prior.append(flexible_copy(layer.d[f]))
             d_complexity.append(spm_wnorm(d_prior[f]))
         
         # Habit E
         # Account for when we start with zero matrix
-        if (np.sum(layer.e)<EPSILON) :
-            layer.e += EPSILON
+        if (np.sum(layer.e)<epsilon) :
+            layer.e += epsilon
         e_prior = np.copy(layer.e)
         e_log = nat_log(layer.e/np.sum(layer.e))
         

@@ -1,11 +1,12 @@
-from ..base.function_toolbox import isField
-from ..layer.layer_link import get_layerLinks_between,str_layerLinks_between
-import copy 
-from .ordering_using_forces import mechanical_equations_ordering
-from ..layer.model_layer import mdp_layer
 
 import matplotlib.pyplot as plt
 import numpy as np
+import copy
+
+from ..base.function_toolbox import isField 
+from .ordering_using_forces import mechanical_equations_ordering
+from ..layer.model_layer import mdp_layer,layerMode
+
 
 class network():
     def __init__(self,in_layers=None,name=None,override_T = None,override_seed=None):
@@ -15,7 +16,7 @@ class network():
             assert type(name)==str, "Network name should be a string, not " + str(name)
             self.name = name
         self.layers = []
-        self.run_order=[]
+        self.run_order= []
         self.override_seed = override_seed
 
         if (isField(in_layers)):
@@ -40,18 +41,13 @@ class network():
         network_str += "   LAYERS:\n"
         for lay in self.layers:
             network_str += "    - " + str(lay.name) + "\n"
-        network_str += "   LINKS:\n"
-        for lay in self.layers:
-            for link in lay.get_links("from"):
-                link_str = "    - " + str(link)
-                link_str = '\t'.join(link_str.splitlines(True)) + "\n"
-                network_str += link_str
         network_str += "___________________________________________________\n"
         return network_str
     
     def reseed(self,new_seed=None):
         if (isField(new_seed)):
             self.override_seed = new_seed
+
         if (isField(self.override_seed)):
             layer_cnt = 0
             for lay in self.layers:
@@ -69,7 +65,57 @@ class network():
         else : 
             return False
 
+    def update_layer_dependencies(self,update_dependents=True):
+        for lay in self.layers:
+            lay.update_sources(update_dependents)
+    
     def update_order_run(self,mean_of_last_percent = 0.25):
+        """
+        General philosophy : inputs & outputs should NOT be cleaned after a run : some layers 
+        will use the same input over two trials dependind on the general ordering of the fire events. 
+        A layerLink is a directional object that sends data from a layer to another.
+        By iterating over layerlinks, we may build a general gradient of layer run orders : 
+        ideally, this should depend on the "strength" of the layerLinks
+        """
+        assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.update_order_run ."
+        # 1. Get a list of upstream and downstream layers for each layer. 
+        # If a dowstream layer is in generative process mode and the source
+        # layer is in generative model mode, ignore the downstream layer.
+        K = 1
+        self.update_layer_dependencies(True)
+
+        list_of_neighbors = [] # per layer, the layers connected through upstream or downstream links
+        
+        
+        for lay_idx in range(len(self.layers)) :
+            lay = self.layers[lay_idx]
+            
+            # UPSTREAM LAYER -------------> CURRENT LAYER
+            # provides forces towards high x values for current
+            upstream_neighbors = []
+            for source_lay in lay.sources:
+                # If my source is a model, and i am a process, let's ignore that !
+                if not((source_lay.layerMode == layerMode.MODEL) and (lay.layerMode == layerMode.PROCESS)):
+                    upstream_neighbors.append([self.layers.index(source_lay),K])
+            
+            # CURRENT_LAYER -------------> DOWNSTREAM LAYER
+            # provides forces towards low x values for current
+            downstream_neighbors = []
+            for dependent_lay in lay.dependent:
+                # If i am a process, let's ignore that !
+                if not((dependent_lay.layerMode == layerMode.PROCESS) and (lay.layerMode == layerMode.MODEL)):
+                    downstream_neighbors.append([self.layers.index(dependent_lay),K])
+
+            list_of_neighbors.append([upstream_neighbors,downstream_neighbors])
+        xs,xxs,xxxs = (mechanical_equations_ordering(list_of_neighbors,opt=1))
+
+        # Show the output of mechanical ordering
+        # for i in range(len(self.layers)):
+        #     plt.plot(np.linspace(0,xs.shape[-1],xs.shape[-1]),xs[i,:])
+        # plt.show()
+        self.run_order = list(np.argsort(np.mean(xs[...,int((1.0-mean_of_last_percent)*xs.shape[1]):],axis=1)))
+
+    def old_update_order_run(self,mean_of_last_percent = 0.25):
         """
         General philosophy : inputs & outputs should NOT be cleaned after a run : some layers 
         will use the same input over two trials dependind on the general ordering of the fire events. 
@@ -120,11 +166,13 @@ class network():
         
     def run(self,verbose=True,return_STMs = False):
         assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.run ."
+        
         if (len(self.run_order)==0):
             self.update_order_run()
         if (not(isField(self.T))):
             if (not(self.update_T())):
                 raise ValueError("Could not find a suitable value for T. Aborting run ...")
+            
         self.prerun()
         list_of_layer_tickgenerators = ([layr.tick_generator() for layr in self.layers])
         for timestep in range(self.T):
@@ -136,7 +184,7 @@ class network():
                     searchtree = next(list_of_layer_tickgenerators[order_idx])
                 except :
                     raise RuntimeError("ERROR in network <"+ self.name + "> - layer [" + (self.layers[order_idx]).name + "] :")
-                updated_layer.transmit_outputs()
+                # updated_layer.transmit_outputs()
         if (verbose):
             print()
             seeds = [str(lay.seed)+"-"+str(lay.trials_with_this_seed) for lay in self.layers]
@@ -163,7 +211,8 @@ class network():
         if (return_STMs):
             return STMlist
     
-    def copy_network(self,copied_id,override_name=False,verbose=False):
+    def copy_network(self,copied_id,override_name=False,verbose=False,
+                    new_net_seed=None):
         if (verbose):
             print("Copying network...",end="")
         copied_net = copy.deepcopy(self)
@@ -173,6 +222,11 @@ class network():
         else :
             copied_net.name = self.name + "_" + str(copied_id)
         
+        if isField(new_net_seed):
+            assert type(self.seed)==int,"Seed should be an integer ..."
+            self.override_seed = new_net_seed
+            self.reseed()
+
         for lay_idx in range(len(copied_net.layers)):
             lay = copied_net.layers[lay_idx]
             if (override_name):
@@ -185,6 +239,7 @@ class network():
         
         # All this may be useless as deepcopy seems to be
         # doing it much better :)
+        # ----------------------------------------------------------------
         # Create a dictionary to map original nodes to their copies
         copied_node_dict = {}
         copied_links_dict = {}

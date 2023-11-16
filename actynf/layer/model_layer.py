@@ -7,7 +7,7 @@ import copy
 from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
 from ..base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax,spm_dekron
 from ..base.function_toolbox import sample_distribution,spm_complete_margin
-from ..base.miscellaneous_toolbox  import flatten_last_n_dimensions
+from ..base.miscellaneous_toolbox  import flatten_last_n_dimensions,pop_by_id
 
 from .parameters.hyperparameters import hyperparameters
 from .parameters.learning_parameters import learning_parameters
@@ -16,7 +16,6 @@ from .layer_learn import learn_from_experience
 from .policy_tree import policy_tree_node
 
 from .utils import dist_from_definite_outcome,minus1_in_arr
-from .layer_link import layerLink
 from .layer_components import layer_output,layer_input
 
 EPSILON = 1e-12
@@ -222,7 +221,6 @@ class mdp_layer :
     - layer learn : use the in-memory observations and actions of the last trial to update the current model
     - layer update : update the current beliefs about action and states given a new perception stimuli
     """
-    
     # NOTE : a layer is defined by a single action modality.
 
     # Agent constructor
@@ -234,6 +232,9 @@ class mdp_layer :
         self.name = name
         self.verbose = False
         self.debug = False
+
+        self.sources = []  # Where I get my information from !
+        self.dependent = [] # Where I send my output !
 
         # Seeding
         if (not(isField(in_seed))):
@@ -502,6 +503,9 @@ class mdp_layer :
         T = self.T
 
         if(self.inputs.is_input_memory_empty()):
+            print()
+            print(self.name)
+            print("MEMORY EMPTY")
             if (t==0):
                 if (self.verbose):
                     print("No inputs to this layer. This ought to be the initial step of the generative process.")
@@ -519,16 +523,16 @@ class mdp_layer :
         if (isField(self.inputs.val_o_d)):
             assert self.STM.o_d[...,t].shape == self.inputs.val_o_d.shape ,"Observation dist input size " + str(self.inputs.val_o_d.shape) + " should fit layer awaited outcome size " + str(self.STM.o_d[...,t].shape) + " ."
             self.STM.o_d[...,t] = self.inputs.val_o_d
-        if (isField(self.inputs.s_d)):
+        if (isField(self.inputs.val_s_d)):
             assert self.STM.x_d[...,t].shape == self.inputs.val_s_d.shape ,"State dist input size " + str(self.inputs.val_s_d.shape) + " should fit layer awaited state size " + str(self.STM.x_d[...,t].shape) + " ."
             self.STM.x_d[...,t] = self.inputs.val_s_d
         if (isField(self.inputs.val_u_d)):
             assert self.STM.u_d[:,t].shape == self.inputs.val_u_d.shape ,"Action dist input size " + str(self.inputs.val_u_d.shape) + " should fit layer awaited action dist size " + str(self.STM.u_d[:,t].shape) + " ."
             self.STM.u_d[:,t] = self.inputs.val_u_d
 
-        if (isField(self.inputs.o)):
+        if (isField(self.inputs.val_o)):
             assert self.inputs.val_o.shape == self.STM.o[:,t].shape ,"Observation input size " + str(self.inputs.val_o.shape) + " should fit layer awaited modality size " + str(self.STM.o[:,t].shape) + " ."
-            self.STM.o[:,t] = self.inputs.o
+            self.STM.o[:,t] = self.inputs.val_o
 
             # If o is an input for the layer AND
             # If o_d does not exist in the stm at time t
@@ -839,16 +843,20 @@ class mdp_layer :
             print("Priming " + self.name)
         self.prime_model_functions()
         self.initialize_STM()
-        self.inputs.initialize_inputs()
+        self.inputs.initialize_inputs(init_links=False)
         self.t = 0
 
     def tick(self,update_t_when_over=True,
                    clear_inputs_when_over=True):
         returns = None
+
+        self.get_inputs()
+
         if self.layerMode == layerMode.MODEL:
             returns = self.model_tick(update_t_when_over,clear_inputs_when_over)
         elif self.layerMode == layerMode.PROCESS : 
             returns = self.process_tick(update_t_when_over,clear_inputs_when_over)
+        
         return returns
     
     def postrun(self,verbose=False):
@@ -880,45 +888,36 @@ class mdp_layer :
             self.t = self.t + 1
         self.postrun()
         return
-        
 
-    # LAYER LINK MECHANICS
-    def get_links(self,key="from"):
-        links = []
-        if (key=="from"):
-            for from_self_link in (self.outputs.links) :
-                links.append(from_self_link)
-        elif (key=="to"):
-            for to_self_link in (self.inputs.links) :
-                links.append(to_self_link)
-        return links 
-    
-    def get_linked_layers(self):
-        connected_layers_upstream = [] # upstream nodes --> self
-        connected_layers_downstream =  []  # self --> dowstream nodes
-        
-        for from_self_link in (self.outputs.links) :
-            connected_layers_upstream.append([from_self_link,from_self_link.to_input.parent])
-        for to_self_link in (self.inputs.links) :
-            connected_layers_downstream.append([to_self_link,to_self_link.from_output.parent])
-        return {"to_self" : connected_layers_upstream,"from_self" :connected_layers_downstream}
-
-    def get_connection_weighted_linked_layers(self):
-        linkd_layers_dict = self.get_linked_layers()
-        upstream_weighted = []
-        downstream_weighted = []
-        for upstream_layer in linkd_layers_dict["from_self"]:
-            is_model_to_process = (upstream_layer[1].layerMode == layerMode.MODEL) and (self.layerMode == layerMode.PROCESS)
-            upstream_weighted.append([upstream_layer[1],len(upstream_layer[0].wires),is_model_to_process])
-        for downstream_layer in linkd_layers_dict["to_self"]:
-            is_model_to_process = (downstream_layer[1].layerMode == layerMode.PROCESS) and (self.layerMode == layerMode.MODEL)
-            downstream_weighted.append([downstream_layer[1],len(downstream_layer[0].wires),is_model_to_process])
-        return {"to_self" : upstream_weighted,"from_self" : downstream_weighted}
-    
-    def transmit_outputs(self):
-        for link in self.outputs.links :
-            link.fire_all()
-    
     def get_inputs(self):
-        for link in self.inputs.links :
-            link.fire_all()
+        self.inputs.fetch()
+
+
+
+    # SOURCES / DEPENDENTS : section to track which layers we are feeding information to / from
+    # mostly used when trying to order which layers should run first, etc.
+    def update_sources(self,update_dependents=False):
+        # Look into the input of this layer to find the outputs we are connected to :
+        self.sources = []
+        self.add_sources(self.inputs.all_from_layers(),update_dependents)
+
+    def add_sources(self,source_or_list_of_source,also_add_dep = False):
+        """ 
+        Define which layers feed values to 
+        this layer's inputs. Helpful when ordering 
+        which layer to run first.
+        """
+        if (type(source_or_list_of_source)==list):
+            list_of_sources = source_or_list_of_source
+            for source in list_of_sources:
+                self.add_sources(source,also_add_dep)
+        else:
+            individual_source = source_or_list_of_source
+            assert type(individual_source)==mdp_layer,"Layer sources should be other mdp layers and not " + str(type(sources))
+
+            if not(individual_source in self.sources):          
+                self.sources.append(individual_source)
+                if also_add_dep:
+                    if not(self in individual_source.dependent):
+                        # Add me to the dependent list of this layer
+                        individual_source.dependent.append(self) 

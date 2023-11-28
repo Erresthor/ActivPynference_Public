@@ -5,6 +5,7 @@ from audioop import avg
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
+
 from ..base.function_toolbox import normalize
 
 def avg_dist_entropy(matrix,eps=1e-8,MAXIMUM_INFO = 10000):
@@ -39,8 +40,6 @@ def flexible_entropy(matrix_or_list,norm=True):
 def avg_kl_dir(matrix_q,matrix_p,eps=1e-8,MAXIMUM_INFO = 10000):
     assert matrix_q.shape == matrix_p.shape,"A divergence can only be calculated between two arrays of same shape"
     matrix_of_kl_dirs = np.zeros(matrix_q([0,...]).shape)
-
-
 
 def matrix_kl_dir(matrix_or_list1,matrix_or_list2,except_axis=None) :
     assert type(matrix_or_list1)==type(matrix_or_list2), "Distributions containers should have the same combination of types to calculate a KL dir"

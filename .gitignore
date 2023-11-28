@@ -17,3 +17,6 @@ docs/build_*
 
 # my stuff
 private_tests/
+
+# raw outputs 
+simulation_outputs/

@@ -42,7 +42,8 @@ def check_prompt_shape(dimension_prompt,object_prompt):
         dim_letter = dimension_prompt.split("_")[0]
     if (dim_letter=="u"):
         dim_letter = "p"
-
+    
+    
     shape_prompt = getattr(object_prompt,"N" + dim_letter)
     if (type(shape_prompt) == int):
         shape_prompt = [shape_prompt]

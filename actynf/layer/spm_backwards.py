@@ -33,6 +33,7 @@ def spm_backwards(O,Q,flattenedA,B):
     L = nat_log(flexible_copy(Q[:,0])) # Kronecker form of initial states likelihood
     #     q = np.zeros(L.shape)
     for i in range(L.shape[0]):  # For all possible states
+        print(i)
         qi = np.zeros(L.shape)
         qi[i]=1 # If initial state was i
         for t in range(1,len(B)+1):

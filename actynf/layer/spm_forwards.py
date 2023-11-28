@@ -52,8 +52,9 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax, prune_tr
 from ..base.miscellaneous_toolbox import isField,flexible_copy
 
 def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
-                debug=False,
-                cap_state_explo = None, cap_action_explo = None) :
+                debug=False,layer_RNG=None,
+                cap_state_explo = None, cap_action_explo = None,
+                layer_learn_options = None) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -87,10 +88,15 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
     A = self.a
     B = self.b
     """
-    cap_state_explo = 3
-    cap_action_explo = None
+    # print(t)
+    # cap_state_explo = 3
+    # cap_action_explo = None
+    # print(cap_action_explo)
     DETERMINISTIC_PRUNING = True
 
+    # learn_a = True
+    # learn_b = True
+    # if (isField(layer_learn_options)):
 
     A = layer_variables.a
     flatten_a = layer_variables.a_kron
@@ -125,7 +131,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
         return G,P
         return normalize(np.ones(G.shape)), P
         
-    Q = [] # Q is the predictive posterior of states at the current time t depending on the selected action
+    Q = [] # Q is the predictive posterior of states at the next time t+1 depending on the selected action
             # Q = q(s|pi)
     # For now, G is the prior over policies p(pi)
     # The following loop will compute an approximation of the free energy of the future (?)
@@ -150,7 +156,6 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
             if (bayesian_risk_only):
                 G[action] = G[action] + np.dot(qo.T,po) # ROI if only bayesian risk is computed
             else :
-                
                 ambiguity = np.dot(Q[action].T,flattened_H) # I'd rather solve uncertainty and avoid ambiguous observations (i want to minimize the entropy of the observation distribution)
                 all_ambiguity += ambiguity
                 risk =  - np.dot(qo.T,nat_log(qo)-po) # I want to go towards preferable results = - D_KL[q(o|pi)||p(o)]
@@ -166,7 +171,11 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                 # if we learn a :
                 A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
                 # if we learn b :
+                # print("a")
+                # print(A_exploration_term) # print
                 B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P))
+                # print("b")
+                # print(B_exploration_term)
                 all_novelty -= A_exploration_term + B_exploration_term
 
                 G[action] = G[action] - A_exploration_term - B_exploration_term
@@ -177,6 +186,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
     # P = q(s) at time t
     # u = softmax(G) = q(pi) at time t
 
+    # print(t,Q[0].shape)
+
     # Not over yet, G still needs to include the "value" of the next timesteps !
     # Let's imagine action k is realized :
     # 1.  Let's check if it is actually plausible or not ? If not, why even bother
@@ -184,35 +195,42 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
     #       2.a : are they plausible ? If not, just skip it
     #       2.b : if yes, then what are the associated observation distribution according to my model ?
     # 3. Using those computed values, if all plausible, let's approximate the free energy for the analyzed action
+    # print("t : " + str(t) + " | " + str(cap_action_explo) + " - " + str(cap_state_explo))
     plausible_threshold = 1.0/16.0
     if (t<N): # t within temporal horizon
+        K = np.zeros((Q[0].shape))
+
         u = softmax(G)
         policy_tree_node.update_policy_prior(u)
- 
-        mask_action_not_explored = (u<plausible_threshold)
+
+        if (isField(cap_action_explo)):
+            idx_action_to_explore = prune_tree_auto(u,cap_action_explo,DETERMINISTIC_PRUNING,layer_RNG,plausible_threshold=plausible_threshold,
+                                                    deterministic_shuffle_between_equal_vals = True)
+            idx_action_to_explore = [i[0] for i in idx_action_to_explore] # Convert tuple to int
+            mask_action_not_explored = [not(i in idx_action_to_explore) for i in range(u.shape[0])]
+        else :
+            mask_action_not_explored = (u<plausible_threshold)
         u[mask_action_not_explored] = 0
         G[mask_action_not_explored] = -1000
 
-        K = np.zeros((Q[0].shape))
+        
         
         idx_action_to_explore = range(U.shape[0])
-        if (isField(cap_action_explo)):
-            idx_action_to_explore = prune_tree_auto(u,cap_action_explo,DETERMINISTIC_PRUNING,plausible_threshold=plausible_threshold)
-            idx_action_to_explore = [i[0] for i in idx_action_to_explore] # Convert tuple to int
-        
         for action in idx_action_to_explore :          
             if (u[action]>=plausible_threshold): #If this action is plausible
-                
                 dist_state_to_explore = Q[action]
+
                 if (isField(cap_state_explo)):
-                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=plausible_threshold)
-                    idx_state_to_explore = [i[0] for i in idx_state_to_explore] # Convert tuple to int
+                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=plausible_threshold,
+                                                           deterministic_shuffle_between_equal_vals = True)
+                    idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
                 else :
                     idx_state_to_explore = np.where(dist_state_to_explore>plausible_threshold)[0] 
-                    if(idx_state_to_explore.size == 0):
-                        idx_state_to_explore = np.where(Q[action]>1/Q[action].size)[0]
-                        # These are the corresponding plausible states
-                
+                if(idx_state_to_explore.size == 0):
+                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=(1.0/Q[action].shape[0]),
+                                                           deterministic_shuffle_between_equal_vals = True)
+                    idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
+
                 for index in idx_state_to_explore :
                     for modality in range (Nmod):
                         O[modality] = flatten_a[modality][:,index]
@@ -223,8 +241,11 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                     
 
                     child_node = policy_tree_node.add_child(P_next_t,u_index_in = action,s_index_in=index,value=values_future[action])
-                    EF,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,child_node)
-                    
+                    EF,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,child_node,
+                                                         layer_RNG=layer_RNG,
+                                                         cap_state_explo=cap_state_explo,
+                                                         cap_action_explo=cap_action_explo)
+                    # print(EF)
                     # Efe marginalized over subsequent action
                     # Structure could be optimized, but will do for now
                     # Expected free energy marginalised over subsequent action
@@ -233,11 +254,9 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                 G[action] = G[action] + np.dot(K[indexes_L],Q[action][indexes_L])
         u = softmax(G)
         R = 0
-
         # Posterior over next state marginalised over subsequent action
         for action in range(U.shape[0]):
             R = R + u[action]*Q[action]
-        
         pol_w_next_s_posterior = R
         policy_tree_node.update_policy_posterior(u)
         policy_tree_node.update_pol_weighted_next_state_posterior(pol_w_next_s_posterior)

@@ -9,6 +9,11 @@ A set of very basic functions
 import numpy as np
 import random
 
+def pop_by_id(list_of_items, item):
+    for i in range(len(list_of_items)):
+        if item is list_of_items[i]:
+            item_aledgedly = list_of_items.pop(i)
+
 def isField(x):
     return not(isNone(x))
 

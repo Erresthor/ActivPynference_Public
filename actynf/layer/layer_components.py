@@ -1,67 +1,108 @@
 import numpy as np
 
-from ..base.miscellaneous_toolbox import isField,flexible_copy
+from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
 from ..base.function_toolbox import normalize
 from .utils import check_prompt_shape,reorder_axes
+
+
+class link_function:
+    """
+    A small class to allow deepcopies of output-input connections.
+    The user must specify what are the (layer) parameters. 
+    Then specify a static function. e.g. (lambda a,b,c : a.o*b.s + b.s[:,99] + spm_kron(c.o,a.s))
+    Here, a = layer 1 , b = layer 2, etc.
+
+    Example of usage , with more or less complex function of the source layers
+    model.inputs.o = link_function(process,(lambda x: x.o[0]))
+    model.inputs.o = link_function([process,model_lower],function) 
+                                        function = spm_kron(a,b)
+
+    """
+    def __init__(self,from_layers,static_function):
+        self.static_function = static_function # MUST BE STATIC
+        self.from_layers = listify(from_layers)
+        self.from_layer_outputs = [lay.outputs for lay in self.from_layers]
+        self.to_layer = None
+
+    def sever(self):
+        self.static_function = None
+        self.from_layers = None
+        self.from_layer_outputs = None
+        self.to_layer = None
+        
+    def get(self):
+        return self.static_function(*self.from_layer_outputs)
+
+
 
 class layer_input : 
     def __init__(self,parentpointer):
         self.parent = parentpointer
-        self.links = [] # pointers from outputs
-        self.initialize_inputs()
+        self.initialize_inputs(init_links=True)
 
-    def initialize_inputs(self):
-        self.o = None   # Sequence of fixed observations
-        self.s = None   # Sequence of fixed states 
-        self.u = None   # Sequence of fixed actions
+    def initialize_inputs(self,init_links=True):
+        # link_function, used by the layer to fetch data from other objects
+        if (init_links):
+            # Must all be link_functions !
+            self.o = None   # Sequence of fixed observations
+            self.s = None   # Sequence of fixed states 
+            self.u = None   # Sequence of fixed actions
 
-        self.o_d = None   # Distribution of observations
-        self.s_d = None   # Distribution of states 
-        self.u_d = None   # Distribution of actions
+            self.o_d = None   # Distribution of observations
+            self.s_d = None   # Distribution of states 
+            self.u_d = None   # Distribution of actions
 
-    def update_definite_input(self,key,along_axes,value):
-        to_value = getattr(self,key)
-        if (not isField(to_value)):
-            total_input_shape = check_prompt_shape(key,self.parent)
-            definite_input_size = (len(total_input_shape),)
-            to_value = np.full(definite_input_size,-1,dtype=int)
-        if not(isField(along_axes)):
-            along_axes = tuple(range(to_value.ndim))
+        # Actual values stored
+        self.val_o = None   # Sequence of fixed observations
+        self.val_s = None   # Sequence of fixed states 
+        self.val_u = None   # Sequence of fixed actions
 
-        updated_to_value = flexible_copy(to_value)
-        for k in range(len(along_axes)):
-            updated_to_value[along_axes[k]] = value[k]
+        self.val_o_d = None   # Distribution of observations
+        self.val_s_d = None   # Distribution of states 
+        self.val_u_d = None   # Distribution of actions
+
+    def all_from_layers(self):
+        def get_attr_connected_layers(attribute):
+            if isField(attribute):
+                # attribute.to_layer = self (needed ?)
+                return attribute.from_layers
+            return []
         
-        setattr(self, key, updated_to_value)
+        all_connected_layers = [] # A list of all layers connected to this input
+        all_connected_layers += get_attr_connected_layers(self.o)
+        all_connected_layers += get_attr_connected_layers(self.s)
+        all_connected_layers += get_attr_connected_layers(self.u)
+        all_connected_layers += get_attr_connected_layers(self.o_d)
+        all_connected_layers += get_attr_connected_layers(self.s_d)
+        all_connected_layers += get_attr_connected_layers(self.u_d)
+        return all_connected_layers
 
-    def update_distribution_input(self,key,along_axes,value):
-        # I receive a distribution of ndim = len(along_axes)
-        
-        # In case along_axes is not sorted :
-        value = reorder_axes(value,along_axes)
+    def fetch(self):
+        """ Get data from connected objects."""        
+        def get_data(fetch_function):
+            if isField(fetch_function):
+                copied_val = flexible_copy(fetch_function.get())
+                return copied_val
+            return None
 
-        to_value = getattr(self,key)
-        if (not isField(to_value)):
-            total_input_shape = check_prompt_shape(key,self.parent)
-            to_value = normalize(np.ones(total_input_shape),all_axes=True)
-        if not(isField(along_axes)):
-            along_axes = tuple(range(to_value.shape[0]))
+        self.val_o = get_data(self.o)   # Sequence of fixed observations
+        self.val_s = get_data(self.s)   # Sequence of fixed states 
+        self.val_u = get_data(self.u)   # Sequence of fixed actions
 
-        to_value_shape = to_value.shape
-        shape_of_new_input = list(to_value_shape)
-        for i in range(len(to_value_shape)):
-            if not(i in along_axes):
-                shape_of_new_input[i] = 1
-        reshape_of_new_input = tuple(shape_of_new_input)
-
-        reshaped_from = np.reshape(value,reshape_of_new_input)
-        reshaped_to = np.sum(to_value,along_axes,keepdims=True)
-
-        updated_to_value = reshaped_from*reshaped_to
-        assert (np.sum(updated_to_value)-1.0)<1e-10, "Error when updating the input for " + self.parent.name + " with the output of " + key + ". The final distribution sums to " + str(np.sum(updated_to_value)) + " instead of 1."
-        
-        setattr(self, key, updated_to_value)
+        self.val_o_d = get_data(self.o_d)   # Distribution of observations
+        self.val_s_d = get_data(self.s_d)   # Distribution of states 
+        self.val_u_d = get_data(self.u_d)   # Posterior policy distribution
     
+    def clearMemory(self):
+        # But not the link_functions >:(
+        self.val_o = None   # Sequence of fixed observations
+        self.val_s = None   # Sequence of fixed states 
+        self.val_u = None   # Sequence of fixed actions
+
+        self.val_o_d = None   # Distribution of observations
+        self.val_s_d = None   # Distribution of states 
+        self.val_u_d = None   # Distribution of actions
+
     def is_fixed_input_empty(self):
         observation_input = isField(self.o)
         state_input = isField(self.s)
@@ -77,41 +118,65 @@ class layer_input :
     def is_no_input(self):
         return (self.is_fixed_input_empty() and self.is_dist_input_empty())
     
+    def is_fixed_memory_empty(self):
+        observation_input = isField(self.val_o)
+        state_input = isField(self.val_s)
+        action_input = isField(self.val_u)
+        return not(observation_input or state_input or action_input)
+
+    def is_dist_memory_empty(self):
+        observation_input = isField(self.val_o_d)
+        state_input = isField(self.val_s_d)
+        action_input = isField(self.val_u_d)
+        return not(observation_input or state_input or action_input)
+
+    def is_input_memory_empty(self):
+        return (self.is_fixed_memory_empty() and self.is_dist_memory_empty())
+    
     def __str__(self):
         string_val = ""#"####################################################\n"
         string_val += ">> Input of layer " + self.parent.name+ " : \n"
-        if (isField(self.o)):
+        if (isField(self.val_o)):
             string_val +=" - o : \n"
-            string_val += str(np.round(self.o,2))
+            string_val += str(np.round(self.val_o,2))
             string_val += "\n----------- \n"
-        if (isField(self.u)):
+        if (isField(self.val_u)):
             string_val +=" - u : \n"
-            string_val += str(np.round(self.u,2))
+            string_val += str(np.round(self.val_u,2))
             string_val += "\n----------- \n"
-        if (isField(self.s)):
+        if (isField(self.val_s)):
             string_val +=" - s : \n"
-            string_val += str(np.round(self.s,2))
+            string_val += str(np.round(self.val_s,2))
             string_val += "\n----------- \n"
-        if (isField(self.o_d)):
+        if (isField(self.val_o_d)):
             string_val +=" - o_d : \n"
-            string_val += str(np.round(self.o_d,2))
+            string_val += str(np.round(self.val_o_d,2))
             string_val += "\n----------- \n"
-        if (isField(self.u_d)):
+        if (isField(self.val_u_d)):
             string_val +=" - u_d : \n"
-            string_val += str(np.round(self.u_d,2))
+            string_val += str(np.round(self.val_u_d,2))
             string_val += "\n----------- \n"
-        if (isField(self.s_d)):
+        if (isField(self.val_s_d)):
             string_val +=" - s_d : \n"
-            string_val += str(np.round(self.s_d,2))
+            string_val += str(np.round(self.val_s_d,2))
             string_val += "\n----------- \n"  
         if (self.is_no_input()):
-            string_val += "EMPTY\n"
+            string_val += "NO PREDEFINED LINKS\n"
         return string_val
- 
+
 class layer_output : 
     def __init__(self,parentpointer):
         self.parent = parentpointer
-        self.links = [] # pointers to layerLinks
+
+        self.o = None   # Sequence of observed outcomes [0,...,T-1]
+        self.u = None   # Sequence of selected actions [0,...,T-2]
+        self.s = None   # Sequence of selected states [0,...,T-1]
+
+        self.u_d = None  # Sequence of infered action distributions [0,...,T-2]
+        self.s_d = None  # Sequence of infered states distributions [0,...,T-1]
+        self.o_d = None  # Sequence of infered observation distributions [0,...,T-1]
+
+    def clearMemory(self):
 
         self.o = None   # Sequence of observed outcomes [0,...,T-1]
         self.u = None   # Sequence of selected actions [0,...,T-2]

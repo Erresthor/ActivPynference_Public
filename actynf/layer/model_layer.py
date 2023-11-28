@@ -5,9 +5,11 @@ import time
 import copy 
 
 from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
-from ..base.function_toolbox import normalize , spm_kron, spm_wnorm, nat_log , spm_psi, softmax,spm_dekron
+from ..base.function_toolbox import normalize ,spm_dot, spm_kron, spm_wnorm, nat_log , spm_psi, softmax,spm_dekron
 from ..base.function_toolbox import sample_distribution,spm_complete_margin
 from ..base.miscellaneous_toolbox  import flatten_last_n_dimensions,pop_by_id
+
+from ..enums import NO_MEMORY_DECAY,NO_STRUCTURE
 
 from .parameters.hyperparameters import hyperparameters
 from .parameters.learning_parameters import learning_parameters
@@ -120,9 +122,13 @@ class layer_variables :
         # print(e_log.shape)
         self.e_prior= e_prior
     
+    def copy(self):
+        return copy.deepcopy(self)
+    
 class layer_STM :
     def __init__(self,Nmod,No,Nf,Ns,Np,T,name="default"):
         self.layername = name
+
         self.o_d = np.full(tuple(No)+(T,),-1.0) # Observation DISTRIBUTIONS
         self.x_d = np.full(tuple(Ns)+(T,),-1.0) # State DISTRIBUTIONS
         self.x_d_smoothed = np.full(tuple(Ns)+(T,),-1.0) # Placeholder for state distributions after a backward pass (prototype)
@@ -226,7 +232,9 @@ class mdp_layer :
                  A = None,B=None,C=None,D=None,E=None,
                  inU = None,
                  T = None,T_horiz=2,
-                 in_seed = None):
+                 in_seed = None,
+                 learn_backward_pass = True,
+                 memory_decay_type = NO_MEMORY_DECAY,memory_decay_value = 0.0,state_structure_assumption=NO_STRUCTURE):
         self.name = name
         self.verbose = False
         self.debug = False
@@ -257,7 +265,7 @@ class mdp_layer :
 
         # Layer parameters
         self.hyperparams = hyperparameters()
-        self.learn_options = learning_parameters()
+        self.learn_options = learning_parameters(memory_decay_type,memory_decay_value, learn_backward_pass,state_structure_assumption)
 
         #Model building blocks -----------------------------------------------------------------------------------------------
         # Beliefs (learning process, =/= generative process) --> What our agent believes about the dynamics of the world
@@ -297,11 +305,13 @@ class mdp_layer :
         self.check() # Run a few checks & initialize property fields
         self.initialize_STM()
 
-    def reseed(self,new_seed=None):
+    def reseed(self,new_seed=None,auto_reseed=False):
         if (not(isField(new_seed))):
             assert type(self.seed)==int,"No pre existing seed, please provide one ..."
         else : 
             self.seed = new_seed
+        if auto_reseed :
+            self.seed = random.randint(0,9999)
         self.RNG = random.Random(self.seed)
         self.trials_with_this_seed=0
 
@@ -386,6 +396,20 @@ class mdp_layer :
     def initialize_STM(self): 
         self.STM = layer_STM(self.Nmod,self.No,self.Nf,self.Ns,self.Np,self.T,self.name)
 
+    def get_weights(self):
+        weights_dict = {
+            'seed' : [np.copy(self.seed),np.copy(self.trials_with_this_seed)],
+            'a' : copy.deepcopy(self.a),
+            'b' : copy.deepcopy(self.b),
+            'c' : copy.deepcopy(self.c),
+            'd' : copy.deepcopy(self.d),
+            'e' : copy.deepcopy(self.e),
+            'u' : copy.deepcopy(self.U),
+            'params' : copy.deepcopy(self.hyperparams),
+            'learn_params' : copy.deepcopy(self.learn_options)
+        }
+        return weights_dict
+
     # COSMETIC
     def getCurrentMatrices(self):
         report = "Layer weights :\n"
@@ -447,12 +471,20 @@ class mdp_layer :
             return_this_matrix_list.append(normalize(sum_of_matrices))
         return return_this_matrix_list
 
-    def kronecker_action_model_average(self, action_distribution):
-        kron_b = self.var.b_kron
-        total = 0
-        for pol in range(len(kron_b)):
-            total = total + kron_b[pol]*action_distribution[pol]
-        return total
+    def kronecker_action_model_average(self, action_distribution, just_slice=False):
+        if (just_slice):
+            action_id = action_distribution
+            return self.var.b_kron[action_id]
+        else:
+            kron_b_arr = np.array(self.var.b_kron)
+            return np.average(kron_b_arr,axis=0,weights=action_distribution)
+        # print(kron_b_arr.shape)
+        # total = 0
+        # for pol in range(len(kron_b)):
+        #     print(kron_b[pol].shape)
+        #     print(action_distribution[pol])
+        #     total = total + kron_b[pol]*action_distribution[pol]
+        # return total
 
     def get_factorwise_actions(self,at_time=0):
         assert at_time<self.T-1,"Can't get kronecker form of hidden states at time " + at_time + " (Temporal horizon reached)"
@@ -501,9 +533,9 @@ class mdp_layer :
         T = self.T
 
         if(self.inputs.is_input_memory_empty()):
-            print()
-            print(self.name)
-            print("MEMORY EMPTY")
+            # print()
+            # print(self.name)
+            # print("MEMORY EMPTY")
             if (t==0):
                 if (self.verbose):
                     print("No inputs to this layer. This ought to be the initial step of the generative process.")
@@ -552,10 +584,30 @@ class mdp_layer :
                 S,list_S = dist_from_definite_outcome(self.inputs.val_s,self.Ns)               
                 self.STM.x_d[...,t] = S
 
+        # When in model mode, received actions are fixed values
+        # that override the search process : 
+        # they apply to the current time t
+        if (self.layerMode==layerMode.MODEL) and (t<T):
+            # Action inputs can only change timesteps
+            # before the last timestep
+            if (isField(self.inputs.val_u)):
+                assert self.inputs.val_u.shape == (1,) ,"Action input size " + str(self.inputs.val_u.shape) + " should be (1,)."
+                self.STM.u[t] = self.inputs.val_u
 
-        if (t>0):
-            # Action inputs can only change previous timesteps
-            # Before the last timestep
+                # If u is an input for the layer AND
+                # If u_d does not exist in the stm at time t
+                # Then u_d is a distribution with value 1 at
+                # the observed index and 0 elsewhere.
+                if not(self.STM.is_value_exists("u_d",t)):
+                    U,list_U = dist_from_definite_outcome(self.inputs.val_u,[self.Np])
+                    self.STM.u_d[:,t] = U
+
+        # When in process mode, received actions are the model generated actions
+        # that generate new observations
+        # they apply to the previous time t-1
+        if (self.layerMode==layerMode.PROCESS) and (t>0):
+            # Action inputs can only change timesteps
+            # before the last timestep
             if (isField(self.inputs.val_u)):
                 assert self.inputs.val_u.shape == (1,) ,"Action input size " + str(self.inputs.val_u.shape) + " should be (1,)."
                 self.STM.u[t-1] = self.inputs.val_u
@@ -796,7 +848,8 @@ class mdp_layer :
     def model_update(self):
         t = self.t
         G,Q,prop_time,tree = self.belief_propagation()
-        
+        # print(np.round(G,2))
+        # print(softmax(G))
         # Update the STM with the inference results
         # Short term memory addition : 
         
@@ -829,13 +882,43 @@ class mdp_layer :
         return searchtree
 
     def model_learn(self):
-        """ 
-        Do stuff :D
-        """
         learn_from_experience(self)
 
-    # GENERAL LAYER FUNCTIONS (CALLED BY NETWORK)
+    def infer_states(self):
+        """ 
+        Use the observations in my STM, as well as my internal variables
+        to update my perception of the states ONLY.
+        I do not plan for actions here ! 
+        """
+        t = self.t
+        if (self.STM.is_value_exists("o_d",t)):
+            list_O = spm_complete_margin(self.STM.o_d[...,t])
+        else : 
+            raise ValueError("No observations were found in the layer's STM for t = "+str(t)+". \n Found o = \n" + str(np.round(self.STM.o_d[...,t],2)))
 
+        # Fetch priors over subsequent states
+        if (t>0):
+            Q_t_previous = self.joint_to_kronecker(self.STM.x_d[...,t-1])
+            last_action = self.STM.u[t-1]
+            last_transition = self.var.b_kron[last_action]
+            Q_t = np.dot(last_transition,Q_t_previous)
+        else :
+            Q_t = spm_kron(self.var.d)
+        P = flexible_copy(Q_t) # Prior over current states 
+
+        A = self.var.a
+        L = 1
+        for modality in range (len(A)):
+            L = L * spm_dot(self.var.a[modality],list_O[modality]) 
+        post_unnormalized = L.flatten()*P
+        F = nat_log(np.sum(post_unnormalized))
+        Q = normalize(post_unnormalized) 
+
+        # Update the STM with the inference results
+        # Short term memory addition :   
+        self.STM.x_d[...,t] = self.kronecker_to_joint(Q)
+
+    # GENERAL LAYER FUNCTIONS (CALLED BY NETWORK)
     def prerun(self,verbose=False):
         if (verbose):
             print("Priming " + self.name)

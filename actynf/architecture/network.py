@@ -44,7 +44,7 @@ class network():
         network_str += "___________________________________________________\n"
         return network_str
     
-    def reseed(self,new_seed=None):
+    def reseed(self,new_seed=None,layers_auto_reseed=False):
         if (isField(new_seed)):
             self.override_seed = new_seed
 
@@ -53,6 +53,10 @@ class network():
             for lay in self.layers:
                 lay.reseed(self.override_seed+layer_cnt) # to avoid all layers with the same seed
                 layer_cnt += 1
+        else :
+            if layers_auto_reseed :
+                for lay in self.layers:
+                    lay.reseed(auto_reseed=True) # to avoid all layers with the same seed
 
     def update_T(self):
         """ Using the layers of the network, guess how many timesteps per trial the network should run."""
@@ -69,7 +73,7 @@ class network():
         for lay in self.layers:
             lay.update_sources(update_dependents)
     
-    def update_order_run(self,mean_of_last_percent = 0.25):
+    def update_order_run(self,mean_of_last_percent = 0.25,show_plot=False):
         """
         General philosophy : inputs & outputs should NOT be cleaned after a run : some layers 
         will use the same input over two trials dependind on the general ordering of the fire events. 
@@ -108,11 +112,12 @@ class network():
 
             list_of_neighbors.append([upstream_neighbors,downstream_neighbors])
         xs,xxs,xxxs = (mechanical_equations_ordering(list_of_neighbors,opt=1))
-
-        # Show the output of mechanical ordering
-        # for i in range(len(self.layers)):
-        #     plt.plot(np.linspace(0,xs.shape[-1],xs.shape[-1]),xs[i,:])
-        # plt.show()
+        if show_plot:
+            # Show the output of mechanical ordering
+            for i in range(len(self.layers)):
+                plt.plot(np.linspace(0,xs.shape[-1],xs.shape[-1]),xs[i,:])
+                plt.xlabel("Iterations")
+            plt.show()
         self.run_order = list(np.argsort(np.mean(xs[...,int((1.0-mean_of_last_percent)*xs.shape[1]):],axis=1)))
 
     def old_update_order_run(self,mean_of_last_percent = 0.25):
@@ -163,8 +168,23 @@ class network():
     def postrun(self):
         for order_idx in self.run_order:
             self.layers[order_idx].postrun()
-        
-    def run(self,verbose=True,return_STMs = False):
+    
+    def get_current_layers_weights(self):
+        weights_for_each_layer = []
+        for lay in self.layers :
+            # Store the layer weights at that point (before it is reinitialized)
+            weights_for_each_layer.append(lay.get_weights())
+        return weights_for_each_layer
+    
+    def get_current_layers_stms(self):
+        # Indicators for all the layers :
+        STMs_for_each_layer = []
+        for lay in self.layers :
+            # Store the STM at that point (before it is reinitialized)
+            STMs_for_each_layer.append(lay.STM.copy())
+        return STMs_for_each_layer
+    
+    def run(self,verbose=True,return_STMs = False,return_weights = False):
         assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.run ."
         
         if (len(self.run_order)==0):
@@ -191,28 +211,40 @@ class network():
             print(" Done !   -------- (seeds : [" + ';'.join(seeds) + "])")
         self.postrun()
 
-        if (return_STMs):
-            # Indicators for all the layers :
-            STMs_for_each_layer = []
-            for lay in self.layers :
-                # Store the STM at that point (before it is reinitialized)
-                STMs_for_each_layer.append(lay.STM.copy())
-            return STMs_for_each_layer
+        
+        weights_for_each_layer = None
+        if return_weights:
+            weights_for_each_layer = self.get_current_layers_weights()
 
-    def run_N_trials(self,N,small_verbose=True,big_verbose=True,return_STMs = False):
+        STMs_for_each_layer = None
+        if return_STMs:
+            STMs_for_each_layer = self.get_current_layers_stms()
+        
+        return STMs_for_each_layer,weights_for_each_layer
+
+    def run_N_trials(self,N,small_verbose=True,big_verbose=True,return_STMs = False,return_weights = False):
         STMlist = []
-        for n in range(N):
-            potential_STM_list = self.run(big_verbose,return_STMs) # None if return_STMs is False, otherwise a list of STMs for each layer
+        weightlist = []
+        if (return_weights):
+            # We gather the initial weights of the layer at index 0
+            weightlist.append(self.get_current_layers_weights())
+        if (return_STMs):
+            STMlist.append(None) # To match the indices
+            
+        for trial_id in range(N):
+            potential_STM_list,potential_weightlist = self.run(big_verbose,return_STMs=return_STMs,return_weights=return_weights) # None if return_STMs is False, otherwise a list of STMs for each layer
             if (return_STMs):
                 STMlist.append(potential_STM_list)
+            if (return_weights):
+                weightlist.append(potential_weightlist)
         if (small_verbose):
             seeds = [str(lay.seed) for lay in self.layers]
             print(" Done !  -------- (seeds : [" + ';'.join(seeds) + "])")
-        if (return_STMs):
-            return STMlist
+
+        return (STMlist if return_STMs else None),(weightlist if return_weights else None)
     
     def copy_network(self,copied_id,override_name=False,verbose=False,
-                    new_net_seed=None):
+                    new_net_seed=None,same_seed=False):
         if (verbose):
             print("Copying network...",end="")
         copied_net = copy.deepcopy(self)
@@ -226,6 +258,9 @@ class network():
             assert type(self.seed)==int,"Seed should be an integer ..."
             self.override_seed = new_net_seed
             self.reseed()
+        elif (not(same_seed)):
+            self.reseed(layers_auto_reseed=True)
+
 
         for lay_idx in range(len(copied_net.layers)):
             lay = copied_net.layers[lay_idx]
@@ -236,56 +271,3 @@ class network():
         if (verbose):
             print(" Done !")
         return copied_net
-        
-        # All this may be useless as deepcopy seems to be
-        # doing it much better :)
-        # ----------------------------------------------------------------
-        # Create a dictionary to map original nodes to their copies
-        copied_node_dict = {}
-        copied_links_dict = {}
-
-        starting_node = self.layers[0]
-        # Perform a depth-first traversal of the network
-        stack = [starting_node]
-        while stack:
-            current_node = stack.pop()
-            print("   Copying layer " + current_node.name + "...")
-            current_node_copy = current_node.copy()
-
-            # Establish the connections in the copied network
-            for original_node, copy_node in copied_node_dict.items():
-                print("      - Checking links with " + original_node.name + "...")
-                existing_connections = get_layerLinks_between(current_node,original_node)
-                # layer_link_str = str_layerLinks_between(current_node,original_node)
-                # print(layer_link_str)
-                # print(existing_connections)
-                for forward_link in existing_connections[0] :
-                    copied_link = forward_link.copy(current_node_copy,copy_node,merge_verbose=merge_verbose)
-                    copied_links_dict[forward_link] = copied_link
-                for backward_link in existing_connections[1]:
-                    copied_link = backward_link.copy(copy_node,current_node_copy,merge_verbose=merge_verbose)
-                    copied_links_dict[backward_link] = copied_link
-            copied_node_dict[current_node] = current_node_copy
-        copied_network = network(list(copied_node_dict.values()),list(copied_links_dict.values()))
-        print("Done !")
-        return copied_network
-        
-        # copy_node.connections = [node_copies[conn] for conn in original_node.connections]
-
-
-        #     # Copy the connections between input & ouptuts
-        #     for input_connection in current_node.inputs.connections:
-        #         # Check if the connection has been copied already
-        #         if connection not in node_copies:
-        #             stack.append(connection)
-            
-        #     copied_node_list.append(current_node_copy)
-
-        # # Establish the connections in the copied network
-        # for original_node, copy_node in copied_node_dict.items():
-        #     copy_node.connections = [node_copies[conn] for conn in original_node.connections]
-
-        # # Return the copy of the starting node
-        # return node_copies[node]
-
-    

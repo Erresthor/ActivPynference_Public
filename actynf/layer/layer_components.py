@@ -8,9 +8,15 @@ from .utils import check_prompt_shape,reorder_axes
 class link_function:
     """
     A small class to allow deepcopies of output-input connections.
-    The user must specify a static function. e.g. (lambda a,b,c : a.o*b.s + b.s[:,99] + spm_kron(c.o,a.s))
-    Then specify what are the (layer) parameters of that function. 
+    The user must specify what are the (layer) parameters. 
+    Then specify a static function. e.g. (lambda a,b,c : a.o*b.s + b.s[:,99] + spm_kron(c.o,a.s))
     Here, a = layer 1 , b = layer 2, etc.
+
+    Example of usage , with more or less complex function of the source layers
+    model.inputs.o = link_function(process,(lambda x: x.o[0]))
+    model.inputs.o = link_function([process,model_lower],function) 
+                                        function = spm_kron(a,b)
+
     """
     def __init__(self,from_layers,static_function):
         self.static_function = static_function # MUST BE STATIC
@@ -28,9 +34,6 @@ class link_function:
         return self.static_function(*self.from_layer_outputs)
 
 
-
-# model.inputs.o = link_function(process,lambda x: x.o[0])
-# <=> 
 
 class layer_input : 
     def __init__(self,parentpointer):

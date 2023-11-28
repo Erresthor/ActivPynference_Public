@@ -49,7 +49,7 @@ def model(number_of_ticks,action_model="angle",
 
     # If naive model :
     b0 = np.ones(b0.shape)*initial_action_mapping_confidence
-     
+    
 
 
     # Linear preference matrix c = ln p(o)

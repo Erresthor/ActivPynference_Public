@@ -14,6 +14,12 @@ import random as random
 
 from .miscellaneous_toolbox import isField
 
+def generate_random_vector(N,rng):
+    if (isField(rng)):
+        return np.array([rng.random() for k in range(N)])
+    else : 
+        return np.random.random((N,))
+
 def sample_distribution(distribution, N=1, random_number_generator=None):
     original_distribution_shape = distribution.shape
 
@@ -57,19 +63,21 @@ def sample_distribution_no_dupl(distribution,N=1,random_number_generator=None,
 
 def prune_tree_auto(distribution, N=1,
                     deterministic = True,random_number_generator=None,
-                    max_retry_factor=1.0,plausible_threshold=1.0/16.0):
+                    max_retry_factor=1.0,plausible_threshold=1.0/16.0,
+                    deterministic_shuffle_between_equal_vals = True,eps = 1e-6):
     if (deterministic):
         # print("Deterministic outcome")
         deterministic_list = []
-        sorted_distribution_indices = np.argsort(-distribution)
+        sort_this = np.copy(distribution)
+        if deterministic_shuffle_between_equal_vals: 
+            sort_this = sort_this + eps*generate_random_vector(distribution.shape[0],random_number_generator)
+        sorted_distribution_indices = np.argsort(-sort_this)
             # Bigger probabilities first
         for k in range(min(N,sorted_distribution_indices.shape[0])):
-            # print(k)
             # Painful method for converting 1D array to tuple
             # should probably replace tuples with lists ...
             idx = sorted_distribution_indices[k,...]
-            # print(idx)
-            # print(distribution[idx])
+
             if (distribution[idx]<plausible_threshold) :
                 return deterministic_list
             idx = idx.tolist()

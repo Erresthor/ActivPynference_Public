@@ -180,6 +180,7 @@ def basic_model(number_of_ticks,T,Th,
         initial_action_mapping_confidence = 0.1,
         structure_hypothesis = NO_STRUCTURE,
         state_cap = None,action_cap = None,
+        generalize_temperature = 0.0,
         seed=None):
     '''
     A function defining a generic neurofeedback model depending on a few criteria:
@@ -242,6 +243,7 @@ def basic_model(number_of_ticks,T,Th,
     maze_model.learn_options.learn_b = True
     maze_model.learn_options.learn_d = True
     maze_model.learn_options.assume_state_space_structure = structure_hypothesis
+    maze_model.learn_options.generalize_fadeout_function_temperature = generalize_temperature
     return maze_model
 
 def naive_grid_model(number_of_ticks,grid_size,T,Th,

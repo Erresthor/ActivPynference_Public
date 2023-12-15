@@ -1,21 +1,25 @@
 import actynf
 import numpy as np
 import scipy.stats as scistats
+import matplotlib.pyplot as plt
 
-def sum_of_values_in_interval(indices,values,bins):
-    weighted_sum = np.zeros((bins.shape[0]-1,))
-    bin_counter = 0
-    for k in range(indices.shape[0]):
-        if (indices[k] > bins[bin_counter+1]):
-            bin_counter +=1
-            # print(bin_counter,bins.shape[0])
-            if (bin_counter+1)>=bins.shape[0] :
-                return weighted_sum
-        try :
-            weighted_sum[bin_counter] += values[k]*(indices[k+1]-indices[k])
-        except :
-            weighted_sum[bin_counter] += values[k]*(indices[k]-indices[k-1])
-    return weighted_sum
+def color_spectrum(fromcol,tocol,t):
+    return fromcol + t*(tocol-fromcol)
+
+def discretize_dist_between_bins(bins,distr,Nsamples=100):
+    discretized = np.zeros((bins.shape[0]-1,))
+    for k in range(bins.shape[0]-1):
+        # Approximate pdf integral : 
+        xs = np.linspace(bins[k], bins[k+1], Nsamples+1)
+        ys = distr.pdf(xs)
+        
+        # There are Nsamples slices of discretized data
+        # Each sample occupies (bins[k+1]-bins[k])/Nsamples on the x axis
+        h = (bins[k+1]-bins[k])/Nsamples
+        individual_slices = 0.5*(ys[0]+ys[-1]) + np.sum(ys[1:-1])
+        approximate_density = (individual_slices*h)
+        discretized[k] = approximate_density
+    return discretized
   
 def gaussian_to_categorical(array,               
         mu,sigma,
@@ -35,16 +39,21 @@ def gaussian_to_categorical(array,
     This means that the gaussian distribution must be relatively centered on [0,N]
     This also means that one needs to apply transformations on the output distribution to make it useful in some cases :)
     """
-    N = array.shape[0]
+    distribution = scistats.norm(mu, sigma)
+
+    N = array.shape[0] # Size of the output categorical distribution
 
     min_val = mu-10*sigma
     max_val = mu+10*sigma
     Xs = np.linspace(min_val,max_val,10*N)
-    Ys = scistats.norm(mu, sigma).pdf(Xs)
+    # .pdf(Xs)
+    # plt.plot(Xs,Ys)
+    # plt.show()
 
     bins = np.zeros((N+3,))
     bins[0] = min_val
     bins[-1] = max_val
+    
     if (actynf.isField(array_bins)):
         # The user specified a discrete-continuous index mapping !
         bins[1:-1] = array_bins
@@ -56,8 +65,9 @@ def gaussian_to_categorical(array,
         # Assume that the index of the distribution corresponds to their
         # continuous value
         bins[1:-1] = np.linspace(-0.5,N-0.5,N+1)
-
-    discretized_pdf = sum_of_values_in_interval(Xs,Ys,bins)
+    # print(bins)
+    
+    discretized_pdf = discretize_dist_between_bins(bins,distribution,100)
     if (option_clamp):
         if option_raw:
             return actynf.normalize(discretized_pdf)   
@@ -66,4 +76,19 @@ def gaussian_to_categorical(array,
         clamped_discretization[0] += discretized_pdf[0]
         clamped_discretization[-1] += discretized_pdf[-1]
         return actynf.normalize(clamped_discretization)
+    # print(discretized_pdf)
     return actynf.normalize(discretized_pdf[1:-1])
+
+def clever_running_mean(arr, N):
+    xarr = np.array(arr)
+    xpost = np.zeros(xarr.shape)
+    # raw_conv = np.convolve(x, np.ones(N)/N, mode='same')
+    for k in range(xarr.shape[0]):
+        localmean = 0.0
+        cnt = 0.0
+        for i in range(k-N,k+N+1,1):
+            if ((i>=0) and (i<xarr.shape[0])):
+                localmean += xarr[i]
+                cnt += 1
+        xpost[k] = localmean/(cnt+1e-18)
+    return xpost

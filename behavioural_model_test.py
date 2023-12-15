@@ -48,13 +48,11 @@ def training_curves_confidence_plot(list_of_confs,basepath=None):
         ax.legend()
 
     for k,conf_value in enumerate(list_of_confs):
-
         # Attempt opening saved datafile           
-        if actynf.isField(basepath) :
-            savepath = os.path.join(basepath,str(conf_value)+".wider_prefs.pckl")
-        else : 
+        if not(actynf.isField(basepath)) :
             savepath = os.path.join("simulation_outputs","capped","1d",str(conf_value)+".wider_prefs.pckl")
-        print(savepath)
+        else : 
+            savepath = basepath
         with open(savepath, 'rb') as handle:
             saved_data = pickle.load(handle)
 
@@ -63,6 +61,7 @@ def training_curves_confidence_plot(list_of_confs,basepath=None):
 
         Nsubj = len(stms)
         Ntrials = len(stms[1]) # including the "0th" trial
+        T = stms[0][1][0].o.shape[-1]
         xs = np.linspace(0,Ntrials-1,(Ntrials-1)*T)
         full_col_base = np.array([0,0,0,1.0])
         transp_col_base = np.array([0,0,0,0.5])
@@ -189,10 +188,10 @@ def points_from_definite_coordinates(pos,angle,distance):
             rotated_point[rotated_point<0.0] = 0.0
         return rotated_x1,rotated_x2
 
-def exploit_1d_model():
+def exploit_1d_model(generalize_temperature):
     Ntrials = 30
     Nsubj = 20
-    n_feedback_ticks = 5
+    n_feedback_ticks = 10
     T = 10
     Th = 2
     initial_action_mapping_confidence = 0.01
@@ -201,7 +200,7 @@ def exploit_1d_model():
     action_cap = 2
     interpolation_model = actynf.LINEAR
     
-    savepath = os.path.join("simulation_outputs","noncapped","1d","low_resolution",str(initial_action_mapping_confidence)+".wider_prefs.pckl")
+    savepath = os.path.join("simulation_outputs","temp.pickle")
     # training_curves_confidence_plot([initial_action_mapping_confidence,1.0],basepath =  os.path.join("simulation_outputs","noncapped","1d"))
     
     # savepath = os.path.join("test_to_delete")
@@ -214,15 +213,15 @@ def exploit_1d_model():
             T,Th,seed=None)
 
         angle_model = basic_model(n_feedback_ticks,T,Th,"angle",initial_action_mapping_confidence,structure_hypothesis=interpolation_model,
-                                state_cap = state_cap,action_cap = action_cap)
+                                state_cap = state_cap,action_cap = action_cap,generalize_temperature=generalize_temperature)
         print(angle_model)
 
         position_model = basic_model(n_feedback_ticks,T,Th,"position",initial_action_mapping_confidence,structure_hypothesis=interpolation_model,
-                                     state_cap = state_cap,action_cap = action_cap)
+                                     state_cap = state_cap,action_cap = action_cap,generalize_temperature=generalize_temperature)
         print(position_model)
 
         distance_model = basic_model(n_feedback_ticks,T,Th,"distance",initial_action_mapping_confidence,structure_hypothesis=interpolation_model,
-                                     state_cap = state_cap,action_cap = action_cap)
+                                     state_cap = state_cap,action_cap = action_cap,generalize_temperature=generalize_temperature)
         print(distance_model)
 
         angle_model.inputs.o = link_function(process, (lambda l: l.o))
@@ -362,7 +361,7 @@ def exploit_1d_model():
         fig.show()
         input()
     
-    training_curves_confidence_plot([0.01,0.01],basepath = os.path.join("simulation_outputs","noncapped","1d","low_resolution"))
+    training_curves_confidence_plot([0.01,0.0],basepath = savepath)
 
 def exploit_2D_model():
     Ntrials = 30
@@ -636,5 +635,6 @@ def exploit_2D_model():
     # training_curves_confidence_plot([0.01,0.01],basepath = os.path.join("simulation_outputs","noncapped","1d","low_resolution"))
 
 if __name__ == '__main__':
-    exploit_2D_model()
+    exploit_1d_model(2.5)
+    # exploit_2D_model()
 

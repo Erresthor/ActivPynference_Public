@@ -47,11 +47,12 @@ from ..enums.memory_decay import MemoryDecayType
 from ..enums.space_structure import AssumedSpaceStructure
 
 class layerPlasticity:
-    def __init__(self,eta,mem_decay_type,mem_loss,assume_state_space_structure):
+    def __init__(self,eta,mem_decay_type,mem_loss,assume_state_space_structure,gen_f):
         self.eta = eta
         self.mem_dec_type = mem_decay_type
         self.t05 = mem_loss
-        self.state_space_hypothesis = assume_state_space_structure        
+        self.state_space_hypothesis = assume_state_space_structure  
+        self.generalize_fadeout = gen_f
 
 
 def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100,eps1 = 1e-7,eps2=1e-8):
@@ -76,7 +77,7 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100,eps1 = 1e-7,eps2=
         new_matrix[new_matrix<eps2] = eps2
         return new_matrix
     
-def generalize(base_information, structure_assumption):
+def generalize(base_information, structure_assumption,fadeout_function=(lambda x:1.0)):
     # print(structure_assumption)
     if (structure_assumption == AssumedSpaceStructure.NO_STRUCTURE):
         return base_information
@@ -85,7 +86,8 @@ def generalize(base_information, structure_assumption):
     if ("LINEAR" in structure_assumption.name) :
         clamp_interp = (structure_assumption==AssumedSpaceStructure.LINEAR_CLAMPED)
         periodic_interp = (structure_assumption==AssumedSpaceStructure.LINEAR_PERIODIC)
-        generalized_information = extrap_diag_2d(base_information,clamp_interp,periodic_interp)
+        generalized_information = extrap_diag_2d(base_information,clamp_interp,periodic_interp,
+                                                 fadeout_function,True)
     
     return generalized_information
 
@@ -140,6 +142,11 @@ def b_learning(u_d_history,s_margin_history,old_b_matrix,action_transition_mappi
             # a select state factor)
     
     for factor in range(Nf):
+        if (type(plasticityOptions.state_space_hypothesis)==list):
+            assumed_space_structure = plasticityOptions.state_space_hypothesis[factor]
+        else : 
+            assumed_space_structure = plasticityOptions.state_space_hypothesis
+
         db = 0
         for t in range(1,T):
             factor_action_implemented = transition_prob_matrix[factor][:,t-1]
@@ -149,11 +156,7 @@ def b_learning(u_d_history,s_margin_history,old_b_matrix,action_transition_mappi
             # If we entertain specific structural hypotheses regarding the hidden state space, 
             # we may learn more from a single observation !
             # assumed_space_structure = plasticityOptions.state_space_hypothesis
-            if (type(plasticityOptions.state_space_hypothesis)==list):
-                assumed_space_structure = plasticityOptions.state_space_hypothesis[factor]
-            else : 
-                assumed_space_structure = plasticityOptions.state_space_hypothesis
-            generalized_action_independent_transition = generalize(action_independent_transition,assumed_space_structure)
+            generalized_action_independent_transition = generalize(action_independent_transition,assumed_space_structure,plasticityOptions.generalize_fadeout)
 
             db_t = spm_cross(generalized_action_independent_transition,factor_action_implemented)
                     # Compute the added B matrix : the cross product of the actual state evolution 
@@ -214,7 +217,6 @@ def d_learning_smooth(s_margin_history,
         new_d_matrix[factor][i] = update_rule(old_d_matrix[factor][i],plasticityOptions.eta*d_estimate,plasticityOptions.mem_dec_type,1,plasticityOptions.t05)
     return new_d_matrix
 
-
 def e_learning(layer,t05 = 100):
     raise NotImplementedError ("E_learning has not been implemented yet ...")
 
@@ -234,6 +236,7 @@ def learn_from_experience(layer):
     mem_decay_type = layer.learn_options.decay_type
     
     assume_state_space_structure = layer.learn_options.assume_state_space_structure
+    exponential_decay_function = (lambda x: np.exp(-layer.learn_options.generalize_fadeout_function_temperature*x))
     # print(assume_state_space_structure)
     if (type(assume_state_space_structure)==list):
         if not(len(assume_state_space_structure)==Nf):
@@ -241,7 +244,7 @@ def learn_from_experience(layer):
             assume_state_space_structure = assume_state_space_structure[0]
             print("WARNING : Got one value in the list of space structure assumption. Assuming that this assumption is valid for all states factors.")
             print("If this is wanted behviour and you want to hide this message, please set your assumed state space structure to AssumedSpaceStructure type.")
-    general_plasticity = layerPlasticity(eta,mem_decay_type,mem_loss,assume_state_space_structure)
+    general_plasticity = layerPlasticity(eta,mem_decay_type,mem_loss,assume_state_space_structure,exponential_decay_function)
 
     STM = layer.STM
     o_history = STM.o
@@ -366,3 +369,11 @@ def learn_from_experience(layer):
     # if isField(layer.U_):
     #     u = u[:,:-1]
     #     un =  un[:,:-Ni]
+
+""" 
+When learning new dynamics, observations can be interpreted as 
+evidence for some environment representation change. (e.g. i've 
+seen a red shape with wheels and i've infered it was a car, it will make me 
+learn that red objects  as well as wheeled objects may often be cars)
+
+"""

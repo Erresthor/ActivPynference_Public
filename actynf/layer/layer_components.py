@@ -34,7 +34,6 @@ class link_function:
         return self.static_function(*self.from_layer_outputs)
 
 
-
 class layer_input : 
     def __init__(self,parentpointer):
         self.parent = parentpointer

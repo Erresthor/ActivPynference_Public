@@ -184,7 +184,8 @@ class network():
             STMs_for_each_layer.append(lay.STM.copy())
         return STMs_for_each_layer
     
-    def run(self,verbose=True,return_STMs = False,return_weights = False):
+    def run(self,verbose=True,
+            return_STMs = True,return_weights = True):
         assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.run ."
         
         if (len(self.run_order)==0):
@@ -222,7 +223,8 @@ class network():
         
         return STMs_for_each_layer,weights_for_each_layer
 
-    def run_N_trials(self,N,small_verbose=True,big_verbose=True,return_STMs = False,return_weights = False):
+    def run_N_trials(self,N,small_verbose=True,big_verbose=True,
+                     return_STMs = True,return_weights = True):
         STMlist = []
         weightlist = []
         if (return_weights):

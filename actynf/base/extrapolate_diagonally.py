@@ -1,21 +1,36 @@
-
 import numpy as np
+import math
+import enum
+import matplotlib.pyplot as plt
 
-def extrap_diag_2d(arr,assume_extrema=False,periodic=False):
+def quick_norm(x):
+    return x/np.sum(x+1e-10)
+
+def extrap_diag_2d(arr,assume_extrema=False,periodic=False,
+                   fade_out_function=(lambda x: 1.0),normalize_fadeout=True):    
     """With arr a 2d array"""
     assert arr.ndim == 2,"Array should have 2 dimensions, and not " + str(arr.ndim)
     assert arr.shape[0] == arr.shape[1], "Matrix should be a square matrix !"
-
     Ns = arr.shape[0]
+    
+    offset_array = np.linspace(-Ns,Ns,2*Ns+1).astype(int)
+    normalized_absolute_x = np.abs(offset_array)/Ns
+    # All possible other states relative to the middle of the matrix
+
+    vectorized_fadeout = np.vectorize(fade_out_function)
+    weight_array = vectorized_fadeout(normalized_absolute_x)
+    if normalize_fadeout:
+        weight_array = quick_norm(weight_array)
+    
     sum_of_shifted = 0
-    for offset in range(-Ns,Ns+1):
-        sum_of_shifted += shifted_matrix(arr, offset,assume_extrema,periodic)
-    weighted_sum_of_shifted = sum_of_shifted/(2*Ns-1)
-    return weighted_sum_of_shifted
+    for offset,weight in zip(offset_array,weight_array):
+        sum_of_shifted += weight*shifted_matrix(arr, offset,assume_extrema,periodic)
+    return sum_of_shifted
 
 def shifted_matrix(arr, offset,clamp_extrema=False,periodic=False):
     if (periodic):
-        # If we believe the states are periodic (going "up" from the upper state leads to the lower state)
+        # If we believe the states are periodic 
+        # (going "up" from the uppermost state leads to the lowermost state)
         return np.roll(arr,offset,(0,1))
     
     shifted = np.zeros(arr.shape)
@@ -47,11 +62,31 @@ def shifted_matrix(arr, offset,clamp_extrema=False,periodic=False):
 if __name__ == '__main__':
 
     diagonalize_this = np.array([
-        [0.0,0.0,0.0,0.0,0.7],
         [0.0,0.0,0.0,0.0,0.0],
+        [0.0,0.0,0.0,0.7,0.0],
+        [0.0,0.3,0.0,0.0,0.0],
         [0.0,0.0,0.0,0.0,0.0],
-        [0.0,0.0,0.0,0.0,0.0],
-        [0.3,0.0,0.0,0.0,0.0]
+        [0.0,0.0,0.0,0.0,0.0]
     ])
-    print(extrap_diag_2d(diagonalize_this))
-    print(extrap_diag_2d(diagonalize_this,True))
+    # 
+    Ns = 10
+    diagonalize_this = np.zeros((Ns,Ns)) 
+    diagonalize_this[2,6] = 0.6
+    diagonalize_this[1,6] = 0.7
+    diagonalize_this[0,2] = 0.4
+    fade_out_function=(lambda x: 1.0)
+    gen_f = 1.5
+    fade_out_function=(lambda x: np.clip(np.exp(-gen_f*x),0.0,1.0))
+    plt.imshow(extrap_diag_2d(diagonalize_this,False,fade_out_function=fade_out_function))
+    plt.show()
+    # def fade_out(distance):
+    #     x = abs(distance)
+
+
+    # fade_out_function=(lambda dist: 1.0)
+    fadeout_v = np.vectorize(fade_out_function)
+    # froms = np.linspace(-Ns,Ns,2*Ns+1)
+    # plt.plot(froms,fadeout_v(froms))
+    # plt.show()
+    # print(froms)
+    # print(double_vec(froms))

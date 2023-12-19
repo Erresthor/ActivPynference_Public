@@ -27,6 +27,9 @@ class learning_parameters :
             # Either a list of AssumedSpaceStructure
             # or a signle AssumedSpaceStructure
             # Default : NO_STRUCTURE
+        self.generalize_fadeout_function_temperature = 0.0
+            # Generalization occurs relative to the position of the
+            # actual inference
 
         self.learn_a = False
         self.learn_b = False

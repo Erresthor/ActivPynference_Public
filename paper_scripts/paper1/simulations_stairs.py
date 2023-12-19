@@ -577,7 +577,7 @@ def feedback_perception_simu(true_feedback_std,belief_feedback_std,
 
     simulate_and_save(net,savepath,Nsubj,Ntrials,override=override)
 
-if __name__ == "__main__":
+def multiple_training_curves():
     # figures_feedback_real_vs_belief()
     # feedback_perception_simu(0.01,5.0)
     smooth_over = 5
@@ -687,4 +687,73 @@ if __name__ == "__main__":
     
     fig.show()
     fig2.show()
+    input()
+
+if __name__ == "__main__":
+    # multiple_training_curves()
+    # figures_feedback_real_vs_belief()
+    # feedback_perception_simu(0.01,5.0)
+    smooth_over = 2
+    normalization_cst = 4.0
+    Nsubj = 10
+    Ntrials = 100
+
+    def basepath(std_true,std_belief):
+        return os.path.join("simulation_outputs","paper1","belief_vs_true_fb_std","subject_expects_feedback_std_"+str(std_belief)+"_noClamp","simulations_3."+str(std_true)+".pickle")
+
+    _stm,_weight,_Nsubj,_Ntrials = extract_training_data(basepath(0.5,1.0))
+                                                                # TRUE/BELIEF
+    Xs = np.linspace(0,_Ntrials,_Ntrials)
+
+    
+    # Plot smoothed training curves for all subjects : 
+    # True observations :
+    color = np.array([1.0,0.0,0.0])
+    full_color = np.concatenate([color,np.array([1.0])],axis=0)
+    trans_color = np.concatenate([color,np.array([0.2])],axis=0)
+
+
+    all_obs_back_to_back = []
+    observations = []
+    mean_obs = []
+    for subj in range(Nsubj):
+        # print("________________________________________________________________________________________________________________________________")
+        observations.append([])
+        chain_of_obs = np.array([0.0])
+        
+        mean_obs.append([])
+        feedback_learn_imgs = []
+        for trial in range(1,Ntrials+1):
+            o_s = (_stm[subj][trial][0].o)
+            u_s = (_stm[subj][trial][1].u)
+
+            observations[-1].append(_stm[subj][trial][1].o)
+            mean_obs[-1].append(np.mean(_stm[subj][trial][1].o))
+            # print(chain_of_obs)
+            chain_of_obs = np.concatenate([chain_of_obs,o_s[0,:]])
+        all_obs_back_to_back.append(chain_of_obs)
+    # print(np.array(all_obs_back_to_back[0]).shape)#/normalization_cst)
+
+    up_to_trial = 30*10
+    subj = 0
+    xs = np.linspace(0,chain_of_obs.shape[0],chain_of_obs.shape[0])
+    plt.scatter(xs[:up_to_trial],all_obs_back_to_back[subj][:up_to_trial]/normalization_cst,color=trans_color,s=2)
+    plt.plot(xs[:up_to_trial],clever_running_mean(all_obs_back_to_back[subj][:up_to_trial],10)/normalization_cst,color=full_color)
+    plt.show()
+
+
+    # exit()
+    fig,ax = plt.subplots(1)
+    smoothed_mean_obs = [clever_running_mean(subj_obs,smooth_over)/normalization_cst for subj_obs in mean_obs]
+    smoothed_mean_arr = np.array(smoothed_mean_obs)
+
+    for ksubj in range(Nsubj):
+        ax.plot(Xs,smoothed_mean_arr[ksubj,:],color=full_color,linewidth=0.2)
+    
+    mean_values = np.mean(smoothed_mean_arr,axis=0) # mean of all subjects
+    std_vals = np.std(smoothed_mean_arr,axis=0) # std of all subjects
+    ax.plot(Xs,mean_values,color=full_color,linewidth=2.0)
+    ax.fill_between(Xs,mean_values-std_vals,mean_values+std_vals,color = trans_color)   
+    ax.set_ylim(0.0,1.0)
+    fig.show()
     input()

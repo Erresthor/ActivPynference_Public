@@ -167,15 +167,12 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                 # Adding exploration terms (reduce uncertainty relative to environment dynamics)
                 A_exploration_term = 0
                 B_exploration_term = 0
+                if layer_learn_options.learn_a : # if we learn a :
+                    A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                
+                if layer_learn_options.learn_b :# if we learn b :
+                    B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P))
 
-                # if we learn a :
-                A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
-                # if we learn b :
-                # print("a")
-                # print(A_exploration_term) # print
-                B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P))
-                # print("b")
-                # print(B_exploration_term)
                 all_novelty -= A_exploration_term + B_exploration_term
 
                 G[action] = G[action] - A_exploration_term - B_exploration_term
@@ -244,7 +241,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,T,N,policy_tree_node,
                     EF,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,child_node,
                                                          layer_RNG=layer_RNG,
                                                          cap_state_explo=cap_state_explo,
-                                                         cap_action_explo=cap_action_explo)
+                                                         cap_action_explo=cap_action_explo,
+                                                         layer_learn_options=layer_learn_options)
                     # print(EF)
                     # Efe marginalized over subsequent action
                     # Structure could be optimized, but will do for now

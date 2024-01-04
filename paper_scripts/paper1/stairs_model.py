@@ -96,7 +96,7 @@ def subject_model(T,Th,
                   action_map,feedback_map,d_map,
                   decay_probability=0.5,
                   action_effect_probability=0.9,
-                  clamp_gaussian = True):
+                  clamp_gaussian = True,asit=1.0,learn_a=True):
     
     a,b,c,d,e,u  = climb_steps_weights(Ns,No,
         feedback_noise_std=feedback_std,
@@ -111,11 +111,13 @@ def subject_model(T,Th,
                  a,b,c,d,e,u,
                  T,Th)
     
-    model_layer.learn_options.learn_a = True
+    model_layer.learn_options.learn_a = learn_a
     model_layer.learn_options.learn_b = True
     model_layer.learn_options.learn_c = False
     model_layer.learn_options.learn_d = True
     model_layer.learn_options.learn_e = False
+
+    model_layer.hyperparams.alpha = asit
 
     return model_layer
 
@@ -144,7 +146,7 @@ def neurofeedback_training(T,Th,
                            perception_beliefs,
                            initial_state_beliefs,
                            decay_p,action_effect_p,
-                           clamp_gaussian = True):
+                           clamp_gaussian = True,asit=32,learn_a=True):
     process = neurofeedback_process(T,Ns_proc,No_proc,feedback_std_proc,k_useless_actions,
                                     decay_probability=decay_p,action_effect_probability=action_effect_p,
                                     clamp_gaussian=clamp_gaussian)
@@ -153,7 +155,7 @@ def neurofeedback_training(T,Th,
                           perception_beliefs,
                           initial_state_beliefs,
                           decay_probability = decay_p,action_effect_probability=action_effect_p,
-                          clamp_gaussian=clamp_gaussian)
+                          clamp_gaussian=clamp_gaussian,asit=asit)
 
     process.inputs.u = actynf.link(model,lambda x : x.u)
     model.inputs.o = actynf.link(process, lambda x : np.array([np.round(No_subj*(x.o[0]/No_proc))]).astype(int))

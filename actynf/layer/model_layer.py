@@ -820,7 +820,8 @@ class mdp_layer :
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
                     self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
-                    self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo)
+                    self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
+                    self.learn_options)
         # DEBUG : 
         if (self.debug):
             print("Free energy at time " + str(t) + " :")

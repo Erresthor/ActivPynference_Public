@@ -534,11 +534,11 @@ def figures_feedback_real_vs_belief():
 
 # A general function to create the recordings for a climb stair simulation
 # with variable true_fb_std and belief_fb_std
-def feedback_perception_simu(true_feedback_std,belief_feedback_std,
-                             Nsubj,Ntrials,
+def feedback_perception_simu(savepath,
+                             true_feedback_std,belief_feedback_std,
+                             Nsubj,Ntrials,action_selection_inverse_temp,
                             clamp_gaussian=False,override=False):
-    basepath = os.path.join("simulation_outputs","paper1","belief_vs_true_fb_std","subject_expects_feedback_std_"+str(belief_feedback_std)+("" if clamp_gaussian else "_noClamp"))
-
+    
     T = 10
     Th = 2
     feedback_resolution = 5
@@ -560,6 +560,8 @@ def feedback_perception_simu(true_feedback_std,belief_feedback_std,
     pLow = 0.5   # Without any increasing action, there is a pLow chance that the cognitive state will decrease spontaneously
     pUp  = 0.99
 
+    
+
     net = neurofeedback_training(T,Th,  # Trial duration + temporal horizon
                     subj_cognitive_resolution,true_cognitive_resolution,       # Subject belief about cognitive resolution / true cognitive resolution
                     feedback_resolution,feedback_resolution,       # Subject belief about feedback resolution / true feedback resolution
@@ -570,10 +572,10 @@ def feedback_perception_simu(true_feedback_std,belief_feedback_std,
                     [d_prior_predominance,initial_d_confidence],   # d mapping previous knowledge
                     pLow,pUp,   # How likely it is that the cognitive state will go down when unattended
                                 # / how likely it is that the correct action will increase the cognitive state
-                    clamp_gaussian=clamp_gaussian) 
+                    clamp_gaussian=clamp_gaussian,asit = action_selection_inverse_temp) 
                                 # Weither to increase the categorical probabilistic weights
                                 # on the edges or not
-    savepath = os.path.join(basepath,"simulations_3."+str(true_feedback_std)+".pickle")
+    # savepath = os.path.join(basepath,"simulations_3."+str(true_feedback_std)+".pickle")
 
     simulate_and_save(net,savepath,Nsubj,Ntrials,override=override)
 
@@ -585,19 +587,22 @@ def multiple_training_curves():
     Nsubj = 10
     Ntrials = 100
 
-    def basepath(std):
-        return os.path.join("simulation_outputs","paper1","belief_vs_true_fb_std","subject_expects_feedback_std_"+str(std)+"_noClamp")
-
+    action_selection_inverse_temp = 2.0
     true_fb_stds = [0.1,0.3,0.4,0.5,0.6,0.7,1.0]
     belief_feedback_stds = [0.1,0.5,1.0,1.5,3.0]
     ts = np.linspace(0,1.0,len(belief_feedback_stds))
     colorlist = [color_spectrum(np.array([1.0,0.0,0.0]),np.array([0.0,0.0,1.0]),t) for t in ts]
     
+    def full_path(true_fb,belief_fb,asit):
+        return os.path.join("simulation_outputs","paper1","stairs","belief_vs_true_fb_std",str(asit),"subject_expects_feedback_std_"+str(belief_fb)+"_noClamp","simulations_3."+str(true_fb)+".pickle")
+
+
     # Actually simulate & save the trials
     for true_fb_std in true_fb_stds:
         for belief_fb_std in belief_feedback_stds:
-            feedback_perception_simu(true_fb_std,belief_fb_std,
-                                     Nsubj,Ntrials,
+            feedback_perception_simu(full_path(true_fb_std,belief_fb_std,action_selection_inverse_temp),
+                                     true_fb_std,belief_fb_std,
+                                     Nsubj,Ntrials,action_selection_inverse_temp,
                                     clamp_gaussian=False,override=False)
 
     # Show the results
@@ -608,7 +613,7 @@ def multiple_training_curves():
     fig2.suptitle("Subject training curve under variable subject prior feedback confidence and variable true feedback noise")
     
     for i,std in enumerate(true_fb_stds):
-        savepaths = [os.path.join(basepath(k),"simulations_3."+str(std)+".pickle") for k in belief_feedback_stds]
+        savepaths = [full_path(std,k,action_selection_inverse_temp) for k in belief_feedback_stds]
 
         stms,weights,Nsubj,Ntrials = [],[],[],[]
         for belief_std,path,color in zip(belief_feedback_stds,savepaths,colorlist):
@@ -690,70 +695,74 @@ def multiple_training_curves():
     input()
 
 if __name__ == "__main__":
-    # multiple_training_curves()
+    multiple_training_curves()
     # figures_feedback_real_vs_belief()
     # feedback_perception_simu(0.01,5.0)
-    smooth_over = 2
-    normalization_cst = 4.0
-    Nsubj = 10
-    Ntrials = 100
 
-    def basepath(std_true,std_belief):
-        return os.path.join("simulation_outputs","paper1","belief_vs_true_fb_std","subject_expects_feedback_std_"+str(std_belief)+"_noClamp","simulations_3."+str(std_true)+".pickle")
+    # # Single + multiple_training_curves()
+    # smooth_over = 2
+    # normalization_cst = 4.0
+    # Nsubj = 10
+    # Ntrials = 100
 
-    _stm,_weight,_Nsubj,_Ntrials = extract_training_data(basepath(0.5,1.0))
-                                                                # TRUE/BELIEF
-    Xs = np.linspace(0,_Ntrials,_Ntrials)
+    # def basepath(std_true,std_belief):
+    #     return os.path.join("simulation_outputs","paper1","belief_vs_true_fb_std","subject_expects_feedback_std_"+str(std_belief)+"_noClamp","simulations_3."+str(std_true)+".pickle")
+
+    # _stm,_weight,_Nsubj,_Ntrials = extract_training_data(basepath(0.5,0.5))
+    #                                                             # TRUE/BELIEF
+    # Xs = np.linspace(0,_Ntrials,_Ntrials)
 
     
-    # Plot smoothed training curves for all subjects : 
-    # True observations :
-    color = np.array([1.0,0.0,0.0])
-    full_color = np.concatenate([color,np.array([1.0])],axis=0)
-    trans_color = np.concatenate([color,np.array([0.2])],axis=0)
+    # # Plot smoothed training curves for all subjects : 
+    # # True observations :
+    # color = np.array([1.0,0.0,0.0])
+    # color = np.array([0.0,0.0,1.0])
+    # color = np.array([0.5,0.0,0.5])
+    # full_color = np.concatenate([color,np.array([1.0])],axis=0)
+    # trans_color = np.concatenate([color,np.array([0.2])],axis=0)
 
 
-    all_obs_back_to_back = []
-    observations = []
-    mean_obs = []
-    for subj in range(Nsubj):
-        # print("________________________________________________________________________________________________________________________________")
-        observations.append([])
-        chain_of_obs = np.array([0.0])
+    # all_obs_back_to_back = []
+    # observations = []
+    # mean_obs = []
+    # for subj in range(Nsubj):
+    #     # print("________________________________________________________________________________________________________________________________")
+    #     observations.append([])
+    #     chain_of_obs = np.array([0.0])
         
-        mean_obs.append([])
-        feedback_learn_imgs = []
-        for trial in range(1,Ntrials+1):
-            o_s = (_stm[subj][trial][0].o)
-            u_s = (_stm[subj][trial][1].u)
+    #     mean_obs.append([])
+    #     feedback_learn_imgs = []
+    #     for trial in range(1,Ntrials+1):
+    #         o_s = (_stm[subj][trial][0].o)
+    #         u_s = (_stm[subj][trial][1].u)
 
-            observations[-1].append(_stm[subj][trial][1].o)
-            mean_obs[-1].append(np.mean(_stm[subj][trial][1].o))
-            # print(chain_of_obs)
-            chain_of_obs = np.concatenate([chain_of_obs,o_s[0,:]])
-        all_obs_back_to_back.append(chain_of_obs)
-    # print(np.array(all_obs_back_to_back[0]).shape)#/normalization_cst)
+    #         observations[-1].append(_stm[subj][trial][1].o)
+    #         mean_obs[-1].append(np.mean(_stm[subj][trial][1].o))
+    #         # print(chain_of_obs)
+    #         chain_of_obs = np.concatenate([chain_of_obs,o_s[0,:]])
+    #     all_obs_back_to_back.append(chain_of_obs)
+    # # print(np.array(all_obs_back_to_back[0]).shape)#/normalization_cst)
 
-    up_to_trial = 30*10
-    subj = 0
-    xs = np.linspace(0,chain_of_obs.shape[0],chain_of_obs.shape[0])
-    plt.scatter(xs[:up_to_trial],all_obs_back_to_back[subj][:up_to_trial]/normalization_cst,color=trans_color,s=2)
-    plt.plot(xs[:up_to_trial],clever_running_mean(all_obs_back_to_back[subj][:up_to_trial],10)/normalization_cst,color=full_color)
-    plt.show()
+    # up_to_trial = 30*10
+    # subj = 0
+    # xs = np.linspace(0,chain_of_obs.shape[0],chain_of_obs.shape[0])
+    # plt.scatter(xs[:up_to_trial],all_obs_back_to_back[subj][:up_to_trial]/normalization_cst,color=trans_color,s=2)
+    # plt.plot(xs[:up_to_trial],clever_running_mean(all_obs_back_to_back[subj][:up_to_trial],10)/normalization_cst,color=full_color)
+    # plt.show()
 
 
-    # exit()
-    fig,ax = plt.subplots(1)
-    smoothed_mean_obs = [clever_running_mean(subj_obs,smooth_over)/normalization_cst for subj_obs in mean_obs]
-    smoothed_mean_arr = np.array(smoothed_mean_obs)
+    # # exit()
+    # fig,ax = plt.subplots(1)
+    # smoothed_mean_obs = [clever_running_mean(subj_obs,smooth_over)/normalization_cst for subj_obs in mean_obs]
+    # smoothed_mean_arr = np.array(smoothed_mean_obs)
 
-    for ksubj in range(Nsubj):
-        ax.plot(Xs,smoothed_mean_arr[ksubj,:],color=full_color,linewidth=0.2)
+    # for ksubj in range(Nsubj):
+    #     ax.plot(Xs,smoothed_mean_arr[ksubj,:],color=full_color,linewidth=0.2)
     
-    mean_values = np.mean(smoothed_mean_arr,axis=0) # mean of all subjects
-    std_vals = np.std(smoothed_mean_arr,axis=0) # std of all subjects
-    ax.plot(Xs,mean_values,color=full_color,linewidth=2.0)
-    ax.fill_between(Xs,mean_values-std_vals,mean_values+std_vals,color = trans_color)   
-    ax.set_ylim(0.0,1.0)
-    fig.show()
-    input()
+    # mean_values = np.mean(smoothed_mean_arr,axis=0) # mean of all subjects
+    # std_vals = np.std(smoothed_mean_arr,axis=0) # std of all subjects
+    # ax.plot(Xs,mean_values,color=full_color,linewidth=2.0)
+    # ax.fill_between(Xs,mean_values-std_vals,mean_values+std_vals,color = trans_color)   
+    # ax.set_ylim(0.0,1.0)
+    # fig.show()
+    # input()

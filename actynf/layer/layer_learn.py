@@ -39,7 +39,7 @@ import matplotlib.pyplot as plt
 
 from ..base.miscellaneous_toolbox import flexible_copy
 from ..base.extrapolate_diagonally import extrap_diag_2d
-from ..base.function_toolbox import spm_dekron,spm_complete_margin,spm_cross
+from ..base.function_toolbox import spm_dekron,spm_complete_margin,spm_cross,normalize
 from .spm_backwards import spm_backwards,backward_state_posterior_estimation
 from .utils import dist_from_definite_outcome_accross_t
 
@@ -247,6 +247,7 @@ def learn_from_experience(layer):
     general_plasticity = layerPlasticity(eta,mem_decay_type,mem_loss,assume_state_space_structure,exponential_decay_function)
 
     STM = layer.STM
+
     o_history = STM.o
     o_d_history = STM.o_d
     
@@ -294,7 +295,9 @@ def learn_from_experience(layer):
     if show_timers :
         print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
 
-    if backwards_pass :
+
+    backwars_pass_is_fixed = False
+    if backwards_pass and backwars_pass_is_fixed :
         t_first = time.time()
         smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)
         STM.x_d_smoothed = layer.kronecker_to_joint_accross_time(smoothed_x_kron_history) # Let's save it to the layer's STM !
@@ -307,14 +310,33 @@ def learn_from_experience(layer):
         # Nothing to save to the STM 
     # print(marginalized_smoothed_x)
 
-    
+    # fig,axs = plt.subplots(2)
+    # axs[0].imshow(layer.a[0])
     if (layer.learn_options.learn_a): 
         t_first = time.time()
         new_a = a_learning(marginalized_o,smoothed_x_kron_history,layer.a,
                 general_plasticity)
         layer.a = new_a
-        if show_timers :
-            print("     Learning a took {:.2f} seconds".format(time.time() - t_first))
+    #     if show_timers :
+    #         print("     Learning a took {:.2f} seconds".format(time.time() - t_first))
+    # axs[1].imshow(layer.a[0])
+    # fig.show()
+    
+
+    # plot_Gd = False
+    # if plot_Gd :
+    #     action_select_hist = STM.Gd
+    #     fig2,axs2= plt.subplots(1,T-1)
+
+    #     axs2[0].set_ylabel("Actions")
+    #     for t in range(T-1):
+    #         im = axs2[t].imshow(action_select_hist[...,t])
+    #         axs2[t].set_xticks(range(action_select_hist.shape[0]))
+    #         axs2[t].set_xticklabels(["Habits","Exploit","Uncertainty","FB novelty","ACT novelty","Deeper"],rotation=45,fontsize=4)
+    #         fig2.colorbar(im,fraction=0.046, pad=0.04)
+    #     fig2.show()
+        
+    #     input()
 
     if (layer.learn_options.learn_b):
         t_first = time.time()

@@ -13,7 +13,8 @@ from ..enums import NO_MEMORY_DECAY,NO_STRUCTURE
 
 from .parameters.hyperparameters import hyperparameters
 from .parameters.learning_parameters import learning_parameters
-from .spm_forwards import spm_forwards
+# from .spm_forwards import spm_forwards
+from .spm_forwards_decompose_G import spm_forwards
 from .layer_learn import learn_from_experience
 from .policy_tree import policy_tree_node
 
@@ -133,6 +134,7 @@ class layer_STM :
         self.x_d = np.full(tuple(Ns)+(T,),-1.0) # State DISTRIBUTIONS
         self.x_d_smoothed = np.full(tuple(Ns)+(T,),-1.0) # Placeholder for state distributions after a backward pass (prototype)
         self.u_d = np.full((Np,)+(T-1,),-1.0) # Action DISTRIBUTIONS
+        self.Gd = np.full((Np,)+(6,)+(T-1,),-1.0) # Decomposed Expected Free Energy # [Nactions]x[6 = prior + risk + ambiguity + (novelty_a + novelty_b) + subsequent_action(s)]
 
         self.o = np.full((Nmod,)+(T,),-1) # Observation 
         self.x = np.full((Nf,)+(T,),-1) # State 
@@ -157,6 +159,8 @@ class layer_STM :
             return not(minus1_in_arr(self.u[t]))
         elif (key=="u_d"):
             return not(minus1_in_arr(self.u_d[:,t]))
+        elif (key=="Gd"):
+            return not(minus1_in_arr(self.Gd[:,t]))
 
     def __str__(self):
         return self.getString()
@@ -183,6 +187,9 @@ class layer_STM :
             string_val += "u_d : \n"
             string_val += str(np.round(self.u_d,2))
             string_val += "\n----------- \n"
+            string_val += "Gd : \n"
+            string_val += str(np.round(self.Gd,2))
+            string_val += "\n----------- \n"
         else :
             string_val += "(AT TIME " + str(t) +")\n"
             string_val += "o : \n"
@@ -206,6 +213,12 @@ class layer_STM :
             string_val += "u_d : \n"
             try :
                 string_val += str(np.round(self.u_d[:,t],2))
+            except :
+                string_val += "// Over temporal horizon // \n"
+            string_val += "\n----------- \n"
+            string_val += "Gd : \n"
+            try :
+                string_val += str(np.round(self.Gd,2))
             except :
                 string_val += "// Over temporal horizon // \n"
             string_val += "\n----------- \n"
@@ -818,10 +831,15 @@ class mdp_layer :
         # If t horizon = 0, N = t, no loop
         # If t horizon = 1, N = t+1,there is one instance of t<N leading to another recursive tree search loop
         # If t horizon = 2, N = t+2, there are two nested instances of recursive search
+        # G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
+        #                     self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
+        #                     self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
+        #                     layer_learn_options=self.learn_options)
+        
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
-                    self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
-                    self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
-                    self.learn_options)
+                            self.T,min(self.T-1,t+self.T_horizon),self.debug,self.RNG,
+                            self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
+                            layer_learn_options=self.learn_options)
         # DEBUG : 
         if (self.debug):
             print("Free energy at time " + str(t) + " :")
@@ -849,21 +867,24 @@ class mdp_layer :
     def model_update(self):
         t = self.t
         G,Q,prop_time,tree = self.belief_propagation()
-        # print(np.round(G,2))
         # print(softmax(G))
         # Update the STM with the inference results
         # Short term memory addition : 
         
         self.STM.x_d[...,t] = self.kronecker_to_joint(Q)
+        
+        
         if (t<self.T-1):
             # # posterior_over_policy & precision
-            softmax_posterior_u = softmax(G)
+            softmax_posterior_u = softmax(np.sum(G,axis=1))
             self.STM.u_d[:,t] = softmax_posterior_u
             w = np.inner(softmax_posterior_u,nat_log(softmax_posterior_u))
 
             # Pick an action & save the result to STM
             u_idx, state_u_idx = self.pick_action()
             self.STM.u[t] = u_idx[0]
+            self.STM.Gd[:,:,t] = G
+            self.STM.u[t]
         return tree
 
     def model_tick(self,

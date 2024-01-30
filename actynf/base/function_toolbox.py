@@ -173,7 +173,7 @@ def normalize(X,axis=0,all_axes=False,epsilon=1e-15):
         X[Xint] = X[Xint] + epsilon
 
         # Finally, we return the actual normalized matrix
-        x= X/(np.sum(X,axis))
+        x= X/(np.sum(X,axis,keepdims=True))
     elif(X==None):
         return None
     else :
@@ -207,7 +207,7 @@ def spm_wnorm_toocomplex(A):
         return (np.squeeze(A_wnormed))
     return A_wnormed
 
-def spm_wnorm(A,epsilon = 1e-16) :
+def spm_wnorm(A,max_novelty = 100) :
     # no idea what it does ¯\_(ツ)_/¯ 
     """ Used for calculating a novelty term and push agent towards long term model exploration. 
     In practice, we want to encourage unexplored options, even though we have some slight priors. Strong priors 
@@ -217,16 +217,15 @@ def spm_wnorm(A,epsilon = 1e-16) :
     First term : high if ption prior is low. Problem : might be very high if prior very low but in spm forwards, it is no problem ?
     Second term : high if dirichlet prior term sum low : encourage unexplored options
     """
-    Acopy = np.copy(A) +  epsilon
+    # Acopy = np.copy(A) +  epsilon
     
     # This very high epsilon puts an effective bound to the novelty term
-    # (max novelty ~ - 0.5* (100))
+    # (max novelty ~ - 0.5* (10000))
     # If this does not exist, low prior models weights lead to very high novelties
 
-    A_wnormed = ((1./np.sum(Acopy,axis=0,keepdims=True)) - (1./Acopy))/2. # Always <0 --> Unwanted ?
-    # CHECK IF THIS CAUSES ERRORS ?
+    A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./(A+1e-12)))/2. 
+    A_wnormed[A_wnormed < -max_novelty] = -max_novelty
     return A_wnormed
-    return np.squeeze(A_wnormed)
 
 def inverted_spm_wnorm(A,epsilon = 1e-16) :
     # Same as before but with sign inverted so that it is always >0

@@ -52,9 +52,9 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax, prune_tr
 from ..base.miscellaneous_toolbox import isField,flexible_copy
 
 def spm_forwards(O,P_t,U,layer_variables,t,
-                 T,N,policy_tree_node,debug=False,layer_RNG=None,
+                 T,N,debug=False,layer_RNG=None,
                 cap_state_explo = None, cap_action_explo = None,
-                layer_learn_options = None) :
+                layer_learn_options = None,depth=0) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -88,6 +88,9 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     A = self.a
     B = self.b
     """
+    _depth = depth 
+
+
     # print(t)
     # cap_state_explo = 3
     # cap_action_explo = None
@@ -104,16 +107,18 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     A_ambiguity = layer_variables.a_ambiguity
 
     B = layer_variables.b_kron
+    B_novelty = layer_variables.b_kron_complexity
+
     C = layer_variables.c
     E = layer_variables.e
     
-    B_novelty = layer_variables.b_kron_complexity
-
     Nf = A[0].ndim-1  # granted A has at least 1 modality, any situation without observation isn't explored here
     Nmod = len(A)
     P = flexible_copy(P_t)
-    G = flexible_copy(E)
-    print(E.shape)
+
+    G = np.zeros((E.shape[0],6)) # [Nactions]x[6 = prior + risk + ambiguity + (novelty_a + novelty_b) + subsequent_action(s)]
+    G[:,0] = E
+
     # L is the posterior over hidden states based on likelihood (A & O)
     L = 1
     for modality in range (Nmod):
@@ -123,7 +128,6 @@ def spm_forwards(O,P_t,U,layer_variables,t,
 
     # P is the posterior over hidden states at the current time t based on priors
     P =normalize(post_unnormalized) # P(s|o) = P(o|s)P(s)
-    policy_tree_node.update_state_posterior(P)
 
     if (t==T-1):
         # Search over, calculations make no sense here as no actions remain to be chosen
@@ -138,45 +142,50 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     # To approximate the posterior over policie. To do that, it balances out states epistemics and 
     # eploitative elements (risk), as well as model exploration terms.
     
-    values_future = []
     for action in range(U.shape[0]) :
         Q.append(np.dot(B[action],P)) 
-        all_ambiguity = 0
-        all_risk = 0
-        all_novelty = 0
         for modality in range(Nmod):
             flattened_A = flatten_a[modality]
             flattened_W = flatten_a_novelty[modality]
             flattened_H = A_ambiguity[modality]
 
             qo = np.dot(flattened_A,Q[action])   # prediction over observations at time t+1
-            po = C[modality][:,t+1]              # what we want at that time (t+1) , log(p(o))
+
+            plot_action_selection = True
+            if plot_action_selection and (_depth==0)and(action==2):
+                print("qo ---------------------------")
+                print(np.round(qo,2))
+                print("qs ---------------------------")
+                print(np.round(Q[action],2))
+                print("novelty")
+                print(np.round(np.dot(flattened_W,Q[action]),2))
+                print(np.round(qo*np.dot(flattened_W,Q[action]),2))
+                print("total")
+                print(np.round(-np.dot(qo.T,np.dot(flattened_W,Q[action])),2))
+            
+            po = C[modality][:,t+1]              # what we want at that time (t+1) = log(p(o))
 
             bayesian_risk_only = False 
             if (bayesian_risk_only):
-                G[action] = G[action] + np.dot(qo.T,po) # ROI if only bayesian risk is computed
+                risk = np.dot(qo.T,po)
+                G[action,1] = G[action,1] + risk # ROI if only bayesian risk is computed
             else :
-                ambiguity = np.dot(Q[action].T,flattened_H) # I'd rather solve uncertainty and avoid ambiguous observations (i want to minimize the entropy of the observation distribution)
-                all_ambiguity += ambiguity
                 risk =  - np.dot(qo.T,nat_log(qo)-po) # I want to go towards preferable results = - D_KL[q(o|pi)||p(o)]
-                all_risk += risk
+                G[action,1] = G[action,1] + risk
 
-                # G[factor] =   ambiguity + risk 
-                G[action] = G[action] + ambiguity + risk
+                ambiguity = np.dot(Q[action].T,flattened_H) # I'd rather solve uncertainty and avoid ambiguous observations (i want to minimize the entropy of the observation distribution)
+                G[action,2] = G[action,2] + ambiguity
 
                 # Adding exploration terms (reduce uncertainty relative to environment dynamics)
                 A_exploration_term = 0
-                B_exploration_term = 0
                 if layer_learn_options.learn_a : # if we learn a :
-                    A_exploration_term = np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                    A_exploration_term = - np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                G[action,3] = G[action,3] + A_exploration_term
+                
+                B_exploration_term = 0
                 if layer_learn_options.learn_b :# if we learn b :
-                    B_exploration_term = np.dot(Q[action],np.dot(B_novelty[action],P))
-
-                all_novelty -= (A_exploration_term + B_exploration_term)
-                G[action] = G[action] - A_exploration_term - B_exploration_term
-        
-        values_future.append([np.round(all_ambiguity,2),np.round(all_risk,2),np.round(all_novelty,2)])
-        values_future.append([all_ambiguity,all_risk,all_novelty])
+                    B_exploration_term = - np.dot(Q[action],np.dot(B_novelty[action],P))
+                G[action,4] = G[action,4] + B_exploration_term
     # Q = q(s|pi) at time t
     # P = q(s) at time t
     # u = softmax(G) = q(pi) at time t
@@ -191,12 +200,18 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     #       2.b : if yes, then what are the associated observation distribution according to my model ?
     # 3. Using those computed values, if all plausible, let's approximate the free energy for the analyzed action
     # print("t : " + str(t) + " | " + str(cap_action_explo) + " - " + str(cap_state_explo))
+    
+
+    # if (t==0):
+    #     print("---------------------------")
+    #     for act in range(U.shape[0]):
+    #         print(np.round(B_novelty[0]))
+    # if (t==1) and (_depth==1):
+    #     print(np.round(G,2))
+        
     plausible_threshold = 1.0/16.0
     if (t<N): # t within temporal horizon
-        K = np.zeros((Q[0].shape))
-
-        u = softmax(G)
-        policy_tree_node.update_policy_prior(u)
+        u = softmax(np.sum(G,axis=1))
 
         if (isField(cap_action_explo)):
             idx_action_to_explore = prune_tree_auto(u,cap_action_explo,DETERMINISTIC_PRUNING,layer_RNG,plausible_threshold=plausible_threshold,
@@ -205,11 +220,12 @@ def spm_forwards(O,P_t,U,layer_variables,t,
             mask_action_not_explored = [not(i in idx_action_to_explore) for i in range(u.shape[0])]
         else :
             mask_action_not_explored = (u<plausible_threshold)
+        
         u[mask_action_not_explored] = 0
-        G[mask_action_not_explored] = -1000
+        G[:,5][mask_action_not_explored] = -1000
 
-        
-        
+        # G[tuple(mask_action_not_explored)+(5,)] = -1000
+        # print()
         idx_action_to_explore = range(U.shape[0])
         for action in idx_action_to_explore :          
             if (u[action]>=plausible_threshold): #If this action is plausible
@@ -226,6 +242,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                                                            deterministic_shuffle_between_equal_vals = True)
                     idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
 
+
+                K = np.zeros((Q[0].shape))
                 for index in idx_state_to_explore :
                     for modality in range (Nmod):
                         O[modality] = flatten_a[modality][:,index]
@@ -235,25 +253,24 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                     P_next_t = Q[action]
                     
 
-                    child_node = policy_tree_node.add_child(P_next_t,u_index_in = action,s_index_in=index,value=values_future[action])
-                    EF,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,child_node,
+                    G_next_act,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,
                                                          layer_RNG=layer_RNG,
                                                          cap_state_explo=cap_state_explo,
                                                          cap_action_explo=cap_action_explo,
-                                                         layer_learn_options=layer_learn_options)
-                    # print(EF)
-                    # Efe marginalized over subsequent action
-                    # Structure could be optimized, but will do for now
+                                                         layer_learn_options=layer_learn_options,
+                                                         depth = _depth+1)
                     # Expected free energy marginalised over subsequent action
+
+                    EF = np.sum(G_next_act,axis=1)
+                    
                     K[index] = np.inner(softmax(EF),EF)
                 indexes_L = list(idx_state_to_explore)
-                G[action] = G[action] + np.dot(K[indexes_L],Q[action][indexes_L])
-        u = softmax(G)
+
+                # Expected free energy marginalised over states
+                G[action,5] = G[action,5] + np.dot(K[indexes_L],Q[action][indexes_L])
+        post_u = softmax(np.sum(G,axis=1))
         R = 0
         # Posterior over next state marginalised over subsequent action
         for action in range(U.shape[0]):
-            R = R + u[action]*Q[action]
-        pol_w_next_s_posterior = R
-        policy_tree_node.update_policy_posterior(u)
-        policy_tree_node.update_pol_weighted_next_state_posterior(pol_w_next_s_posterior)
+            R = R + post_u[action]*Q[action]
     return G,P

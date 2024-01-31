@@ -67,6 +67,7 @@ def single_action_weights(Ns,No,
 
         # print(np.round(gaussian_to_categorical(np.zeros((3,)),x_state*(No-1),0.25,option_clamp=False),2))
         a0[:,state] = gaussian_to_categorical(a0[:,state],x_state*(No-1),feedback_noise_std,option_clamp=clamp_gaussian)
+    
     a = [a0]
     if actynf.isField(naive_feedback_mapping):
         # naive action mapping is a list of 2 terms :

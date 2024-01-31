@@ -100,23 +100,7 @@ def show_figures(active_model,save_container,realA_override=None,realB_override=
     input()
     plt.close()
 
-def colorfunc(colorlist,t,interp = 'linear'):
-        n = len(colorlist)
-        if (interp=='linear'):
-            for i in range(n):
-                current_color_prop = (float(i)/(n - 1))
-                next_color_prop = (float(i+1)/(n-1))
-                if ((t>=current_color_prop) and (t<=next_color_prop)):
-                    ti = (t - current_color_prop)/(next_color_prop-current_color_prop)
-                    return colorlist[i+1]*ti + colorlist[i]*(1-ti)
 
-def custom_colormap(colormap,in_array,interpolation='linear') :
-    """Not very elegant + only designed for 3D matrices :>(  """
-    output_array = np.zeros(in_array.shape+colormap[0].shape)
-    for x in range(in_array.shape[0]):
-        for y in range(in_array.shape[1]):
-            output_array[x,y,:] = colorfunc(colormap,in_array[x,y],interp=interpolation)
-    return output_array
         
 def draw_a_3D_image(matrix,intermatrix_size=0,colormap=[np.array([55,0,55,255]),np.array([0,255,255,255])]): # input in [0,1]
     matrix_shape = matrix.shape

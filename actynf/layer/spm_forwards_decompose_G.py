@@ -151,7 +151,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,
 
             qo = np.dot(flattened_A,Q[action])   # prediction over observations at time t+1
 
-            plot_action_selection = True
+            plot_action_selection = False
             if plot_action_selection and (_depth==0)and(action==2):
                 print("qo ---------------------------")
                 print(np.round(qo,2))

@@ -3,6 +3,7 @@ import pickle
 import sys,os
 import numpy as np
 import scipy.stats as scistats
+from scipy.spatial.distance import jensenshannon
 import matplotlib.pyplot as plt
 from scipy.ndimage import uniform_filter1d
 
@@ -168,24 +169,37 @@ def pointcloud_mean(x,y,win):
 
 def dist_kl_dir(a,b,
             return_scalar = True):
-    epsilon = 1e-10
-
+    """ The same as scipy.stats.entropy"""
     a = actynf.normalize(a)
     b = actynf.normalize(b)
 
     if (type(a)==list):
         assert type(b)==list,"a and b should be the same type."
-        assert len(a)==len(b),"a and b should have the same size."
         divs = [dist_kl_dir(ai,bi) for ai,bi in zip(a,b)]
         if (return_scalar):
             return sum(divs)
     else :
         assert a.shape == b.shape,"a and b should be numpy arrays of same shape."
-        divs = np.sum(a*np.log(epsilon + (a/(b+epsilon))))
+        divs = np.sum(a*np.log(1e-10 + (a/(b+1e-5))))
+    return divs
 
+
+def js_dir(a,b,return_scalar=True,eps=1e-10):
+    a = actynf.normalize(a)
+    b = actynf.normalize(b)
+    if (type(a)==list):
+        assert type(b)==list,"a and b should be the same type."
+        divs = [js_dir(ai,bi) for ai,bi in zip(a,b)]
+        if (return_scalar):
+            return sum(divs)
+    else :
+        assert a.shape == b.shape,"a and b should be numpy arrays of same shape."
+        a[a<eps] = eps
+        b[b<eps] = eps # Avoid overflows
+        divs = np.sum(jensenshannon(a,b,axis=0))
     return divs
 
 if __name__ == "__main__":
     X  = [0,1,2,9,8,7,6]
     Y = [0,1,2,3,4,5,6]
-    print(clever_running_mean_mess(X,Y,2,100))
+    print(js_dir(X,Y))

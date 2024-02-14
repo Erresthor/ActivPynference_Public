@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import actynf
 
-from tools import dist_kl_dir
+from tools import dist_kl_dir,js_dir
 
 def colorfunc(colorlist,t,interp = 'linear'):
     n = len(colorlist)
@@ -93,7 +93,7 @@ def trial_plot(observations,
 
     return fig,axes
 
-def trial_plot_figure(fig,observations,
+def trial_plot_figure(fig,observations,obs_dist,
                       real_states,states_beliefs,
                       actions,action_beliefs) :
     titlesize = 8
@@ -113,6 +113,11 @@ def trial_plot_figure(fig,observations,
         color_array = colorfunc(my_colormap,img_array[k])
         img[k,:,:] = color_array
     
+
+    if obs_dist.ndim >2:
+        obs_dist = np.sum(obs_dist,axis=1)
+        # obs_dist = obs_dist[]
+    obs_dist_image = custom_colormap(my_colormap_bw,obs_dist)
     state_belief_image = custom_colormap(my_colormap_bw,states_beliefs)
     action_belief_image = custom_colormap(my_colormap_bw,action_beliefs)   
 
@@ -133,6 +138,7 @@ def trial_plot_figure(fig,observations,
     ax1.set_yticks(ticks_y)
     ax1.grid()
     ax1.set_title("Feedback observations",fontsize=titlesize)
+    ax1.imshow(obs_dist_image/255.0,aspect="auto")
     ax1.plot(timesteps,observations,color = 'darkgreen',marker="H",linestyle = 'None',markersize=10,label="Feedback lvl")
     ax1.set_ylim([-0.5,4.5])
     ax1.set_ylabel("Observations")
@@ -178,16 +184,16 @@ def plot_one_trial(stm,weight,
     
     true_mental_states = stm_sub_trial[0].x[0]
     feedback_levels = stm_sub_trial[0].o[0]
+    feedback_distribution = stm_sub_trial[0].o_d
 
     subject_state_inferences = stm_sub_trial[1].x_d
-
     subject_mental_actions = stm_sub_trial[1].u
     subject_action_posteriors = stm_sub_trial[1].u_d
 
     # subfigs[0] = trial_plot_figure(feedback_levels,
     #                   true_mental_states,subject_state_inferences,
     #                   subject_mental_actions,subject_action_posteriors)
-    trial_fig,trial_axes = trial_plot_figure(subfigs[0],feedback_levels,
+    trial_fig,trial_axes = trial_plot_figure(subfigs[0],feedback_levels,feedback_distribution,
                       true_mental_states,subject_state_inferences,
                       subject_mental_actions,subject_action_posteriors)
     subfigs[0].suptitle(title)
@@ -223,7 +229,8 @@ def plot_one_trial(stm,weight,
         bigfig.savefig(os.path.join(save_fig_path,name))
     return bigfig
 
-def plot_training_curve(stm,weights,title,save_fig_path=None,name=""):
+def plot_training_curve(stm,weights,title,save_fig_path=None,name="",
+                        distance_metric="kl"):
     fig,axes = plt.subplots(2,2,dpi=200,sharex=True)#,sharey=True)
 
     smooth_over = 2
@@ -248,37 +255,46 @@ def plot_training_curve(stm,weights,title,save_fig_path=None,name=""):
 
     # Plot the average level of feedback received by the subjects
     axes[0,0].set_title("Feedback levels")
-    avg_fb = np.mean(process_obs_array,axis = -1)/normalization_cst
+    avg_fb = np.mean(process_obs_array,axis = -1)#/normalization_cst
     avg_fb_allsubjs = np.mean(avg_fb,axis=0)
     var_fb_allsubjs = np.std(avg_fb,axis=0)
     for subj in range(Nsubj):
         axes[0,0].fill_between(XTrials,avg_fb_allsubjs-var_fb_allsubjs,avg_fb_allsubjs+var_fb_allsubjs) 
         axes[0,0].plot(XTrials,avg_fb[subj,:],color="black",linewidth=0.2)
     axes[0,0].plot(XTrials,avg_fb_allsubjs,color="black",linewidth=2.0,label="States")
-    axes[0,0].set_ylim([0.0,1.0])
+    # axes[0,0].set_ylim([0.0,1.0])
+    axes[0,0].set_ylim([0.0,normalization_cst])
     axes[0,0].grid()
 
     # Plot the average cognitive states achieved by the subjects
     axes[0,1].set_title("Mental states")
-    avg_state = np.mean(process_state_array,axis = -1)/normalization_cst
+    avg_state = np.mean(process_state_array,axis = -1)#/normalization_cst
     avg_state_allsubjs = np.mean(avg_state,axis=0)
     var_state_allsubjs = np.std(avg_state,axis=0)
     for subj in range(Nsubj):
         axes[0,1].fill_between(XTrials,avg_state_allsubjs-var_state_allsubjs,avg_state_allsubjs+var_state_allsubjs) 
         axes[0,1].plot(XTrials,avg_state[subj,:],color="black",linewidth=0.2)
     axes[0,1].plot(XTrials,avg_state_allsubjs,color="black",linewidth=2.0,label="States")
-    axes[0,1].set_ylim([0.0,1.0])
+    # axes[0,1].set_ylim([0.0,1.0])
+    axes[0,1].set_ylim([0.0,normalization_cst])
     axes[0,1].grid()
 
-    subj = 0
-    true_A = weights[subj][0][0]["a"][0]
-    true_B = weights[subj][0][0]["b"][0]
+    subj_fixed = 0
+    true_A = weights[subj_fixed][0][0]["a"][0]
+    true_B = weights[subj_fixed][0][0]["b"][0]
 
-    a = weights[subj][0][1]["a"][0]
-    b = weights[subj][10][1]["b"][0]
-
-    a_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
-    b_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+    if distance_metric.lower()=="js":
+        a_dist_array = np.array([[js_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
+        b_dist_array = np.array([[js_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+        axes[1,0].set_ylabel("$JS_{dir}[\mathbf{b}_{model},\mathbf{B}_{process}]$",fontsize=8)
+        axes[1,1].set_ylabel("$JS_{dir}[\mathbf{a}_{model},\mathbf{A}_{process}]$",fontsize=8)
+    elif distance_metric.lower()=="kl":
+        a_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
+        b_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+        axes[1,0].set_ylabel("$KL_{dir}[\mathbf{b}_{model},\mathbf{B}_{process}]$",fontsize=8)
+        axes[1,1].set_ylabel("$KL_{dir}[\mathbf{a}_{model},\mathbf{A}_{process}]$",fontsize=8)
+    else : 
+        raise ValueError("Argument not recognized for distribution metric : " + distance_metric + " -- should be either kl (Kullback-Leibler) or js (Jensen-Shannon)")
 
     XTrialsP1 = np.linspace(0,Ntrials,Ntrials)
 
@@ -293,8 +309,6 @@ def plot_training_curve(stm,weights,title,save_fig_path=None,name=""):
     axes[1,0].set_ylim(bottom=0)
     axes[1,0].grid()
 
-
-
     # Plot the evolution of the mental action model developped by the subjects
     axes[1,1].set_title("Feedback model error")
     avg_a_err_allsubjs = np.mean(a_dist_array,axis=0)
@@ -304,122 +318,177 @@ def plot_training_curve(stm,weights,title,save_fig_path=None,name=""):
         axes[1,1].plot(XTrialsP1,a_dist_array[subj,:],color="black",linewidth=0.2)
     axes[1,1].plot(XTrialsP1,avg_a_err_allsubjs,color="black",linewidth=2.0,label="States")
     axes[1,1].set_ylim(bottom=0)
+    if (np.max(avg_a_err_allsubjs)<1e-10):
+        axes[1,1].set_ylim([0,1])
     axes[1,1].grid()
 
     axes[1,0].set_xlabel("Trials",fontsize=8)
     axes[1,1].set_xlabel("Trials",fontsize=8)
 
-    axes[0,0].set_ylabel("Reached value",fontsize=8)
-    axes[1,0].set_ylabel("KL[model,true]",fontsize=8)
-
+    axes[0,0].set_ylabel("Avg. mental state",fontsize=8)
+    axes[0,1].set_ylabel("Avg. feedback level",fontsize=8)
+    # axes[1,0].set_ylabel("KL[model,true]",fontsize=8)
     if not(save_fig_path == None):
         if not os.path.exists(save_fig_path):
             os.makedirs(save_fig_path)
         fig.savefig(os.path.join(save_fig_path,name))
     return fig
 
-def colormap_plot_3D(simulation_parameters,simulation_performances,
-                    plotted_a_confs= [0,9],
-                  last_K_trials = 15):
-    array_of_final_states = np.mean(simulation_performances['s'][:,:,:,:,-last_K_trials:,:],axis = (-1,-2,-3))
-    array_of_final_a = np.mean(simulation_performances['a'][:,:,:,:,-1],axis = (-1))
-    array_of_final_b = np.mean(simulation_performances['b'][:,:,:,:,-1],axis = (-1))
-    max_b = np.max(array_of_final_b)
-    max_a = np.max(array_of_final_a)
-    max_s = np.max(array_of_final_states)
 
-
-    plot_these_a_confs = [0,1,9]
-
-    # getting the original colormap using cm.get_cmap() function 
-    orig_map=plt.cm.get_cmap('viridis') 
+def plot_overlayed_training_curve(stmlist,weightslist,labellist,
+                                  title,
+                                  save_fig_path=None,name="",
+                                  colorlist=None,
+                                  distance_metric="kl"):
+    fig,axes = plt.subplots(2,2,dpi=200,sharex=True)#,sharey=True)
+    fig.suptitle(title,fontsize=10)
     
-    # reversing the original colormap using reversed() function 
-    reversed_map = orig_map.reversed() 
+    Nsubj = len(stmlist[0])
+    Ntrials = len(stmlist[0][0])
+    subject_state_array = np.array([[stmlist[0][sub_id][trial_id][1].x_d for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
+    Ns = subject_state_array.shape[2]
 
-    fig2,axes = plt.subplots(len(plotted_a_confs),3,sharex=True,sharey=True,dpi=500)
-    fig2.suptitle("Training outcome for variable biomarker & subject model",fontsize = 10)
-    # fig2.tight_layout()
-    # fig2.subplots_adjust(top=0.95)
+    XTrials = np.linspace(1,Ntrials,Ntrials-1)
+    XTrialsP1 = np.linspace(0,Ntrials,Ntrials)
+    
+    normalization_cst = Ns-1 # To get 
 
+    smooth_over = 2
+    
+    if colorlist==None:
+        colorlist = [np.random.random((3,)) for stm in stmlist]
+    
+    # Show the results
+    for stm,weights,color,label in zip(stmlist,weightslist,colorlist,labellist):
+        linecolor = color
+        fillcolor = color
+        
+        process_state_array = np.array([[stm[sub_id][trial_id][0].x[0] for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
+        process_obs_array = np.array([[stm[sub_id][trial_id][0].o[0] for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
 
-    axes[0,1].set_title("Perception model error",fontsize = 8)
-    axes[0,2].set_title("Transition model error (after training)",fontsize = 8)
-    axes[0,0].set_title("Subject cognitive state \n [average last 15 trials]",fontsize = 8)
-    for kconf,conf in enumerate(plotted_a_confs):
-        axes[kconf,0].imshow(array_of_final_states[:,:,kconf],
-                                vmin=0,vmax=max_s,
-                                interpolation='nearest')
+        subject_state_array = np.array([[stm[sub_id][trial_id][1].x_d for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
+        subject_action_array = np.array([[stm[sub_id][trial_id][0].u for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
+        subject_action_posterior = np.array([[stm[sub_id][trial_id][0].u_d for trial_id in range(1,Ntrials,1)] for sub_id in range(Nsubj)])
         
-        
-        
-        if kconf == len(plotted_a_confs)-1:
-                axes[kconf,0].set_xlabel("EXPECTED FB std",fontsize = 8)
-                axes[kconf,1].set_xlabel("EXPECTED FB std",fontsize = 8)
-                axes[kconf,2].set_xlabel("EXPECTED FB std",fontsize = 8)
-        
-        axes[kconf,0].set_ylabel("TRUE FB std",fontsize = 8)
-        
-        axes[kconf,1].imshow(array_of_final_a[:,:,kconf],
-                                vmin=0,vmax=max_a,
-                                interpolation='nearest',cmap = reversed_map)
-        
+        # Plot the average level of feedback received by the subjects
+        avg_fb = np.mean(process_obs_array,axis = -1)#/normalization_cst
+        avg_fb_allsubjs = np.mean(avg_fb,axis=0)
+        var_fb_allsubjs = np.std(avg_fb,axis=0)
+        axes[0,0].fill_between(XTrials,avg_fb_allsubjs-var_fb_allsubjs,avg_fb_allsubjs+var_fb_allsubjs,color=fillcolor,alpha=0.1) 
+        # for subj in range(Nsubj):
+        #     axes[0,0].plot(XTrials,avg_fb[subj,:],color=linecolor,linewidth=0.2)
+        axes[0,0].plot(XTrials,avg_fb_allsubjs,color=linecolor,linewidth=2.0,alpha=0.5)
+        # axes[0,0].set_ylim([0.0,1.0])
+
+        # Plot the average cognitive states achieved by the subjects
+        avg_state = np.mean(process_state_array,axis = -1)#/normalization_cst
+        avg_state_allsubjs = np.mean(avg_state,axis=0)
+        var_state_allsubjs = np.std(avg_state,axis=0)
+        axes[0,1].fill_between(XTrials,avg_state_allsubjs-var_state_allsubjs,avg_state_allsubjs+var_state_allsubjs,color=fillcolor,alpha=0.1) 
+        # for subj in range(Nsubj):
+        #     axes[0,1].plot(XTrials,avg_state[subj,:],color=linecolor,linewidth=0.2)
+        axes[0,1].plot(XTrials,avg_state_allsubjs,color=linecolor,linewidth=2.0,alpha=0.5)
+
+        subj_fixed = 0
+        true_A = weights[subj_fixed][0][0]["a"][0]
+        true_B = weights[subj_fixed][0][0]["b"][0]
+
+        a_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
+        b_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+
+        if distance_metric.lower()=="js":
+            a_dist_array = np.array([[js_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
+            b_dist_array = np.array([[js_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+            axes[1,0].set_ylabel("$JS_{dir}[\mathbf{b}_{model},\mathbf{B}_{process}]$",fontsize=8)
+            axes[1,1].set_ylabel("$JS_{dir}[\mathbf{a}_{model},\mathbf{A}_{process}]$",fontsize=8)
+        elif distance_metric.lower()=="kl":
+            a_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["a"][0],true_A) for trial in range(Ntrials)] for subj in range(Nsubj)])
+            b_dist_array = np.array([[dist_kl_dir(weights[subj][trial][1]["b"][0],true_B) for trial in range(Ntrials)] for subj in range(Nsubj)])
+            axes[1,0].set_ylabel("$KL_{dir}[\mathbf{b}_{model},\mathbf{B}_{process}]$",fontsize=8)
+            axes[1,1].set_ylabel("$KL_{dir}[\mathbf{a}_{model},\mathbf{A}_{process}]$",fontsize=8)
+        else : 
+            raise ValueError("Argument not recognized for distribution metric : " + distance_metric + " -- should be either kl (Kullback-Leibler) or js (Jensen-Shannon)")
+
+        # Plot the evolution of the mental action model developped by the subjects
+        avg_b_err_allsubjs = np.mean(b_dist_array,axis=0)
+        var_b_err_allsubjs = np.std(b_dist_array,axis=0)
+
+        axes[1,0].fill_between(XTrialsP1,avg_b_err_allsubjs-var_b_err_allsubjs,avg_b_err_allsubjs+var_b_err_allsubjs,color=fillcolor,alpha=0.1) 
+        # for subj in range(Nsubj):
+        #     axes[1,0].plot(XTrialsP1,b_dist_array[subj,:],color=linecolor,linewidth=0.2)
+        axes[1,0].plot(XTrialsP1,avg_b_err_allsubjs,color=linecolor,linewidth=2.0,alpha=0.5)
         
 
-        axes[kconf,2].imshow(array_of_final_b[:,:,kconf],
-                                vmin=0,vmax = max_b,
-                                interpolation='nearest',cmap = reversed_map)
+        # Plot the evolution of the mental action model developped by the subjects
         
-        
+        avg_a_err_allsubjs = np.mean(a_dist_array,axis=0)
+        var_a_err_allsubjs = np.std(a_dist_array,axis=0)
+        axes[1,1].fill_between(XTrialsP1,avg_a_err_allsubjs-var_a_err_allsubjs,avg_a_err_allsubjs+var_a_err_allsubjs,color=fillcolor,alpha=0.1) 
+        # for subj in range(Nsubj):
+        #     axes[1,1].plot(XTrialsP1,a_dist_array[subj,:],color=linecolor,linewidth=0.2)
 
-        x_axis = simulation_parameters[:,0,kconf,0]
-        y_axis = simulation_parameters[0,:,kconf,1]
-        for ax in axes.reshape(-1) :
-                ax.invert_yaxis()
-                ax.set_yticks(range(x_axis.shape[0]))
-                ax.set_yticklabels(np.round(x_axis,1),fontsize = 3)
+        axes[1,1].plot(XTrialsP1,avg_a_err_allsubjs,color=linecolor,linewidth=2.0,label=label,alpha=0.5)
+    
+    axes[0,0].set_title("Feedback levels")
+    axes[0,0].set_ylim([0.0,normalization_cst])
+    axes[0,0].grid()
 
-                ax.set_xticks(range(y_axis.shape[0]))
-                ax.set_xticklabels(np.round(y_axis,1),fontsize = 3)
-    fig2.tight_layout()
-    return fig2
+    axes[0,1].set_title("Mental states")
+    axes[0,1].set_ylim([0.0,normalization_cst])
+    axes[0,1].grid()
+
+    axes[1,0].set_title("Action model error")
+    axes[1,0].set_ylim(bottom=0)
+    axes[1,0].grid()
+    
+    axes[1,1].set_title("Feedback model error")
+    axes[1,1].set_ylim(bottom=0)
+    axes[1,1].grid()
+    axes[1,1].legend(loc="best")
+
+    axes[1,0].set_xlabel("Trials",fontsize=8)
+    axes[1,1].set_xlabel("Trials",fontsize=8)
+    axes[0,0].set_ylabel("Avg. mental state",fontsize=8)
+    axes[0,1].set_ylabel("Avg. feedback level",fontsize=8)
+    
+    if not(save_fig_path == None):
+        if not os.path.exists(save_fig_path):
+            os.makedirs(save_fig_path)
+        fig.savefig(os.path.join(save_fig_path,name))
+    return fig
 
 def colormap_plot_2D(simulation_parameters,
                      s_perf,a_perf,b_perf,
-                  last_K_trials = 15,title="static perception model",interoceptive_plot=False):
+                  last_K_trials = 15,title="",interoceptive_plot=False,
+                  save_fig_path=None,name="",showtitle=False,max_state=3.5):
+    
+    a_perf[np.isnan(a_perf)] = 0.0
+
     array_of_final_states = np.mean(s_perf[:,:,:,-last_K_trials:,:],axis = (-1,-2,-3))
     array_of_final_a = np.mean(a_perf[:,:,:,-1],axis = (-1))
     array_of_final_b = np.mean(b_perf[:,:,:,-1],axis = (-1))
-    max_b = np.max(array_of_final_b)
+    max_b = np.max(b_perf[...,0])
     min_b = np.min(array_of_final_b)
 
     # getting the original colormap using cm.get_cmap() function 
     orig_map=plt.cm.get_cmap('viridis') 
-    
-    # reversing the original colormap using reversed() function 
     reversed_map = orig_map.reversed() 
 
-    fig2,axes = plt.subplots(1,3,sharey=True,dpi=500)
-    fig2.suptitle("Training outcome for variable biomarker & subject model noise\n"+title,fontsize = 10,y=0.82)
+    fig2,axes = plt.subplots(1,2,sharey=True,dpi=100)
+    if(showtitle):
+        fig2.suptitle(title,fontsize = 10)
     # fig2.tight_layout()
     # fig2.subplots_adjust(top=0.95)
 
-    axes[0].imshow(array_of_final_states,vmin=0,interpolation='nearest')
-    axes[0].set_title("Subject cognitive state \n [average last 15 trials]",fontsize = 8)
-    axes[0].set_ylabel("TRUE FB std",fontsize = 8)
-    axes[0].set_xlabel("EXPECTED FB std",fontsize = 8)
+    s_dist=axes[0].imshow(array_of_final_states,vmin=0,interpolation='nearest',vmax=max_state)
+    axes[0].set_title("Avg. cognitive state \n (last 15 trials)",fontsize = 8)
+    axes[0].set_ylabel("$\sigma_{process}$",fontsize = 8)
+    axes[0].set_xlabel("$\sigma_{model}$",fontsize = 8)
 
-    axes[1].imshow(array_of_final_a,vmin=0,interpolation='nearest',cmap = reversed_map)
-    if interoceptive_plot:
-        axes[1].set_title("Final IO model error",fontsize = 8)
-    else :
-        axes[1].set_title("Perception model error",fontsize = 8)
-    axes[1].set_xlabel("EXPECTED FB std",fontsize = 8)
-
-    axes[2].imshow(array_of_final_b,interpolation='nearest',cmap = reversed_map,
+    b_dist=axes[1].imshow(array_of_final_b,interpolation='nearest',cmap = reversed_map,
                                 vmin=0,vmax=max_b)
-    axes[2].set_title("Transition model error (after training)",fontsize = 8)
-    axes[2].set_xlabel("EXPECTED FB std",fontsize = 8)
+    axes[1].set_title("Transition model error (after training)",fontsize = 8)
+    axes[1].set_xlabel("$\sigma_{model}$",fontsize = 8)
 
     x_axis = simulation_parameters[:,0,0]
     y_axis = simulation_parameters[0,:,1]
@@ -430,12 +499,113 @@ def colormap_plot_2D(simulation_parameters,
         ax.set_xticks(range(y_axis.shape[0]))
         ax.set_xticklabels(np.round(y_axis,1),fontsize = 3)
     ax.invert_yaxis()
+
+    fig2.tight_layout()
+    fig2.colorbar(s_dist, ax=axes[0],shrink=0.5)
+    fig2.colorbar(b_dist, ax=axes[1],shrink=0.5)
+
+    if not(save_fig_path == None):
+        if not os.path.exists(save_fig_path):
+            os.makedirs(save_fig_path)
+        fig2.savefig(os.path.join(save_fig_path,name),bbox_inches='tight')
+    return fig2
+
+def diff_2D_colormap(simulation_performances_no_learn,simulation_performances_learn,idx,savetofolder):
+    # idx = 9
+    fig,axs = plt.subplots(1,2)
+    fig.tight_layout()
+    lastK_trials = 15
+    s_perf_dif = np.mean(simulation_performances_no_learn["s"][:,:,:,-lastK_trials:,:],axis=(-1,-2)) - np.mean(simulation_performances_learn["s"][:,:,idx,:,-lastK_trials:,:],axis=(-1,-2))
+    absmax = np.max(np.abs(np.mean(s_perf_dif,axis=-1)))
+    pcm = axs[0].imshow(np.mean(s_perf_dif,axis=-1),cmap="bwr",vmin=-absmax,vmax=absmax)
+    axs[0].invert_yaxis()
+    axs[0].set_title("Final mental state \n no learning  -  learning (k1a="+str(idx+1.0)+")",fontsize = 9)
+    axs[0].set_xticks(range(0,20,19),np.round(np.linspace(0.01,2.0,2),1),fontsize=9)
+    axs[0].set_yticks(range(0,20,19),np.round(np.linspace(0.01,2.0,2),1),fontsize=9)
+    fig.colorbar(pcm, ax=axs[0],shrink=0.5)
+
+    b_perf_dif = simulation_performances_no_learn["b"][:,:,:,-1] - simulation_performances_learn["b"][:,:,idx,:,-1]
+    absmax = np.max(np.abs(np.mean(b_perf_dif,axis=-1)))
+    pcm = axs[1].imshow(np.mean(b_perf_dif,axis=-1),cmap="bwr_r",vmax=-absmax,vmin=absmax)
+    axs[1].set_title("Final action model error \n no learning  -  learning(k1a="+str(idx+1.0)+")",fontsize = 9)
+    axs[1].set_xticks(range(0,20,19),np.round(np.linspace(0.01,2.0,2),1),fontsize=9)
+    axs[1].set_yticks(range(0,20,19),np.round(np.linspace(0.01,2.0,2),1),fontsize=9)
+    axs[1].invert_yaxis()
+    fig.colorbar(pcm, ax=axs[1],shrink=0.5)
+
+    save_fig_path=os.path.join(savetofolder,"sim4","diff_plot_k1a="+str(idx+1.0)+").png")
+    fig.savefig(save_fig_path,bbox_inches='tight')
+
+def colormap_plot_2D_fb(simulation_parameters,
+                     s_perf,a_perf,b_perf,
+                  last_K_trials = 15,title="",interoceptive_plot=False,
+                  save_fig_path=None,name="",showtitle=False,max_state=3.5):
+    
+    a_perf[np.isnan(a_perf)] = 0.0
+
+    array_of_final_states = np.mean(s_perf[:,:,:,-last_K_trials:,:],axis = (-1,-2,-3))
+    array_of_final_a = np.mean(a_perf[:,:,:,-1],axis = (-1))
+    array_of_final_b = np.mean(b_perf[:,:,:,-1],axis = (-1))
+    max_b = np.max(b_perf[...,0])
+    min_b = np.min(array_of_final_b)
+
+    # getting the original colormap using cm.get_cmap() function 
+    orig_map=plt.cm.get_cmap('viridis') 
+    reversed_map = orig_map.reversed() 
+
+    fig2,axes = plt.subplots(1,3,sharey=True,dpi=100)
+    if(showtitle):
+        fig2.suptitle(title,fontsize = 10)
+    # fig2.tight_layout()
+    # fig2.subplots_adjust(top=0.95)
+
+    s_dist = axes[0].imshow(array_of_final_states,vmin=0,interpolation='nearest',vmax=max_state)
+    axes[0].set_title("Avg. cognitive state \n (last 15 trials)",fontsize = 8)
+    axes[0].set_ylabel("$\sigma_{process}$",fontsize = 8)
+    axes[0].set_xlabel("$\sigma_{model}$",fontsize = 8)
+
+    b_dist = axes[1].imshow(array_of_final_b,interpolation='nearest',cmap = reversed_map,
+                                vmin=0,vmax=max_b)
+    axes[1].set_title("Transition model error (after training)",fontsize = 8)
+    axes[1].set_xlabel("$\sigma_{model}$",fontsize = 8)
+
+
+
+    a_dist = axes[2].imshow(array_of_final_a,vmin=0,interpolation='nearest',cmap = reversed_map)
+    if interoceptive_plot:
+        axes[2].set_title("Final interoceptive model error",fontsize = 8)
+    else :
+        axes[2].set_title("Final feedback model error",fontsize = 8)
+    axes[2].set_xlabel("$\sigma_{model}$",fontsize = 8)
+
+    
+    x_axis = simulation_parameters[:,0,0]
+    y_axis = simulation_parameters[0,:,1]
+    for ax in axes :
+        ax.set_yticks(range(x_axis.shape[0]))
+        ax.set_yticklabels(np.round(x_axis,1),fontsize = 3)
+
+        ax.set_xticks(range(y_axis.shape[0]))
+        ax.set_xticklabels(np.round(y_axis,1),fontsize = 3)
+    ax.invert_yaxis()
+
+    fig2.tight_layout()
+    shrinkage_factor = 0.33
+    fig2.colorbar(s_dist, ax=axes[0],shrink=shrinkage_factor)
+    fig2.colorbar(b_dist, ax=axes[1],shrink=shrinkage_factor)
+    fig2.colorbar(a_dist, ax=axes[2],shrink=shrinkage_factor)
+
+    if not(save_fig_path == None):
+        if not os.path.exists(save_fig_path):
+            os.makedirs(save_fig_path)
+        fig2.savefig(os.path.join(save_fig_path,name),bbox_inches='tight')
     return fig2
 
 def boxplot(simulation_parameters,
             s_perf,a_perf,b_perf,
             fixed_feedback_quality_indexes = [0,2,4,6,8,19],
-            last_K_trials = 15):
+            last_K_trials = 15,
+            save_fig_path=None,name=""):
     fig3,axs = plt.subplots(2,len(fixed_feedback_quality_indexes),figsize=(10,5),dpi=200,sharex=True)
     if (type(axs)!=np.ndarray):
         axs = np.array([axs])
@@ -478,4 +648,23 @@ def boxplot(simulation_parameters,
         ax.grid()   
         ax.set_ylim(bottom=0,top=np.max(b_perf[:,:,:,-1]))
         ax.invert_yaxis()
+
+    if not(save_fig_path == None):
+        if not os.path.exists(save_fig_path):
+            os.makedirs(save_fig_path)
+        fig3.savefig(os.path.join(save_fig_path,name))
+
     return fig3
+
+
+if __name__=="__main__":
+    A = actynf.normalize(np.random.random((10,8,2)))
+    B = actynf.normalize(np.random.random((10,8,2)))
+    print(dist_kl_dir(A,B))
+    B[2,:,0] = 0.0
+    from scipy.stats import entropy
+    from scipy.spatial.distance import jensenshannon
+
+    print(np.sum(jensenshannon(A,B,axis=0)))
+
+    print(js_dir(A,B))

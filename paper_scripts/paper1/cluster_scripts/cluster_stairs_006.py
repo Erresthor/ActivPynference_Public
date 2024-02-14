@@ -74,8 +74,8 @@ if __name__ == "__main__":
     
     # PARRALLELIZED SIMULATION OPTIONS : 4000 parameter sets
     K = 20
-    true_fb_std_array = list(np.linspace(0.001,3.0,K))
-    belief_fb_std_array = list(np.linspace(0.001,3.0,K))
+    true_fb_std_array = list(np.linspace(0.001,2.0,K))
+    belief_fb_std_array = list(np.linspace(0.001,2.0,K))
     Kw = 10
     belief_fb_weights_array = list(np.linspace(1.0,10.0,Kw))
 
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     Nsubjects = 10
     Ntrials = 100
 
-    learn_a = False 
+    learn_a = True
     clamp_gaussian = False
     
     T = 10

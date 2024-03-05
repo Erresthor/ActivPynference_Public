@@ -208,7 +208,6 @@ def spm_wnorm_toocomplex(A):
     return A_wnormed
 
 def spm_wnorm(A,max_novelty = 100) :
-    # no idea what it does ¯\_(ツ)_/¯ 
     """ Used for calculating a novelty term and push agent towards long term model exploration. 
     In practice, we want to encourage unexplored options, even though we have some slight priors. Strong priors 
     lead to an increase in EFE.
@@ -226,13 +225,6 @@ def spm_wnorm(A,max_novelty = 100) :
     A_wnormed = ((1./np.sum(A,axis=0,keepdims=True)) - (1./(A+1e-12)))/2. 
     A_wnormed[A_wnormed < -max_novelty] = -max_novelty
     return A_wnormed
-
-def inverted_spm_wnorm(A,epsilon = 1e-16) :
-    # Same as before but with sign inverted so that it is always >0
-    A = A +  epsilon#♣np.exp(-16)
-    print(1./np.sum(A,axis=0,keepdims=True))
-    A_wnormed = ((1./A)-(1./np.sum(A,axis=0,keepdims=True)) )/2.
-    return np.squeeze(A_wnormed)
 
 def custom_entropy(A,axis=0,keepdims=False,eps=1e-10,maxValue = 10000):
     zeroes = np.zeros(A.shape)

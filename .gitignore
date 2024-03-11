@@ -18,7 +18,8 @@ docs/build_*
 # my stuff
 private_tests/
 
-# raw outputs 
+# raw outputs & data storage
+data/*
 simulation_outputs/
 
 # Compilation

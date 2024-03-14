@@ -185,7 +185,7 @@ class network():
         return STMs_for_each_layer
     
     def run(self,verbose=True,
-            return_STMs = True,return_weights = True):
+            return_STMs = True,return_weights = True    ):
         assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.run ."
         
         if (len(self.run_order)==0):

@@ -402,12 +402,12 @@ class mdp_layer :
         assert len(self.b)==self.Nf,"The action matrix number of factors (" + str(len(self.b)) + ") should match the initial state matrix number of factors (" + str(len(self.d)) + ")."
         
         # TODO : add more checks (outcomes, states, etc)
-        if self.layerMode == layerMode.MODEL:
-            assert len(self.c)==self.Nmod, "The preference matrix number of modalities (" + str(len(self.c)) + ") should match the perception model number of modalities (" + str(len(self.a)) + ")."
-            for mod in range(self.Nmod):
-                if (self.c[mod].ndim==1):
-                    assert self.c[mod].shape[0] == self.No[mod],"Error : preferences for modality " + str(mod) + " are 1dimensional and do no fit the number of potential outcomes ("+str(self.No[mod])+")."
-                    self.c[mod] = np.expand_dims(self.c[mod],1)
+        # if self.layerMode == layerMode.MODEL:
+        assert len(self.c)==self.Nmod, "The preference matrix number of modalities (" + str(len(self.c)) + ") should match the perception model number of modalities (" + str(len(self.a)) + ")."
+        for mod in range(self.Nmod):
+            if (self.c[mod].ndim==1):
+                assert self.c[mod].shape[0] == self.No[mod],"Error : preferences for modality " + str(mod) + " are 1dimensional and do no fit the number of potential outcomes ("+str(self.No[mod])+")."
+                self.c[mod] = np.expand_dims(self.c[mod],1)
 
     def initialize_STM(self): 
         self.STM = layer_STM(self.Nmod,self.No,self.Nf,self.Ns,self.Np,self.T,self.name)

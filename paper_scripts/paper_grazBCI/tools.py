@@ -234,6 +234,25 @@ def js_dir(a,b,return_scalar=True,eps=1e-10):
         divs = np.sum(jensenshannon(a,b,axis=0))
     return divs
 
+
+# Plotting tool : 
+def imshow_with_labels(ax,array2d,fontsize = 10,vmin=0,vmax=1,normmat = True,overwriteColor = None,roundto=2):
+    if normmat:
+        im = ax.imshow(actynf.normalize(array2d),vmin=vmin,vmax=vmax)
+    else : 
+        im = ax.imshow(array2d)
+    ax.set_axis_off()
+
+    for i in range(array2d.shape[0]):
+        for j in range(array2d.shape[1]):
+            if (overwriteColor != None):
+                ax.text(j, i, round(array2d[i, j], roundto),
+                    ha = "center", va = "center", color = overwriteColor,fontsize=fontsize)
+            else :
+                ax.text(j, i, round(array2d[i, j], roundto),
+                    ha = "center", va = "center", color = "w",fontsize=fontsize)
+    return ax
+
 if __name__ == "__main__":
     X  = [0,1,2,9,8,7,6]
     Y = [0,1,2,3,4,5,6]

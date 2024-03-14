@@ -97,23 +97,91 @@ def load_bold_scores_xp1(xp1_data_path,_feedback_received = "eeg"):
     scores = []
     for dictionary in score_dicts:
         # 1. EEG powered measured at the two areas of interest : 
-        right_filtpower = dictionary["filtpower_left"][:]
-        left_filtpower = dictionary["filtpower_right"][:]
+        right_filtpower = dictionary["roimean_left"][:]
+        left_filtpower = dictionary["roimean_right"][:]
 
         # 2. The various feedback modalities : 
+        ["nf","nf_laterality","normnf_laterality","smoothnf_laterality"]
         nf_laterality = dictionary["nf_laterality"][:]
+        nf_laterality_norm = dictionary["normnf_laterality"][:]
+        nf_laterality_smoothed = dictionary["smoothnf_laterality"][:]
         nf_intensity = dictionary["nf"][:]
-        nf_intensity_smoothed = dictionary["smoothnf"][:]
-        scores.append([right_filtpower,left_filtpower,nf_laterality,nf_intensity,nf_intensity_smoothed])
+        # nf_intensity_smoothed = dictionary["smoothnf"][:]
+        scores.append([right_filtpower,left_filtpower,nf_laterality,nf_laterality_norm,nf_laterality_smoothed,nf_intensity])
     return subj_names,scores,timestamps
+
+def get_full_training_in_order(xp1_data_path,metric_idx = [3,4]):
+    # What recorded metric is of interest to us in [eef,bold]
+    names,_,ts = load_eeg_scores_xp1(xp1_data_path,"eeg")
+
+    LOAD_ORDER = [
+        ["fmri","eeg","eegfmri"], # Subject 1
+        ["eeg","eegfmri","fmri"], # Subject 2
+        ["fmri","eeg","eegfmri"], # Subject 3
+        ["fmri","eegfmri","eeg"], # Subject 4
+        ["eegfmri","fmri","eeg"], # Subject 5
+        ["eegfmri","eeg","fmri"], # Subject 6
+        ["eeg","fmri","eegfmri"], # Subject 7
+        ["eeg","fmri","eegfmri"], # Subject 8
+        ["fmri","eegfmri","eeg"], # Subject 9
+        ["eegfmri","fmri","eeg"]  # Subject 10
+    ]
+
+    eeg_recordings,bold_recordings =  [],[]
+    for subj_id,name in enumerate(names):
+        eeg_data = []
+        bold_data = []
+        for task_code in LOAD_ORDER[subj_id]:
+            names,eeg_scores,_ = load_eeg_scores_xp1(xp1_data_path,task_code)
+            assert name==names[subj_id], "Error in names ordering ? " + name + " =\= " + str(names[subj_id])
+            eeg_data.append(eeg_scores[subj_id][metric_idx[0]])
+
+            names,bold_scores,_ = load_bold_scores_xp1(xp1_data_path,task_code)
+            assert name==names[subj_id], "Error in names ordering ? " + str(names[subj_id])
+            bold_data.append(bold_scores[subj_id][metric_idx[1]])
+        eeg_data = np.concatenate(eeg_data,axis=0)[:,0]
+        bold_data = np.concatenate(bold_data,axis=0)[:,0]
+
+        eeg_recordings.append(eeg_data)
+        bold_recordings.append(bold_data)
+    return names,eeg_recordings,bold_recordings,ts
 
 if __name__ == "__main__":
     os.chdir('C:\\Users\\annic\\Desktop\\Phd\code\\active_pynference_local\\paper_scripts\\paper_grazBCI')
     print("Working directory:", os.getcwd())
 
+    subj = 0
 
     # A FEW CONSTANTS : 
     XP1_DATA_PATH = os.path.join("..","..","data","xp1")
 
-    names,scores,ts = load_eeg_scores_xp1(XP1_DATA_PATH,"eeg")
-    print(ts)
+    names,eeg,bold,ts = get_full_training_in_order(XP1_DATA_PATH,metric_idx = [3,4])
+    print(names)
+
+    plt.axhline(0,color="black")
+    for name,eeg_data in zip(names,eeg):
+        xs = np.linspace(0,eeg_data.shape[0],eeg_data.shape[0])
+        plt.plot(xs,np.clip(eeg_data,-1,1),alpha=0.6,label = name)
+        plt.show()
+        
+    # # xs = np.linspace(0,bold_data.shape[0],bold_data.shape[0])
+    # # plt.plot(xs,bold_data)
+    # # plt.show()
+
+
+    # # fig,axes = plt.subplots(2,1,sharex=True)
+
+    # # names,scores_eeg,ts = load_eeg_scores_xp1(XP1_DATA_PATH,"eeg")
+    # # xs = np.linspace(0,ts[subj][-1][3],scores_eeg[subj][2].shape[0])
+    # # axes[0].plot(xs,scores_eeg[subj][2])
+    # # axes[0].legend()
+    # # axes[0].grid()
+
+    # # names,scores,ts = load_bold_scores_xp1(XP1_DATA_PATH,"eeg")
+    # # xs = np.linspace(0,ts[subj][-1][3],scores[subj][2].shape[0])
+    # # axes[1].plot(xs,scores[subj][4])
+    # # axes[1].legend()
+    # # axes[1].grid()
+
+    # # fig.show()
+    # # input()

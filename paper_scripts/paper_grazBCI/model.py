@@ -187,7 +187,6 @@ def transition_weights_centered(Ns,
         b.append(b_f)
     return b
 
-
 def transition_prior(Ns,
                    N_up_actions,N_down_actions,N_useless_actions,
                    concentration=1.1,stickiness=1.0):
@@ -249,6 +248,7 @@ def observation_gaussian_prior(No,Ns,
                         target_dims=[0],target_state=[-1],
                         method="linear",dist_matrix=None):
     return stickiness*observation_gaussian_weights(No,Ns,sigma,target_dims,target_state,method,dist_matrix)+concentration*1.0
+
 
 def weights_layer_dims(Ns,Nos,
             sigmas, list_of_targets, # For observation matrices
@@ -344,7 +344,7 @@ def weights_layer_dist(Ns,Nos,
     a = []
     for No,sigma,dist_mat in zip(Nos,sigmas,dist_matrix):
         if mode=="process":
-            a.append(observation_gaussian_weights(No,Ns,sigma,None,None,dist_matrix=dist_mat,method="linear"))
+            a.append(actynf.normalize(observation_gaussian_weights(No,Ns,sigma,None,None,dist_matrix=dist_mat,method="linear")))
         if mode=="model":
             a.append(observation_gaussian_prior(No,Ns,sigma,observation_concentration,observation_stickiness,None,None,dist_matrix=dist_mat,method="linear"))
 
@@ -377,6 +377,142 @@ def weights_layer_dist(Ns,Nos,
     e = np.ones((U.shape[0],))
 
     return a,b,c,d,e,U
+
+def nf_net_dist(T,Th,
+        Ns_proc,Ns_subj,Nos,
+        sigmas_proc,dist_matrix_proc,
+        sigmas_subj,dist_matrix_modl,observation_concentration,observation_stickiness,
+        N_up_actions,N_down_actions,N_neutral_actions,
+        p_decay,p_effect,
+        transition_concentration,transition_stickiness,
+        learning_space_structure=actynf.LINEAR,gen_temp=3.0,
+        resting_state_per_factor=None,b_pre=[0,0]):
+    
+    A,B,_,D,_,U = weights_layer_dist(Ns_proc,Nos,
+                    sigmas_proc,dist_matrix_proc,
+                    N_up_actions,N_down_actions,N_neutral_actions,
+                    None,None,
+                    p_decay,p_effect,
+                    None,None,
+                    allowable_actions_based_on="dim",mode="process",
+                    resting_state_per_factor=resting_state_per_factor)
+    A.append(actynf.normalize(np.ones((1,)+tuple(Ns_proc,))))
+        # We had another observation modality : the neutral "rest" during rest phases
+    
+    if len(Nos)>1:
+        Nos = [Nos[0]]
+    a,b,c,d,e,_ = weights_layer_dist(Ns_subj,Nos,
+                    sigmas_subj,dist_matrix_modl,
+                    N_up_actions,N_down_actions,N_neutral_actions,
+                    observation_concentration,observation_stickiness,
+                    None,None,
+                    transition_concentration,transition_stickiness,
+                    allowable_actions_based_on="dim",mode="model")
+    # Finally, we can assume some degree of motor imagery intensity pre-knowledge ! 
+    # must be compared to transition_concentration and transition_stickiness
+    assert type(b_pre)==list,"b_pre should be a list of the same size as there are factors !"
+    for factor,true_transition in enumerate(B):
+        b[factor] = b[factor] + b_pre[factor]*true_transition
+
+
+
+
+
+    process_layer = actynf.layer("process","process",
+                 A,B,[np.zeros((amod.shape[0],1)) for amod in A],D,e,
+                 U,T,Th)
+    
+    model_layer = actynf.layer("model","model",
+                 a,b,c,d,e,
+                 U,T,Th)
+    
+    # model_layer.hyperparams.alpha = 4
+    model_layer.hyperparams.cap_state_explo = 3
+    model_layer.hyperparams.cap_action_explo = 3
+
+    model_layer.learn_options.learn_a = True
+    model_layer.learn_options.learn_b = True
+    model_layer.learn_options.learn_c = False
+    model_layer.learn_options.learn_d = True
+    model_layer.learn_options.learn_e = False
+    model_layer.learn_options.assume_state_space_structure = learning_space_structure
+    model_layer.learn_options.generalize_fadeout_function_temperature = gen_temp
+    
+
+    process_layer.inputs.u = actynf.link(model_layer,lambda x : x.u)
+    model_layer.inputs.o = actynf.link(process_layer, lambda x : np.array([x.o[0]]))
+
+    net = actynf.layer_network([process_layer,model_layer],"neurofeedback_training_net")
+    return net
+
+def rest_phase_layer(T,Th,
+    Ns_proc,Ns_subj,Nos,
+    sigmas_proc,dist_matrix_proc,
+    sigmas_subj,dist_matrix_modl,observation_concentration,observation_stickiness,
+    N_up_actions,N_down_actions,N_neutral_actions,
+    p_decay,p_effect,
+    transition_concentration,transition_stickiness,
+    learning_space_structure=actynf.LINEAR,gen_temp=3.0,
+    resting_state_per_factor=None,b_pre=[0,0]):
+
+    A,B,_,D,_,U = weights_layer_dist(Ns_proc,Nos,sigmas_proc,dist_matrix_proc,
+                    N_up_actions,N_down_actions,N_neutral_actions,
+                    None,None,
+                    p_decay,p_effect,
+                    None,None,
+                    allowable_actions_based_on="dim",mode="process",
+                    resting_state_per_factor=resting_state_per_factor)
+    A.append(actynf.normalize(np.ones((1,)+tuple(Ns_proc,))))
+        # We had another observation modality : the neutral "rest" during rest phases
+
+    if len(Nos)>1:
+        Nos = [Nos[0]]
+    a,b,c,d,e,_ = weights_layer_dist(Ns_subj,Nos,sigmas_subj,dist_matrix_modl,
+                    N_up_actions,N_down_actions,N_neutral_actions,
+                    observation_concentration,observation_stickiness,
+                    None,None,
+                    transition_concentration,transition_stickiness,
+                    allowable_actions_based_on="dim",mode="model")
+    # Finally, we can assume some degree of motor imagery intensity pre-knowledge ! 
+    # must be compared to transition_concentration and transition_stickiness
+    assert type(b_pre)==list,"b_pre should be a list of the same size as there are factors !"
+    for factor,true_transition in enumerate(B):
+        b[factor] = b[factor] + b_pre[factor]*true_transition
+
+
+    # And we replace the A matrix by one accepting only the "rest" feedback
+    # Note : TODO ; update the package to accept optional observations : 
+    # - If the observation is in inputs, use it
+    # - If not, infer anyways
+    a = [actynf.normalize(np.ones((1,)+tuple(Ns_subj,)))]
+    c = [np.zeros((1,1))]
+
+    process_layer = actynf.layer("process","process",
+                 A,B,[np.zeros((amod.shape[0],1)) for amod in A],D,e,U,T)
+    
+    model_layer = actynf.layer("model","model",
+                 a,b,c,d,e,U,T,Th)
+    
+    model_layer.hyperparams.cap_state_explo = 3
+    model_layer.hyperparams.cap_action_explo = 3
+
+    model_layer.learn_options.learn_a = False
+    model_layer.learn_options.learn_b = True
+    model_layer.learn_options.learn_c = False
+    model_layer.learn_options.learn_d = True
+    model_layer.learn_options.learn_e = False
+    model_layer.learn_options.assume_state_space_structure = learning_space_structure
+    model_layer.learn_options.generalize_fadeout_function_temperature = gen_temp
+    
+
+    process_layer.inputs.u = actynf.link(model_layer,lambda x : x.u)
+    model_layer.inputs.o = actynf.link(process_layer, lambda x : np.array([x.o[2]]))
+
+    net = actynf.layer_network([process_layer,model_layer],"neurofeedback_training_net")
+    return net
+
+
+
 
 # Define the network
 def nf_net_dims(T,Th,
@@ -425,113 +561,6 @@ def nf_net_dims(T,Th,
 
     process_layer.inputs.u = actynf.link(model_layer,lambda x : x.u)
     model_layer.inputs.o = actynf.link(process_layer, lambda x : x.o)
-
-    net = actynf.layer_network([process_layer,model_layer],"neurofeedback_training_net")
-    return net
-
-def nf_net_dist(T,Th,
-        Ns_proc,Ns_subj,Nos,
-        sigmas_proc,dist_matrix_proc,
-        sigmas_subj,dist_matrix_modl,observation_concentration,observation_stickiness,
-        N_up_actions,N_down_actions,N_neutral_actions,
-        p_decay,p_effect,
-        transition_concentration,transition_stickiness,
-        learning_space_structure=actynf.LINEAR,gen_temp=3.0,
-        resting_state_per_factor=None):
-    
-    A,B,_,D,_,U = weights_layer_dist(Ns_proc,Nos,sigmas_proc,dist_matrix_proc,
-                    N_up_actions,N_down_actions,N_neutral_actions,
-                    None,None,
-                    p_decay,p_effect,
-                    None,None,
-                    allowable_actions_based_on="dim",mode="process",
-                    resting_state_per_factor=resting_state_per_factor)
-    
-    a,b,c,d,e,_ = weights_layer_dist(Ns_subj,Nos,sigmas_subj,dist_matrix_modl,
-                    N_up_actions,N_down_actions,N_neutral_actions,
-                    observation_concentration,observation_stickiness,
-                    None,None,
-                    transition_concentration,transition_stickiness,
-                    allowable_actions_based_on="dim",mode="model")
-
-    process_layer = actynf.layer("process","process",
-                 A,B,c,D,e,U,T)
-    
-    model_layer = actynf.layer("model","model",
-                 a,b,c,d,e,U,T,Th)
-    
-    model_layer.hyperparams.cap_state_explo = 3
-    model_layer.hyperparams.cap_action_explo = 3
-
-    model_layer.learn_options.learn_a = True
-    model_layer.learn_options.learn_b = True
-    model_layer.learn_options.learn_c = False
-    model_layer.learn_options.learn_d = True
-    model_layer.learn_options.learn_e = False
-    model_layer.learn_options.assume_state_space_structure = learning_space_structure
-    model_layer.learn_options.generalize_fadeout_function_temperature = gen_temp
-    
-
-    process_layer.inputs.u = actynf.link(model_layer,lambda x : x.u)
-    model_layer.inputs.o = actynf.link(process_layer, lambda x : x.o)
-
-    net = actynf.layer_network([process_layer,model_layer],"neurofeedback_training_net")
-    return net
-
-def rest_phase_layer(T,Th,
-    Ns_proc,Ns_subj,Nos,
-    sigmas_proc,dist_matrix_proc,
-    sigmas_subj,dist_matrix_modl,observation_concentration,observation_stickiness,
-    N_up_actions,N_down_actions,N_neutral_actions,
-    p_decay,p_effect,
-    transition_concentration,transition_stickiness,
-    learning_space_structure=actynf.LINEAR,gen_temp=3.0,
-    resting_state_per_factor=None):
-
-    A,B,_,D,_,U = weights_layer_dist(Ns_proc,Nos,sigmas_proc,dist_matrix_proc,
-                    N_up_actions,N_down_actions,N_neutral_actions,
-                    None,None,
-                    p_decay,p_effect,
-                    None,None,
-                    allowable_actions_based_on="dim",mode="process",
-                    resting_state_per_factor=resting_state_per_factor)
-    A.append(actynf.normalize(np.ones((1,)+tuple(Ns_proc,))))
-        # We had a second observation modality !
-
-    a,b,c,d,e,_ = weights_layer_dist(Ns_subj,Nos,sigmas_subj,dist_matrix_modl,
-                    N_up_actions,N_down_actions,N_neutral_actions,
-                    observation_concentration,observation_stickiness,
-                    None,None,
-                    transition_concentration,transition_stickiness,
-                    allowable_actions_based_on="dim",mode="model")
-    # And we replace the A matrix by one accepting only the "rest" feedback
-    # Note : TODO ; update the package to accept optional observations : 
-    # - If the observation is in inputs, use it
-    # - If not, infer anyways
-    a = [actynf.normalize(np.ones((1,)+tuple(Ns_subj,)))]
-
-    c = [np.zeros((1,1))]
-
-    process_layer = actynf.layer("process","process",
-                 A,B,c,D,e,U,T)
-    
-    model_layer = actynf.layer("model","model",
-                 a,b,c,d,e,U,T,Th)
-    
-    model_layer.hyperparams.cap_state_explo = 3
-    model_layer.hyperparams.cap_action_explo = 3
-
-    model_layer.learn_options.learn_a = False
-    model_layer.learn_options.learn_b = True
-    model_layer.learn_options.learn_c = False
-    model_layer.learn_options.learn_d = True
-    model_layer.learn_options.learn_e = False
-    model_layer.learn_options.assume_state_space_structure = learning_space_structure
-    model_layer.learn_options.generalize_fadeout_function_temperature = gen_temp
-    
-
-    process_layer.inputs.u = actynf.link(model_layer,lambda x : x.u)
-    model_layer.inputs.o = actynf.link(process_layer, lambda x : x.o[1])
 
     net = actynf.layer_network([process_layer,model_layer],"neurofeedback_training_net")
     return net

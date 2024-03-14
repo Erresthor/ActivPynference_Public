@@ -27,6 +27,24 @@ def extrap_diag_2d(arr,assume_extrema=False,periodic=False,
         sum_of_shifted += weight*shifted_matrix(arr, offset,assume_extrema,periodic)
     return sum_of_shifted
 
+def extrapolate_flat(flattened_matrix, latent_shape):
+    """ 
+    Assuming that this is a transition matrix :
+    Flattened matrix is a 2D matrix of size Total_number_of_states x Total_number_of_states
+    Total_number_of_states Ntot = product(latent_shape) different states, based on latent subdimensions. 
+    Goal : separate this matrix into len(latent_shape) different submatrices
+    Then, extrapolate them diagonally using the function above
+    Then recompress them into a single matrix
+    --> This allows the subject to extrapolate the effect of their actions and map complex observation-state combinations
+    """
+    # Step 1 : transfom flattened matrix (Ntot x Ntot) into len(latent_shape) matrices of size (latent_shape[i] x latent_shape[i])
+
+
+    # Step 2 : extrap_2d those matrices
+
+
+    # Step 3 : integrate into a single matrix (Ntot x Ntot)
+
 def shifted_matrix(arr, offset,clamp_extrema=False,periodic=False):
     if (periodic):
         # If we believe the states are periodic 

@@ -78,7 +78,6 @@ def update_rule(old_matrix,new_matrix,mem_dec_type,T,t05 = 100,eps1 = 1e-7,eps2=
         return new_matrix
     
 def generalize(base_information, structure_assumption,fadeout_function=(lambda x:1.0)):
-    # print(structure_assumption)
     if (structure_assumption == AssumedSpaceStructure.NO_STRUCTURE):
         return base_information
     
@@ -87,8 +86,7 @@ def generalize(base_information, structure_assumption,fadeout_function=(lambda x
         clamp_interp = (structure_assumption==AssumedSpaceStructure.LINEAR_CLAMPED)
         periodic_interp = (structure_assumption==AssumedSpaceStructure.LINEAR_PERIODIC)
         generalized_information = extrap_diag_2d(base_information,clamp_interp,periodic_interp,
-                                                 fadeout_function,True)
-    
+                                                 fadeout_function,False)
     return generalized_information
 
 def a_learning(o_d_history,s_kron_d_history,old_a_matrix,
@@ -169,7 +167,6 @@ def b_learning(u_d_history,s_margin_history,old_b_matrix,action_transition_mappi
 
 def c_learning(o_d_history,old_c_matrix,plasticityOptions):
     raise NotImplementedError ("C_learning has not been implemented yet ...")
-
     # Nf = layer.Nf
     # Np = layer.Np
     # Nmod = layer.Nmod
@@ -195,7 +192,7 @@ def d_learning_base(o_margin_history,x_kron_history,a_kron,
     # print(o_margin_history[1])
 
     L = spm_backwards(o_margin_history, x_kron_history, a_kron, kronecker_transition_history)
-    # print(L)
+
     dek = spm_dekron(L, Ns)
 
     new_d_matrix = flexible_copy(old_d_matrix)
@@ -236,7 +233,10 @@ def learn_from_experience(layer):
     mem_decay_type = layer.learn_options.decay_type
     
     assume_state_space_structure = layer.learn_options.assume_state_space_structure
-    exponential_decay_function = (lambda x: np.exp(-layer.learn_options.generalize_fadeout_function_temperature*x))
+
+    gamma_generalize = max(layer.learn_options.generalize_fadeout_function_temperature,0) # The temperature is at least 0 !
+    exponential_decay_function = (lambda x: np.exp(-gamma_generalize*x))
+    
     # print(assume_state_space_structure)
     if (type(assume_state_space_structure)==list):
         if not(len(assume_state_space_structure)==Nf):
@@ -274,8 +274,10 @@ def learn_from_experience(layer):
                                    # Useful in contexts such as BCI ?
     if using_realized_actions:
         transition_history_u_d = dist_from_definite_outcome_accross_t(u_history,u_d_history.shape)
+            # One_hot encoding of the realized action
     else :
         transition_history_u_d = u_d_history[:,t]
+            # Using the posterior distribution only (when the subject is not sure of the performed action)
 
 
     # This is a potentially very time consuming operation for large number of states
@@ -322,22 +324,6 @@ def learn_from_experience(layer):
     # axs[1].imshow(layer.a[0])
     # fig.show()
     
-
-    # plot_Gd = False
-    # if plot_Gd :
-    #     action_select_hist = STM.Gd
-    #     fig2,axs2= plt.subplots(1,T-1)
-
-    #     axs2[0].set_ylabel("Actions")
-    #     for t in range(T-1):
-    #         im = axs2[t].imshow(action_select_hist[...,t])
-    #         axs2[t].set_xticks(range(action_select_hist.shape[0]))
-    #         axs2[t].set_xticklabels(["Habits","Exploit","Uncertainty","FB novelty","ACT novelty","Deeper"],rotation=45,fontsize=4)
-    #         fig2.colorbar(im,fraction=0.046, pad=0.04)
-    #     fig2.show()
-        
-    #     input()
-
     if (layer.learn_options.learn_b):
         t_first = time.time()
         new_b = b_learning(transition_history_u_d,marginalized_smoothed_x,layer.b,layer.U,

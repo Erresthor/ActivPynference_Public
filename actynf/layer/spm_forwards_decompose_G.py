@@ -235,13 +235,15 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                     idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=plausible_threshold,
                                                            deterministic_shuffle_between_equal_vals = True)
                     idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
+                    if(idx_state_to_explore.size == 0):
+                        idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=(1.0/Q[action].shape[0]),
+                                                                deterministic_shuffle_between_equal_vals = True)
+                        idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
                 else :
                     idx_state_to_explore = np.where(dist_state_to_explore>plausible_threshold)[0] 
-                if(idx_state_to_explore.size == 0):
-                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=(1.0/Q[action].shape[0]),
-                                                           deterministic_shuffle_between_equal_vals = True)
-                    idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
-
+                    if(idx_state_to_explore.size == 0):
+                        plausible_threshold = (1.0/Q[action].shape[0]) # dynamic threshold !
+                        idx_state_to_explore = np.where(dist_state_to_explore>plausible_threshold)[0] 
 
                 K = np.zeros((Q[0].shape))
                 for index in idx_state_to_explore :

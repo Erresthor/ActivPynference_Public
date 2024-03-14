@@ -398,9 +398,12 @@ class mdp_layer :
             assert self.b[f].ndim > 2,self.name + " : B has too little dimensions"
             self.Nu.append(self.b[f].shape[2])
         
-        # TODO : add more checks (outcomes, states, etc)
-        assert len(self.c)==self.Nmod, "The preference matrix number of modalities (" + str(len(self.c)) + ") should match the perception model number of modalities (" + str(len(self.a)) + ")."
+
         assert len(self.b)==self.Nf,"The action matrix number of factors (" + str(len(self.b)) + ") should match the initial state matrix number of factors (" + str(len(self.d)) + ")."
+        
+        # TODO : add more checks (outcomes, states, etc)
+        # if self.layerMode == layerMode.MODEL:
+        assert len(self.c)==self.Nmod, "The preference matrix number of modalities (" + str(len(self.c)) + ") should match the perception model number of modalities (" + str(len(self.a)) + ")."
         for mod in range(self.Nmod):
             if (self.c[mod].ndim==1):
                 assert self.c[mod].shape[0] == self.No[mod],"Error : preferences for modality " + str(mod) + " are 1dimensional and do no fit the number of potential outcomes ("+str(self.No[mod])+")."

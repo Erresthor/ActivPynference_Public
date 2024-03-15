@@ -253,7 +253,255 @@ def imshow_with_labels(ax,array2d,fontsize = 10,vmin=0,vmax=1,normmat = True,ove
                     ha = "center", va = "center", color = "w",fontsize=fontsize)
     return ax
 
+# Trial plotting : 
+
+def plot_trials_and_data(
+        tees,intens_means,intens_stds,
+        lat_means,lat_stds,
+        state_arr,feedback_arr,Ns,window = 1):
+    # Mean of all subjects
+    fig1 = plt.figure(figsize=(8,6))
+
+
+    
+    ax_data = fig1.add_subplot(311)
+    ax_data.axhline(y=0,color="black")
+    ax_data.plot(tees,intens_means,label="Measured normed left ERD",color="orange")
+    ax_data.fill_between(tees,intens_means-intens_stds,intens_means+intens_stds,alpha=0.2,color="orange")
+    ax_data.set_ylim([-1,1])
+
+
+    # Same for laterality index :
+    ax_data.plot(tees,lat_means,label="Laterality feedback",color="green")
+    ax_data.fill_between(tees,lat_means-lat_stds,lat_means+lat_stds,alpha=0.2,color="green")
+    ax_data.set_ylim([-1,1])
+    ax_data.legend(loc="lower center")
+    ax_data.grid()
+    ax_data.set_ylabel("Measured \n feedback values")
+    ax_data.set_xlabel("Seconds")
+
+    
+
+    
+
+
+    axes_2 = fig1.add_subplot(312)
+    colorlist = ["green","orange"]
+    labelist = ["Simulated feedback (AsI)","Simulated left ERD"]
+    for mod in [1,0]:
+            color = colorlist[mod]
+            observations = feedback_arr[:,:,mod,:]
+            flat_fb_lvl = observations.reshape(observations.shape[0],-1)
+            m_fb = clever_running_mean(np.mean(flat_fb_lvl,axis=0),window)
+            v_fb = clever_running_mean(np.std(flat_fb_lvl,axis=0),window)
+            xs = np.linspace(0,m_fb.shape[0],m_fb.shape[0])
+            axes_2.fill_between(xs,m_fb-v_fb,m_fb+v_fb,color=color,alpha=0.2)
+            axes_2.plot(xs,m_fb,color=color,label = labelist[mod])
+    axes_2.set_ylim([0,np.max(feedback_arr[:,:,:,:])])
+    axes_2.legend()
+    # axes_2.set_xlabel("Timesteps")
+    # axes_2.set_xticks([])
+    axes_2.set_ylabel("Simulated \n Feedback values")
+    axes_2.grid()
+    
+    # fig1.suptitle("Simulated Mental Imagery training with high prior mental imagery knowledge",y=1.0)
+    colorlist = ["red","blue"]
+    labelist = ["Intensity","Orientation"]
+    # Feedback 1 : orientation : 
+    f = 0
+    axes_fb1 = fig1.add_subplot(313,sharex=axes_2)
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb1.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    p1, = axes_fb1.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb1.set_ylim([-0.1,Ns[0]-1+0.1])
+    axes_fb1.set_ylabel("Simulated \n ERD Intensity")
+    axes_fb1.set_xlabel("Timesteps")
+
+
+    # axes_fb1.legend()
+
+    axes_fb2 = axes_fb1.twinx()
+    f = 1
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb2.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    axes_fb2.axhline(y=2,color="black")
+    p2, = axes_fb2.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb2.set_ylim([-0.1,Ns[1]-1+0.1])
+    axes_fb2.set_yticks(range(Ns[1]))
+    axes_fb2.set_yticklabels(["L","CL","C","CR","R"])
+    axes_fb2.set_ylabel("Simulated \n ERD Orientation")
+    axes_fb1.grid()
+
+
+    axes_fb1.yaxis.label.set_color(p1.get_color())
+    axes_fb2.yaxis.label.set_color(p2.get_color())
+    axes_fb2.spines["right"].set_edgecolor(p2.get_color())
+    axes_fb1.tick_params(axis='y', colors=p1.get_color())
+    axes_fb2.tick_params(axis='y', colors=p2.get_color())
+    # axes_fb2.legend()
+
+    fig1.tight_layout()
+    fig1.subplots_adjust(hspace=0.15)
+    fig1.show()
+
+
+def plot_trials(state_arr,feedback_arr,Ns,window = 1):
+    # Mean of all subjects
+    fig1,axes1 = plt.subplots(2,1,dpi=180)
+    colorlist = ["red","blue"]
+    labelist = ["Intensity","Orientation"]
+
+    # Feedback 1 : orientation : 
+    f = 0
+    axes_fb1 = axes1[0]
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb1.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    p1, = axes_fb1.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb1.set_ylim([-0.1,Ns[0]-1+0.1])
+    axes_fb1.set_ylabel("ERD Intensity")
+    axes_fb1.set_xlabel("Timesteps")
+
+
+    # axes_fb1.legend()
+
+    axes_fb2 = axes1[0].twinx()
+    f = 1
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb2.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    axes_fb2.axhline(y=2,color="black")
+    p2, = axes_fb2.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb2.set_ylim([-0.1,Ns[1]-1+0.1])
+    axes_fb2.set_yticklabels([None,"L","CL","C","CR","R"])
+    axes_fb2.set_ylabel("ERD Orientation")
+
+
+
+    axes_fb1.yaxis.label.set_color(p1.get_color())
+    axes_fb2.yaxis.label.set_color(p2.get_color())
+    axes_fb2.spines["right"].set_edgecolor(p2.get_color())
+    axes_fb1.tick_params(axis='y', colors=p1.get_color())
+    axes_fb2.tick_params(axis='y', colors=p2.get_color())
+    # axes_fb2.legend()
+
+    colorlist = ["green","orange"]
+    labelist = ["Simulated feedback (AsI)","Simulated left ERD"]
+    for mod in [1,0]:
+            color = colorlist[mod]
+            observations = feedback_arr[:,:,mod,:]
+            flat_fb_lvl = observations.reshape(observations.shape[0],-1)
+            m_fb = clever_running_mean(np.mean(flat_fb_lvl,axis=0),window)
+            v_fb = clever_running_mean(np.std(flat_fb_lvl,axis=0),window)
+            xs = np.linspace(0,m_fb.shape[0],m_fb.shape[0])
+            axes1[1].fill_between(xs,m_fb-v_fb,m_fb+v_fb,color=color,alpha=0.2)
+            axes1[1].plot(xs,m_fb,color=color,label = labelist[mod])
+    axes1[1].set_ylim([0,np.max(feedback_arr[:,:,:,:])])
+    axes1[1].legend()
+    axes1[1].set_xlabel("Timesteps")
+    axes1[1].set_ylabel("Feedback values")
+
+    axes_fb2.grid()
+    axes1[1].grid()
+    fig1.tight_layout()
+    # fig1.suptitle("Simulated Mental Imagery training with high prior mental imagery knowledge",y=1.0)
+    fig1.show()
+
+def plot_trials_new(
+        state_arr,feedback_arr,Ns,window = 1):
+    # Mean of all subjects
+    fig1 = plt.figure(figsize=(8,5))
+
+
+    axes_2 = fig1.add_subplot(211)
+    colorlist = ["green","orange"]
+    labelist = ["Simulated feedback (AsI)","Simulated left ERD"]
+    for mod in [1,0]:
+            color = colorlist[mod]
+            observations = feedback_arr[:,:,mod,:]
+            flat_fb_lvl = observations.reshape(observations.shape[0],-1)
+            m_fb = clever_running_mean(np.mean(flat_fb_lvl,axis=0),window)
+            v_fb = clever_running_mean(np.std(flat_fb_lvl,axis=0),window)
+            xs = np.linspace(0,m_fb.shape[0],m_fb.shape[0])
+            axes_2.fill_between(xs,m_fb-v_fb,m_fb+v_fb,color=color,alpha=0.2)
+            axes_2.plot(xs,m_fb,color=color,label = labelist[mod])
+    axes_2.set_ylim([0,np.max(feedback_arr[:,:,:,:])])
+    axes_2.legend(prop = { "size": 10 })
+    # axes_2.set_xlabel("Timesteps")
+    # axes_2.set_xticks([])
+    axes_2.set_ylabel("Simulated \n Feedback values")
+    axes_2.grid()
+    
+    # fig1.suptitle("Simulated Mental Imagery training with high prior mental imagery knowledge",y=1.0)
+    colorlist = ["red","blue"]
+    labelist = ["Intensity","Orientation"]
+    # Feedback 1 : orientation : 
+    f = 0
+    axes_fb1 = fig1.add_subplot(212,sharex=axes_2)
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb1.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    p1, = axes_fb1.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb1.set_ylim([-0.1,Ns[0]-1+0.1])
+    axes_fb1.set_ylabel("Simulated \n ERD Intensity")
+    axes_fb1.set_xlabel("Timesteps")
+
+
+    # axes_fb1.legend()
+
+    axes_fb2 = axes_fb1.twinx()
+    f = 1
+    color = colorlist[f]
+    states = state_arr[:,:,f,:]
+    flat_state_f = states.reshape(states.shape[0],-1)
+    m_state = clever_running_mean(np.mean(flat_state_f,axis=0),window)
+    v_state = clever_running_mean(np.std(flat_state_f,axis=0),window)
+    xs = np.linspace(0,m_state.shape[0],m_state.shape[0])
+    axes_fb2.fill_between(xs,m_state-v_state,m_state+v_state,color=color,alpha=0.2)
+    axes_fb2.axhline(y=2,color="black")
+    p2, = axes_fb2.plot(xs,m_state,color=color,label = labelist[f])
+    axes_fb2.set_ylim([-0.1,Ns[1]-1+0.1])
+    axes_fb2.set_yticks(range(Ns[1]))
+    axes_fb2.set_yticklabels(["L","CL","C","CR","R"])
+    axes_fb2.set_ylabel("Simulated \n ERD Orientation")
+    axes_fb1.grid()
+
+
+    axes_fb1.yaxis.label.set_color(p1.get_color())
+    axes_fb2.yaxis.label.set_color(p2.get_color())
+    axes_fb2.spines["right"].set_edgecolor(p2.get_color())
+    axes_fb1.tick_params(axis='y', colors=p1.get_color())
+    axes_fb2.tick_params(axis='y', colors=p2.get_color())
+    # axes_fb2.legend()
+
+    fig1.tight_layout()
+    fig1.subplots_adjust(hspace=0.0)
+    fig1.show()
+
+
+
 if __name__ == "__main__":
     X  = [0,1,2,9,8,7,6]
     Y = [0,1,2,3,4,5,6]
-    print(js_dir(X,Y))

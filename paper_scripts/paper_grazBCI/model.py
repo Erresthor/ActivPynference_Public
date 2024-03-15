@@ -514,6 +514,7 @@ def rest_phase_layer(T,Th,
 
 
 
+
 # Define the network
 def nf_net_dims(T,Th,
         Ns_proc,Ns_subj,Nos,

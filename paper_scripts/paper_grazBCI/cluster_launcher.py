@@ -161,8 +161,8 @@ if __name__ == "__main__":
     # b_pre_ori = 50.0
 
 
-    Ntrials = 2
-    Nsubjects = 2
+    Ntrials = 200
+    Nsubjects = 10
 
     sigmas_proc = [1.5,1.5]
     observation_stickiness = 100

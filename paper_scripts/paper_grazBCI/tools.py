@@ -266,7 +266,7 @@ def plot_trials_and_data(
     
     ax_data = fig1.add_subplot(311)
     ax_data.axhline(y=0,color="black")
-    ax_data.plot(tees,intens_means,label="Measured normed left ERD",color="orange")
+    ax_data.plot(tees,intens_means,label="Normalized left ERD",color="orange")
     ax_data.fill_between(tees,intens_means-intens_stds,intens_means+intens_stds,alpha=0.2,color="orange")
     ax_data.set_ylim([-1,1])
 

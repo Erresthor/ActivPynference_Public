@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import scipy
 
-from demo.my_projects.behavioural_task.grid import behavioural_process,basic_model,complex_grid_model,sub2ind,ind2sub
+from demo_draft.my_projects.behavioural_task.grid import behavioural_process,basic_model,complex_grid_model,sub2ind,ind2sub
 
 import actynf
 from actynf.layer.layer_components import link_function

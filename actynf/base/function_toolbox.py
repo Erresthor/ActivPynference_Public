@@ -419,6 +419,7 @@ def spm_dot(X,in2,i={}):
     return X
 
 def spm_kron(*argv) :
+    """ Multidimensionnal kronecker product"""
     n = (len(argv))
     ret = 0
     if (n>1):

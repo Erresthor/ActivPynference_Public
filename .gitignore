@@ -17,6 +17,7 @@ docs/build_*
 
 # my stuff
 private_tests/
+private_scripts/
 my_projects/
 
 # raw outputs & data storage

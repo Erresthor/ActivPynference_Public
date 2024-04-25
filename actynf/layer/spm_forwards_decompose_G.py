@@ -52,7 +52,7 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax, prune_tr
 from ..base.miscellaneous_toolbox import isField,flexible_copy
 
 def spm_forwards(O,P_t,U,layer_variables,t,
-                 T,N,debug=False,layer_RNG=None,
+                 T,N,layer_options=None,layer_RNG=None,
                 cap_state_explo = None, cap_action_explo = None,
                 layer_learn_options = None,depth=0) :
     """ 
@@ -183,16 +183,17 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                 G[action,3] = G[action,3] + A_exploration_term
                 
                 B_exploration_term = 0
-                if layer_learn_options.learn_b :# if we learn b :
-                    B_exploration_term = - np.dot(Q[action],np.dot(B_novelty[action],P))
+                if layer_options.b_novelty:
+                    if layer_learn_options.learn_b :# if we learn b :
+                        # Warning : the novelty term is poorly defined when using several state factors
+                        # (dirichlet kronecker product loses part of the information)
+                        B_exploration_term = - np.dot(Q[action],np.dot(B_novelty[action],P))
                 G[action,4] = G[action,4] + B_exploration_term
     # Q = q(s|pi) at time t
     # P = q(s) at time t
     # u = softmax(G) = q(pi) at time t
 
-    # print(t,Q[0].shape)
-
-    # Not over yet, G still needs to include the "value" of the next timesteps !
+    # It's not over yet, G still needs to include the "value" of the next timesteps !
     # Let's imagine action k is realized :
     # 1.  Let's check if it is actually plausible or not ? If not, why even bother
     # 2.  Let's then check the plausible states for this transition (Q[k])
@@ -200,15 +201,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     #       2.b : if yes, then what are the associated observation distribution according to my model ?
     # 3. Using those computed values, if all plausible, let's approximate the free energy for the analyzed action
     # print("t : " + str(t) + " | " + str(cap_action_explo) + " - " + str(cap_state_explo))
-    
 
-    # if (t==0):
-    #     print("---------------------------")
-    #     for act in range(U.shape[0]):
-    #         print(np.round(B_novelty[0]))
-    # if (t==1) and (_depth==1):
-    #     print(np.round(G,2))
-        
     plausible_threshold = 1.0/16.0
     if (t<N): # t within temporal horizon
         u = softmax(np.sum(G,axis=1))

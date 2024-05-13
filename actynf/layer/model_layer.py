@@ -307,13 +307,13 @@ class mdp_layer :
 
         # STM : Short term memory for the layer : 
         self.STM = None
-        # CONTAINS THE FOLLOWING in its STM:
-        # self.o_d = None # Observation DISTRIBUTIONS
-        # self.x_d = None # State DISTRIBUTIONS
-        # self.u_d = None # Action DISTRIBUTIONS
-        # self.o = None # Observation 
-        # self.x = None # State 
-        # self.u = None # Action 
+                        # CONTAINS THE FOLLOWING in its STM:
+                        # self.o_d = None # Observation DISTRIBUTIONS
+                        # self.x_d = None # State DISTRIBUTIONS
+                        # self.u_d = None # Action DISTRIBUTIONS
+                        # self.o = None # Observation 
+                        # self.x = None # State 
+                        # self.u = None # Action 
 
         self.check() # Run a few checks & initialize property fields
         self.initialize_STM()
@@ -357,35 +357,31 @@ class mdp_layer :
         if(self.name == '') :
             self.name = 'unnamed_layer'
 
+        
+        
+        
         pcmm = "" #potential_component_missing_message
         if not(isField(self.a)): pcmm += self.name +" : A not filled in " +  "\n"
         if not(isField(self.b)): pcmm += self.name +" : B not filled in " +  "\n"
-        if not(isField(self.c)): pcmm += self.name +" : C not filled in " + "\n"
         if not(isField(self.d)): pcmm += self.name +" : D not filled in " + "\n"
-        if not(isField(self.e)): pcmm += self.name +" : E not filled in " + "\n"
         if not(isField(self.U)): pcmm += self.name +" : U not filled in " + "\n"
-        assert (pcmm==""),print("ERROR : \n" + pcmm +"\n")
-
+        assert (pcmm==""),"ERROR : \n" + pcmm +"\n"
         # Ensure the layer functions are lists
         self.a = listify(self.a)
         self.b = listify(self.b)
-        self.c = listify(self.c)
         self.d = listify(self.d)
-        self.e = self.e
-
+        
         # Get the dimensions of the layer space
         self.Nmod = len(self.a)
         self.No = []
         for i in range(self.Nmod) :
             self.No.append(self.a[i].shape[0])
-
-
+        
         self.Nf = len(self.d)
         self.Ns = []
         for i in range(self.Nf):
             self.Ns.append(self.d[i].shape[0])
-
-
+            
         self.Np = self.U.shape[0] # Number of allowable set of actions
         if (self.U.ndim==1):
             # check if there is only one transition dimension !
@@ -401,6 +397,21 @@ class mdp_layer :
 
         assert len(self.b)==self.Nf,"The action matrix number of factors (" + str(len(self.b)) + ") should match the initial state matrix number of factors (" + str(len(self.d)) + ")."
         
+        
+        # Autofill missing fields if they're optional : 
+        if self.layerMode == layerMode.PROCESS :
+            if not(isField(self.c)):
+                self.c = [np.zeros(No_m) for No_m in self.No]
+            if not(isField(self.e)):
+                self.e = np.ones((self.Np,))
+        if not(isField(self.c)): pcmm += self.name +" : C not filled in " + "\n"
+        if not(isField(self.e)): pcmm += self.name +" : E not filled in " + "\n"
+        assert (pcmm==""),"ERROR : \n" + pcmm +"\n"
+        
+        # Ensure the layer functions are lists
+        self.e = self.e
+        self.c = listify(self.c)
+
         # TODO : add more checks (outcomes, states, etc)
         # if self.layerMode == layerMode.MODEL:
         assert len(self.c)==self.Nmod, "The preference matrix number of modalities (" + str(len(self.c)) + ") should match the perception model number of modalities (" + str(len(self.a)) + ")."
@@ -494,13 +505,6 @@ class mdp_layer :
         else:
             kron_b_arr = np.array(self.var.b_kron)
             return np.average(kron_b_arr,axis=0,weights=action_distribution)
-        # print(kron_b_arr.shape)
-        # total = 0
-        # for pol in range(len(kron_b)):
-        #     print(kron_b[pol].shape)
-        #     print(action_distribution[pol])
-        #     total = total + kron_b[pol]*action_distribution[pol]
-        # return total
 
     def get_factorwise_actions(self,at_time=0):
         assert at_time<self.T-1,"Can't get kronecker form of hidden states at time " + at_time + " (Temporal horizon reached)"
@@ -838,11 +842,9 @@ class mdp_layer :
         #                     self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
         #                     self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
         #                     layer_learn_options=self.learn_options)
-        
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
-                            self.T,min(self.T-1,t+self.T_horizon),self.debug,self.RNG,
-                            self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
-                            layer_learn_options=self.learn_options)
+                            self.T,min(self.T-1,t+self.T_horizon),
+                            self.hyperparams,self.learn_options,self.RNG)
         # DEBUG : 
         if (self.debug):
             print("Free energy at time " + str(t) + " :")

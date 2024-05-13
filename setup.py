@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='active_pynference',
-    version='0.1.24',    
+    version='0.1.30',    
     description='A Python implementation of an Active Inference engine using Sophisticated Inference.',
     url='https://github.com/Erresthor/ActivPynference_Public',
     author='Come Annicchiarico',

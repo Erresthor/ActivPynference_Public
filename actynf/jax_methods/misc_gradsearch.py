@@ -7,10 +7,12 @@ import jax
 from jax.tree_util import tree_map
 from jax import lax,vmap,jit
 
-from jax_toolbox import _normalize
-from planning_tools import compute_Gt_array,compute_novelty
-
 import tensorflow_probability.substrates.jax.distributions as tfd
+
+from .jax_toolbox import _normalize
+from .planning_tools import compute_Gt_array,compute_novelty
+
+
 
 def compute_G_pi(qpi,qs_tminus,
                  A,B,C,

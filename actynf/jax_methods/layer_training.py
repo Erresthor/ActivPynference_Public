@@ -12,7 +12,6 @@ import jax
 import jax.numpy as jnp
 import jax.random as jr
 import jax.scipy as jsp
-
 from jax.tree_util import tree_map
 from jax import lax,vmap,jit
 
@@ -25,15 +24,51 @@ import numpyro
 from numpyro import handlers
 from numpyro.infer import MCMC, NUTS, Predictive    
     
-from fastprogress.fastprogress import progress_bar
+from .jax_toolbox import _normalize,convert_to_one_hot_list,_swapaxes
+from .layer_plan import sample_action_pyro
 
-from jax_toolbox import _normalize,convert_to_one_hot_list,_swapaxes
-from actynf.jax_methods.layer_plan import sample_action_pyro
+from .layer_trial import synthetic_trial,compute_trial_posteriors_empirical
 
-from actynf.jax_methods.layer_trial import synthetic_trial,compute_trial_posteriors_empirical
+from .layer_learn import learn_after_trial
 
-from actynf.jax_methods.layer_learn import learn_after_trial
 
+def training_step(trial_rng_key,Ns,Nos,Np,T,
+            pa,pb,pd,c,e,
+            A,B,D,
+            Th =3,
+            selection_method="stochastic",alpha = 16,gamma = None, 
+            learn_dictionnary = {"bool":{"a":True,"b":True,"d":True},"rates":{"a":1.0,"b":1.0,"d":1.0}},smooth_state_estimates=False):
+    
+    # T timesteps happen below : 
+    [obs_darr,obs_arr,obs_vect_arr,
+        true_s_darr,true_s_arr,true_s_vect_arr,
+        u_d_arr,u_arr,u_vect_arr,
+        qs_arr,qpi_arr,efes] = synthetic_trial(trial_rng_key,
+                    Ns,Nos,Np,
+                    pa,pb,c,pd,e,
+                    A,B,D,
+                    T= T,Th = Th,
+                    alpha = alpha,gamma = gamma, 
+                    selection_method=selection_method)
+    
+    # # Then, we update the parameters of our HMM model at this level
+    # The learn function wants the T dimension to be the last one
+    o_hist_learn = _swapaxes(obs_vect_arr,tree=True)
+    s_hist_learn = _swapaxes(qs_arr)
+    u_hist_learn = _swapaxes(u_vect_arr)
+    a_post,b_post,d_post = learn_after_trial(o_hist_learn,s_hist_learn,u_hist_learn,
+                                                pa,pb,pd,
+                                                learn_what=learn_dictionnary["bool"],
+                                                learn_rates=learn_dictionnary["rates"],
+                                                post_trial_smooth=smooth_state_estimates)
+    
+    return_tuple = ( obs_darr,obs_arr,obs_vect_arr,
+                    true_s_darr,true_s_arr,true_s_vect_arr,
+                    u_d_arr,u_arr,u_vect_arr,
+                    qs_arr,qpi_arr,efes,
+                    a_post,b_post,d_post)
+    
+    return return_tuple
 
 def synthetic_training(rngkey,Ns,Nos,Np,Ntrials,T,
             a0,b0,c,d0,e,
@@ -115,7 +150,9 @@ def compute_training_posteriors_empirical(obs_vect,act_vect,
     """,
     This method uses the compute_trial_posteriors_empirical function from the ai_jax_loop .py file
     It provides active inference agents with observation and returns their action posterior depending on their internal parameters.
-    To allow for better convergence, the actions chosen by these agents
+    To allow for better convergence, the empirical actions at time t are observed at time t+1 instead of relying
+    on computed action posteriors.
+    
     Inputs : 
     - obs_vect : one_hot-encoded observations along a list of observation modalities. Each tensor in the list is of size Ntrials x Ntimesteps x Nobservations
     - act_vect : one_hot-encoded *observed* actions. This tensor is of size Ntrials x Ntimesteps x Nactions
@@ -136,7 +173,8 @@ def compute_training_posteriors_empirical(obs_vect,act_vect,
                                 Th =Th,gamma = gamma,
                                 include_last_observation=True)
 
-        # NO ACTION SELECTION HERE ! We're using empirical observations instead
+        # NO ACTION SELECTION HERE ! We're using empirical observations 
+        # to compute the parameter evolution instead
         
         # # Then, we update the parameters of our HMM model at the training level
         # *Warning !* The learn function wants the T dimension to be the last one, so let's swap the axes -1 and -2 for the recorded history
@@ -236,17 +274,6 @@ def _test_simulate_trial():
     
     [all_obs_arr,all_true_s_arr,all_u_arr,all_qs_arr,all_qpi_arr,efes_arr,a_hist,b_hist,d_hist] = res
     
-    # print(all_qpi_arr)
-    
-    # print(all_u_arr)
-    # print(np.round(np.array(efes_arr[0,...])))
-    # print(np.round(np.array(efes_arr[1,...])))
-    # print(np.round(jax.nn.softmax(efes_arr[0,...]),2))
-    
-    
-    # for trial in range(Ntrials):
-    #     for action in range(Np):
-    #         print(np.round(np.array(b_hist[trial][...,action]),2))
     for trial in range(Ntrials):
         print(np.round(np.array(a_hist[0][trial]),2))
     # exit()

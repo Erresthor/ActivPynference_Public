@@ -23,19 +23,19 @@ import numpyro
 from numpyro import handlers
 from numpyro.infer import MCMC, NUTS, Predictive   
     
-from jax_toolbox import _normalize,_jaxlog,convert_to_one_hot_list
-from jax_toolbox import compute_novelty
+from .jax_toolbox import _normalize,_jaxlog,convert_to_one_hot_list
+from .jax_toolbox import compute_novelty
 
-from layer_process import initial_state_and_obs,process_update
-from layer_infer_state import compute_state_posterior
-from layer_plan import policy_posterior,sample_action,sample_action_pyro
+from .layer_process import initial_state_and_obs,process_update
+from .layer_infer_state import compute_state_posterior
+from .layer_plan import policy_posterior,sample_action,sample_action_pyro
 
-def compute_step_posteriors(prior,observation,a,b,c,e,a_novel,b_novel,gamma,Np,Th):   
+def compute_step_posteriors(t,prior,observation,
+                            a,b,c,e,a_novel,b_novel,gamma,Np,Th):   
     # State inference
     qs = compute_state_posterior(prior,observation,a)
     # Policy planning
-    efe,raw_qpi = policy_posterior(Th,qs,a,b,c,e,a_novel,b_novel,gamma,Np)
-    
+    efe,raw_qpi = policy_posterior(t,Th,qs,a,b,c,e,a_novel,b_novel,gamma,Np)
     return qs,raw_qpi,efe
 
 def synthetic_trial(rngkey,
@@ -45,7 +45,8 @@ def synthetic_trial(rngkey,
               T=10,Th =3,
               alpha = 16,gamma = None, selection_method="stochastic"):
     
-    # Normalize the subject priors
+    # Normalize the subject priors ( = get their expected values 
+    # given the entertained dirichlet prior)
     a = _normalize(pa,tree=True)
     b,_ = _normalize(pb)
     d,_ = _normalize(pd)
@@ -61,9 +62,11 @@ def synthetic_trial(rngkey,
     # Initialize subject model
     ps_0 = d
 
-    def _scan(carry,key):
-        key,key_agent,key_process = jr.split(key,3)
-
+    def _scan(carry,xs):
+        (key,t) = xs
+        
+        key,key_agent,key_process = jr.split(key,3)  # For random generations
+        
         # Saved states from previous process tick and model update (t-1) --------
         true_s,observation,prior = carry
         
@@ -71,7 +74,7 @@ def synthetic_trial(rngkey,
         # Model update (t) ----------------------------------------------------------------
         
         # State & policy inference
-        qs,raw_qpi,efe = compute_step_posteriors(prior,observation,a,b,c,e,a_novel,b_novel,gamma,Np,Th)
+        qs,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a,b,c,e,a_novel,b_novel,gamma,Np,Th)
         
         # Action sampling
         u_d,u_idx,u_vect = sample_action(raw_qpi,Np,alpha, selection_method=selection_method,rng_key=key_agent)
@@ -84,9 +87,9 @@ def synthetic_trial(rngkey,
         [s_d,s_idx,s_vect],[o_d,o_idx,o_vect] = process_update(key_process,true_s,A,B,u_vect,Ns,Nos)
         return (s_vect,o_vect,new_prior),(o_d,o_idx,o_vect,s_d,s_idx,s_vect,u_d,u_idx,u_vect,qs,raw_qpi,efe)
     
-    
+    timestamps = jnp.arange(T-1)
     next_keys = jr.split(rngkey, T - 1)
-    (last_true_s,last_obs,last_prior), (obs_darr,obs_arr,obs_vect_arr,true_s_darr,true_s_arr,true_s_vect_arr,u_d_arr,u_arr,u_vect_arr,qs_arr,qpi_arr,efes) = jax.lax.scan(_scan, (s_0_vect,o_0_vect,ps_0),next_keys)
+    (last_true_s,last_obs,last_prior), (obs_darr,obs_arr,obs_vect_arr,true_s_darr,true_s_arr,true_s_vect_arr,u_d_arr,u_arr,u_vect_arr,qs_arr,qpi_arr,efes) = jax.lax.scan(_scan, (s_0_vect,o_0_vect,ps_0),(next_keys,timestamps))
     
     # Compute the state posterior for the ultimate timestep
     last_qs = compute_state_posterior(last_prior,last_obs,a)
@@ -130,18 +133,18 @@ def compute_trial_posteriors_empirical(obs_vect,act_vect,
     
     def _scan(carry,data_t):
         emp_prior = carry
-        (observation_t,observed_action_t_vect) = data_t
+        (observation_t,observed_action_t_vect,t) = data_t
         
-        qs,raw_qpi,efe = compute_step_posteriors(emp_prior,observation_t,a,b,c,e,a_novel,b_novel,gamma,Np,Th)
+        qs,raw_qpi,efe = compute_step_posteriors(t,emp_prior,observation_t,a,b,c,e,a_novel,b_novel,gamma,Np,Th)
         
         # action_t_vect = action_t
         next_emp_prior = jnp.einsum("iju,j,u->i",b,qs,observed_action_t_vect)
 
         return next_emp_prior,(qs,raw_qpi)
     
+    timestamps = jnp.arange(T-1)
     all_obs_but_last = tree_map(lambda x : x[:-1,...],obs_vect)
-    
-    last_prior,(qs_arr,qpi_arr) = jax.lax.scan(_scan,d,(all_obs_but_last,act_vect))
+    last_prior,(qs_arr,qpi_arr) = jax.lax.scan(_scan,d,(all_obs_but_last,act_vect,timestamps))
     
     if include_last_observation : # Useful if we want to learn weights :)
         last_obs = tree_map(lambda x : x[-1,...],obs_vect)

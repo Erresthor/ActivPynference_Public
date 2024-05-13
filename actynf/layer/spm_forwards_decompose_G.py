@@ -52,9 +52,10 @@ from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax, prune_tr
 from ..base.miscellaneous_toolbox import isField,flexible_copy
 
 def spm_forwards(O,P_t,U,layer_variables,t,
-                 T,N,layer_options=None,layer_RNG=None,
-                cap_state_explo = None, cap_action_explo = None,
-                layer_learn_options = None,depth=0) :
+                 T,N,layer_options=None,
+                layer_learn_options = None,
+                layer_RNG=None,
+                depth=0) :
     """ 
     Recursive structure, each call to this function provides the efe and expected states at t+1
 
@@ -88,6 +89,10 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     A = self.a
     B = self.b
     """
+    cap_state_explo = layer_options.cap_state_explo
+    cap_action_explo = layer_options.cap_action_explo
+    compute_novelty_b = layer_options.b_novelty
+    
     _depth = depth 
 
 
@@ -151,17 +156,17 @@ def spm_forwards(O,P_t,U,layer_variables,t,
 
             qo = np.dot(flattened_A,Q[action])   # prediction over observations at time t+1
 
-            plot_action_selection = False
-            if plot_action_selection and (_depth==0)and(action==2):
-                print("qo ---------------------------")
-                print(np.round(qo,2))
-                print("qs ---------------------------")
-                print(np.round(Q[action],2))
-                print("novelty")
-                print(np.round(np.dot(flattened_W,Q[action]),2))
-                print(np.round(qo*np.dot(flattened_W,Q[action]),2))
-                print("total")
-                print(np.round(-np.dot(qo.T,np.dot(flattened_W,Q[action])),2))
+            # plot_action_selection = False
+            # if plot_action_selection and (_depth==0) and (action==2):
+            #     print("qo ---------------------------")
+            #     print(np.round(qo,2))
+            #     print("qs ---------------------------")
+            #     print(np.round(Q[action],2))
+            #     print("novelty")
+            #     print(np.round(np.dot(flattened_W,Q[action]),2))
+            #     print(np.round(qo*np.dot(flattened_W,Q[action]),2))
+            #     print("total")
+            #     print(np.round(-np.dot(qo.T,np.dot(flattened_W,Q[action])),2))
             
             po = C[modality][:,t+1]              # what we want at that time (t+1) = log(p(o))
 
@@ -183,7 +188,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                 G[action,3] = G[action,3] + A_exploration_term
                 
                 B_exploration_term = 0
-                if layer_options.b_novelty:
+                if compute_novelty_b:
                     if layer_learn_options.learn_b :# if we learn b :
                         # Warning : the novelty term is poorly defined when using several state factors
                         # (dirichlet kronecker product loses part of the information)
@@ -249,10 +254,9 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                     
 
                     G_next_act,posterior_P_next_t = spm_forwards(flexible_copy(O),P_next_t,U,layer_variables,t+1,T,N,
-                                                         layer_RNG=layer_RNG,
-                                                         cap_state_explo=cap_state_explo,
-                                                         cap_action_explo=cap_action_explo,
+                                                         layer_options=layer_options,
                                                          layer_learn_options=layer_learn_options,
+                                                         layer_RNG=layer_RNG,
                                                          depth = _depth+1)
                     # Expected free energy marginalised over subsequent action
 

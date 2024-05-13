@@ -15,9 +15,9 @@ import tensorflow_probability.substrates.jax.distributions as tfd
 from functools import partial
 from fastprogress.fastprogress import progress_bar
 
-from jax_toolbox import _normalize,_jaxlog
-from jax_toolbox import compute_Gt_array,compute_novelty
-from jax_toolbox import _condition_on,_compute_A_conditional_logliks
+from .jax_toolbox import _normalize,_jaxlog
+from .jax_toolbox import compute_Gt_array,compute_novelty
+from .jax_toolbox import _condition_on,_compute_A_conditional_logliks
 
 def learn_a(hist_obs,hist_qs,pa,lr_a):
     def _learn_a_mod(o_mod,pa_mod):

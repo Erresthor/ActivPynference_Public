@@ -10,9 +10,11 @@ from jax import jit
 from numpyro import plate,sample,deterministic
 import numpyro.distributions as distr
 
-from jax_toolbox import _normalize,_jaxlog,random_split_like_tree
-
 import tensorflow_probability.substrates.jax.distributions as tfd
+
+from .jax_toolbox import _normalize,_jaxlog,random_split_like_tree
+
+
 
 
 def sample_initial_state(rngkey,D,Ns):

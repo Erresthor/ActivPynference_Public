@@ -36,16 +36,16 @@ def build_training_process(Ns,p_up,p_low,kas):
             b[u-1,u,u] = 0.0
         except:
             lol = "lol"
-    b = [actynf.normalize(b)]
+    b = actynf.normalize([b])
 
     # Active Inference also revolves around a state-observation correspondance that we describe here :
     [ka1,ka2] = kas
     a1 = (ka1)*np.eye(Ns)+(1-ka1)*np.ones((Ns,Ns))
     a2 = (ka2)*np.eye(Ns)+(1-ka2)*np.ones((Ns,Ns))
-    a = [a1,a2]
+    a = actynf.normalize([a1,a2])
     
     # ... as well as the allowable transitions the mouse can choose :
-    u = np.array([[0,0],[0,1],[0,2],[0,3]]).astype(int)
+    u = np.linspace(0,Np-1,Np).astype(int)
     
     # Habits
     e = np.ones((u.shape[0],))
@@ -58,7 +58,7 @@ def build_training_process(Ns,p_up,p_low,kas):
 
 
 def build_subject_model(Ns,
-                        kas_subj,
+                        a_str,kas_subj,
                         process_b,kb_subj,b_str,
                         process_u,
                         kd,
@@ -92,8 +92,9 @@ def build_subject_model(Ns,
 
 
     [ka1,ka2] = kas_subj
-    a1 = (ka1)*np.eye(Ns)+(1-ka1)*np.ones((Ns,Ns))
-    a2 = (ka2)*np.eye(Ns)+(1-ka2)*np.ones((Ns,Ns))
+    [astr1,astr2] = a_str
+    a1 = astr1*((ka1)*np.eye(Ns)+(1-ka1)*np.ones((Ns,Ns)))
+    a2 = astr2*((ka2)*np.eye(Ns)+(1-ka2)*np.ones((Ns,Ns)))
     a = [a1,a2]
 
 

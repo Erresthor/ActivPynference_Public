@@ -5,12 +5,13 @@ import jax.scipy as jsp
 from jax.tree_util import tree_map
 from jax import lax,vmap, jit
 
-from jax_toolbox import spm_wnorm,_jaxlog
-
 from functools import partial
 from itertools import product
 
 import tensorflow_probability.substrates.jax.distributions as tfd
+
+from .jax_toolbox import spm_wnorm,_jaxlog
+
 
 # EFE CALCULATIONS -------------------------------------------------------
 def compute_novelty(M,multidim=False):
@@ -34,17 +35,23 @@ def compute_info_gain(qs,A):
     info_gain_all_m = tree_map(info_gain_modality,A)
     return jnp.stack(info_gain_all_m).sum()
 
-def compute_risk(qo, C, timedim=False):
-    def risk_modality(qo_m,C_m):
-        one_timestep_risk = lambda qo_m_t : (qo_m_t*C_m).sum() - (qo_m_t*_jaxlog(qo_m_t)).sum()
-                                                # Utility      -        Observation entropy        
-        if timedim:
-            T =  qo_m.shape[-1]
-            timefunc = lambda t: one_timestep_risk(qo_m[:,t])
-            return vmap(timefunc)(jnp.arange(0,T,1))
-        else : 
-            return one_timestep_risk(qo_m)
+def compute_risk(t_pref, qo, C, timedim=False):
+    # t_pref is the time at which the predicted observation will occur
     
+    def risk_modality(qo_m,C_m):
+        pref_m_depends_on_time = (C_m.ndim>1)
+            # if C.ndim = 1, the preferences are time invariant, t_pref has no purpose
+            # if C.ndim = 2, the preferences are time dependent
+            
+        if pref_m_depends_on_time:
+            preference_m_t = C_m[...,t_pref]
+        else : 
+            preference_m_t = C_m
+        
+        risk_m_t = (qo_m*preference_m_t).sum() - (qo_m*_jaxlog(qo_m)).sum()
+                            # Utility      -        Observation entropy    
+        return risk_m_t
+        
     risk_all_m = tree_map(risk_modality,qo,C)
     return jnp.stack(risk_all_m).sum()
 
@@ -78,16 +85,40 @@ def compute_transition_novelty(action_vector,qs_prev,B_norm,B_novelty):
     prob_novel = -jnp.einsum("ijk,j,k",B_norm*B_novelty,qs_prev,action_vector)
     return prob_novel.sum()
 
-def compute_Gt_array(qo_next,qs_next,qs_prev,action_vect,
+def compute_Gt_array(t,qo_next,qs_next,qs_prev,action_vect,
                     A,Anovelty,
                     B,Bnovelty,
                     C):
     """ 
     Agent goal : plan actions to minimize this !
     """
-    risk = compute_risk(qo_next, C)
+    # We are looking for the best action at timestep t
+    # To do this, let's compute the expected risk associated with observations
+    # at time t+1 given our perception of the situation : 
+    t_next = t + 1 # Sequential time
+    risk = compute_risk(t_next,qo_next, C)
     info_gain = compute_info_gain(qs_next,A)
     
+    # TODO : make these optional
     novelty_A = compute_observation_novelty(qs_next,A,Anovelty)
+    # Only implemented for a single latent state factor :
     novelty_B = compute_transition_novelty(action_vect,qs_prev,B,Bnovelty)
     return jnp.stack([risk,info_gain,novelty_A,novelty_B])
+
+def autoexpand_preference_matrix(C_base,Th,option="nopref"):
+    islist=(type(C_base)==list)
+    
+    def expand_mod(C_base_m):
+        if C_base_m.ndim>1: # Preference matrix should have a temporal dimension to be autoexpanded
+            if option=="nopref":
+                pref_expansion = jnp.zeros((C_base_m.shape[-2],Th))
+            elif option=="last":
+                last_timestep = C_base_m[:,-1]
+                pref_expansion = jnp.repeat(jnp.expand_dims(last_timestep,-1),Th,-1)
+            return jnp.concatenate([C_base_m,pref_expansion],axis=-1)
+        return C_base_m
+    
+    if islist:
+        return tree_map(expand_mod,C_base)
+    else : 
+        return expand_mod(C_base)

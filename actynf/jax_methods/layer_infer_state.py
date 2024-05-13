@@ -9,8 +9,8 @@ from jax import lax,vmap,jit
 from functools import partial
 from itertools import product
 
-from jax_toolbox import _normalize,_jaxlog
-from jax_toolbox import _condition_on,_compute_A_conditional_logliks
+from .jax_toolbox import _normalize,_jaxlog
+from .jax_toolbox import _condition_on,_compute_A_conditional_logliks
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 

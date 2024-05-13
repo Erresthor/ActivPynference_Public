@@ -19,6 +19,7 @@ import jax
 import jax.numpy as jnp
 from jax import vmap
 from jax.tree_util import tree_map
+from jax.scipy.special import gammaln,digamma,betaln
 from tensorflow_probability.substrates import jax as tfp
 from functools import partial
 
@@ -27,8 +28,7 @@ import optax
 import matplotlib.pyplot as plt
 import functools 
 
-from jax_toolbox import _jaxlog,_normalize
-from jax.scipy.special import gammaln,digamma,betaln
+from .jax_toolbox import _jaxlog,_normalize
 
 # Function from pymdp :
 def spm_wnorm(A,epsilon=1e-10):

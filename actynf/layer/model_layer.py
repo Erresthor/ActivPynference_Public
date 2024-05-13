@@ -842,11 +842,9 @@ class mdp_layer :
         #                     self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
         #                     self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
         #                     layer_learn_options=self.learn_options)
-        
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
-                            self.T,min(self.T-1,t+self.T_horizon),self.hyperparams,self.RNG,
-                            self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
-                            layer_learn_options=self.learn_options)
+                            self.T,min(self.T-1,t+self.T_horizon),
+                            self.hyperparams,self.learn_options,self.RNG)
         # DEBUG : 
         if (self.debug):
             print("Free energy at time " + str(t) + " :")

@@ -12,27 +12,43 @@ from jax import jit
 from functools import partial
 from itertools import product
 
-from jax_toolbox import _normalize,_jaxlog
-from planning_tools import compute_Gt_array,compute_novelty
-from actynf.jax_methods.layer_infer_state import compute_state_posterior
+from .jax_toolbox import _normalize,_jaxlog
+from .planning_tools import compute_Gt_array,compute_novelty
+from .layer_infer_state import compute_state_posterior
 
 # A set of functions for agents to plan their next moves.  Note that we use a bruteforce treesearch approach, which is
 # a computational nightmare, but may be adapted to fit short term path planning.
 
 @jit
-def compute_G_action(action_vect,qs_tminus,
+def compute_G_action(t,
+                 action_vect,qs_tminus,
                  A,B,C,
                  A_novel,B_novel):
+    """Compute the expected free energy of a specific action vector performed at time t
+    given a context prior qs_tminus and a generative model A,B,C
+
+    Args:
+        t (_type_): _description_
+        action_vect (_type_): _description_
+        qs_tminus (_type_): _description_
+        A (_type_): _description_
+        B (_type_): _description_
+        C (_type_): _description_
+        A_novel (_type_): _description_
+        B_novel (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
     # At a given timestep t_exp = t + i, with i in [0,Th[
     # what is the effect of action action_idx ?
-    B_pi_t = B@action_vect # jnp.einsum("ijk,k->ij",B,qpi)
-    
-    qs_pi_tplus,_ = _normalize(B_pi_t @ qs_tminus) # Useless norm ?
+    qs_pi_tplus,_ = _normalize(jnp.einsum('iju,j,u->i',B,qs_tminus,action_vect)) # Useless norm ?
 
     # qo is the list of predicted observation distributions at this time t given this qs_pi_tplus !
-    qo = tree_map(lambda a_m : a_m @ qs_pi_tplus,A)
+    # a_m @ qs_pi_tplus
+    qo = tree_map(lambda a_m : jnp.einsum('oi,i->o',a_m,qs_pi_tplus),A)
 
-    Gt = compute_Gt_array(qo,qs_pi_tplus,qs_tminus,action_vect,
+    Gt = compute_Gt_array(t,qo,qs_pi_tplus,qs_tminus,action_vect,
                           A,A_novel,B,B_novel,C)
     return Gt,qs_pi_tplus
 
@@ -48,16 +64,18 @@ def compute_G_branch(qs_tminus,
     return all_Gs,all_qsnext
 
 @partial(jit, static_argnames=['Np','Th'])
-def scan_G_policy(policy_sequence,Th,Np,
+def scan_G_policy(policy_sequence,Np,
+                  initial_t,Th,
                   qs_init,
                   A,B,C,
                   A_novel,B_novel):
-    def _scanner(carry,t):
+    def _scanner(carry,ti):
         qs = carry
 
-        action_vector = jax.nn.one_hot(policy_sequence[t],Np)
+        action_vector = jax.nn.one_hot(policy_sequence[ti],Np)
         
-        Gt,qs_next = compute_G_action(action_vector,qs,
+        Gt,qs_next = compute_G_action(initial_t + ti, # This is the timestep of the action
+                 action_vector,qs,
                  A,B,C,
                  A_novel,B_novel)
 
@@ -68,13 +86,15 @@ def scan_G_policy(policy_sequence,Th,Np,
     return complete_G_array,qss
 
 @partial(jit, static_argnames=['Np','Th'])
-def bruteforce_treesearch(Th,
+def bruteforce_treesearch(initial_t,Th,
                 qs_init,
                 A,B,C,
                 A_novel,B_novel,Np):
     """ There MUST be a better way to do this, but it will do for now."""    
-    scan_seq =  partial(scan_G_policy,Th = Th-1,Np=Np,qs_init=qs_init,A=A,B=B,C=C,A_novel=A_novel,B_novel=B_novel)
+    scan_seq =  partial(scan_G_policy,Np=Np,initial_t=initial_t,Th = Th-1,qs_init=qs_init,A=A,B=B,C=C,A_novel=A_novel,B_novel=B_novel)
     actions_explored = jnp.arange(Np)
+    # This is a fixed policy tree that the agent will explore. This is based on static parameters (Th and Np)
+    # 
     all_combinations = jnp.array(jnp.meshgrid(*[actions_explored]*Th)).T.reshape(-1,Th)
     
     def treesearch_action_i(i):
@@ -95,15 +115,28 @@ def nested_treesearch(cnt,
                 A_novel,B_novel):
     """ 
     TODO : There MUST be a better way to do this !
+    Main problelm : the bruteforce tree search computes the same quantities 
+    over and over again (albeit in parrallel so it's not THAT bad  ...
+    
+    EFE(u1 -> u1 -> u1)
+    EFE(u1 -> u2 -> u1)
+    ...
+    EFE(u1 -> u3 -> u3)
+    EFE(u2 -> u1 -> u1)
+    etc.
+    In these computations, EFE(u1 -> X) = EFE(u1) + ... where EFE(u1) is always the same 
+    
+    Would there be a way to compute the EFE of (e.g.) the next timestep given action u
+    only once ? 
     """
     raise NotImplementedError("Nested treesearch is not implemented yet !")
 
 @partial(jit, static_argnames=['Np','Th'])
-def compute_EFE(Th,qs,A,B,C,A_novel,B_novel,Np):
+def compute_EFE(t,Th,qs,A,B,C,A_novel,B_novel,Np):
     """ 
     lambda s -> G(u,s) for all allowable u
     """
-    Gs,x = bruteforce_treesearch(Th,qs,A,B,C,A_novel,B_novel,Np)     
+    Gs,x = bruteforce_treesearch(t,Th,qs,A,B,C,A_novel,B_novel,Np)     
 
     Gs_compressed = Gs.sum(axis=(-1))
         # Gs_compressed[i,j,k] is the EFE of the agent having followed the single trajectory [Action(t)=i x Actions(t+1 -> t+2 -> ... -> t+Th)=j], at time k
@@ -119,18 +152,18 @@ def compute_EFE(Th,qs,A,B,C,A_novel,B_novel,Np):
 
 ### Compute log policy posteriors --------------------------------------------------------------------------------
 @partial(jit, static_argnames=['Np','Th','gamma'])
-def policy_posterior(Th,qs,A,B,C,E,A_novel,B_novel,
+def policy_posterior(current_timestep,Th,qs,A,B,C,E,A_novel,B_novel,
                      gamma,Np):
-    EFE_per_action = compute_EFE(Th,qs,A,B,C,A_novel,B_novel,Np) #(negative EFE)
+    EFE_per_action = compute_EFE(current_timestep,Th,qs,A,B,C,A_novel,B_novel,Np) #(negative EFE)
     if (gamma==None):
         return EFE_per_action,jax.nn.softmax(EFE_per_action)
     return EFE_per_action, jax.nn.softmax(gamma*EFE_per_action + _jaxlog(E))
 
 # @partial(jit, static_argnames=['Np','Th','gamma'])
-def policy_posterior_reduced(Th,qs,A,B,C,E,gamma,Np):
+def policy_posterior_reduced(current_timestep,Th,qs,A,B,C,E,gamma,Np):
     A_novel = compute_novelty(A,True)
     B_novel = compute_novelty(B)
-    return policy_posterior(Th,qs,A,B,C,E,A_novel,B_novel,gamma,Np)
+    return policy_posterior(current_timestep,Th,qs,A,B,C,E,A_novel,B_novel,gamma,Np)
 
 
 ### Sample an action from the posterior --------------------------------------------------------------------------

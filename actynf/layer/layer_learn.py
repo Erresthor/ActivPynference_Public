@@ -189,8 +189,6 @@ def d_learning_base(o_margin_history,x_kron_history,a_kron,
     Nf = len(old_d_matrix)
     Ns = tuple([k.shape[0] for k in old_d_matrix])
 
-    # print(o_margin_history[1])
-
     L = spm_backwards(o_margin_history, x_kron_history, a_kron, kronecker_transition_history)
 
     dek = spm_dekron(L, Ns)
@@ -209,7 +207,7 @@ def d_learning_smooth(s_margin_history,
     new_d_matrix = flexible_copy(old_d_matrix)
     for factor in range(Nf):
         i = old_d_matrix[factor]>0
-        d_estimate = s_margin_history[factor][:,0]
+        d_estimate = s_margin_history[factor][:,0][i]
         #layer.d_[factor][i] = layer.d_[factor][i] + dek[factor][i]*layer.parameters.eta 
         new_d_matrix[factor][i] = update_rule(old_d_matrix[factor][i],plasticityOptions.eta*d_estimate,plasticityOptions.mem_dec_type,1,plasticityOptions.t05)
     return new_d_matrix
@@ -298,8 +296,8 @@ def learn_from_experience(layer):
         print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
 
 
-    backwars_pass_is_fixed = False
-    if backwards_pass and backwars_pass_is_fixed :
+    backward_pass_is_fixed = False
+    if backwards_pass and backward_pass_is_fixed :
         t_first = time.time()
         smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)
         STM.x_d_smoothed = layer.kronecker_to_joint_accross_time(smoothed_x_kron_history) # Let's save it to the layer's STM !
@@ -310,19 +308,12 @@ def learn_from_experience(layer):
         smoothed_x_kron_history = x_kron_history
         marginalized_smoothed_x = marginalized_x
         # Nothing to save to the STM 
-    # print(marginalized_smoothed_x)
 
-    # fig,axs = plt.subplots(2)
-    # axs[0].imshow(layer.a[0])
     if (layer.learn_options.learn_a): 
         t_first = time.time()
         new_a = a_learning(marginalized_o,smoothed_x_kron_history,layer.a,
                 general_plasticity)
         layer.a = new_a
-    #     if show_timers :
-    #         print("     Learning a took {:.2f} seconds".format(time.time() - t_first))
-    # axs[1].imshow(layer.a[0])
-    # fig.show()
     
     if (layer.learn_options.learn_b):
         t_first = time.time()
@@ -339,7 +330,6 @@ def learn_from_experience(layer):
     if (layer.learn_options.learn_d) : #Update initial hidden states beliefs
         t_first = time.time()
         if (layer.learn_options.use_backward_pass_to_learn_d):
-            # print("D Learning boi")
             new_d = d_learning_smooth(marginalized_smoothed_x,layer.d,general_plasticity)
         else :
             new_d = d_learning_base(marginalized_o,x_kron_history,layer.var.a_kron,
@@ -377,11 +367,3 @@ def learn_from_experience(layer):
     # if isField(layer.U_):
     #     u = u[:,:-1]
     #     un =  un[:,:-Ni]
-
-""" 
-When learning new dynamics, observations can be interpreted as 
-evidence for some environment representation change. (e.g. i've 
-seen a red shape with wheels and i've infered it was a car, it will make me 
-learn that red objects  as well as wheeled objects may often be cars)
-
-"""

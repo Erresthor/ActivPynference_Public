@@ -522,7 +522,6 @@ class mdp_layer :
         return joint.flatten('C')
 
     def joint_to_kronecker_accross_time(self,joint):
-        """ Warning ! For a single timestep."""
         return joint.reshape(-1, joint.shape[-1]) # I don't like it but I'm too lazy to change this
     
     def kronecker_to_joint(self,x_kron):
@@ -760,7 +759,6 @@ class mdp_layer :
             
             # joint distribution : 
             o_d = np.reshape(spm_kron(po_list),self.No)
-        # print(x_d)
         # x, x_d, o and o_d are available 
         # Warning, some may be "None"
         return o,o_d,x,x_d
@@ -769,9 +767,9 @@ class mdp_layer :
         t = self.t
         o,o_d,x,x_d = self.generate_observations(self.hyperparams.process_definite_state_to_obs)
         # o is the whole task's observations
-        # o_d is the distribution from  which o
-        # is sampled, just for this timestep
-        # Should it be changed ?
+        # o_d is the distribution from  which o is sampled
+        # respectively , x are the causing hidden states !
+        # (just for this timestep)
         self.STM.o[:,t] = o
         self.STM.o_d[...,t] = o_d
         self.STM.x[:,t] = x

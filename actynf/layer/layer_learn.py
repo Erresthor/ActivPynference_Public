@@ -266,7 +266,6 @@ def learn_from_experience(layer):
     marginalized_x = spm_complete_margin(x_d_history,x_d_history.ndim-1)
     if show_timers :
         print("     Marginalization pass took {:.2f} seconds".format(time.time() - t_first))
-    # print(np.round(marginalized_o[0],2))
 
     using_realized_actions = True  # If there is ambiguity regarding the last selected action
                                    # Useful in contexts such as BCI ?
@@ -296,7 +295,7 @@ def learn_from_experience(layer):
         print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
 
 
-    backward_pass_is_fixed = False
+    backward_pass_is_fixed = True # HMM backward pass to "smooth the probabilities"
     if backwards_pass and backward_pass_is_fixed :
         t_first = time.time()
         smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)

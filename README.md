@@ -27,7 +27,7 @@ For more informations on package installation, check [the complete installation 
 
 ## Examples 
 
-- [Navigating a T-maze using Sophisticated Inference](READUS/T-maze_demo.ipynb)
+- [Navigating a T-maze using Sophisticated Inference](demos/T-maze_demo.ipynb)
 
 Behavioural simulation outputs : 
 

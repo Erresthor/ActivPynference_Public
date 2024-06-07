@@ -26,3 +26,6 @@ simulation_outputs/
 
 # Compilation
 .pypirc
+
+# Testing scripts (should they remain between updates)
+test_*

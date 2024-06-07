@@ -43,6 +43,5 @@ def _compute_log_likelihood_multi_mod(A, o_d, timedim=False):
 def compute_state_posterior(state_prior,new_obs,A):
     log_likelihoods = _compute_log_likelihood_multi_mod(A,new_obs)
     posterior,log_norm = _condition_on(state_prior,log_likelihoods)
-    return posterior
-
+    return posterior,log_norm
 

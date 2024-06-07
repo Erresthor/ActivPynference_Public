@@ -258,8 +258,8 @@ def spm_forwards(O,P_t,U,layer_variables,t,
                                                          layer_learn_options=layer_learn_options,
                                                          layer_RNG=layer_RNG,
                                                          depth = _depth+1)
+                    
                     # Expected free energy marginalised over subsequent action
-
                     EF = np.sum(G_next_act,axis=1)
                     
                     K[index] = np.inner(softmax(EF),EF)

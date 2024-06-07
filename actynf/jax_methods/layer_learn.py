@@ -15,61 +15,251 @@ import tensorflow_probability.substrates.jax.distributions as tfd
 from functools import partial
 from fastprogress.fastprogress import progress_bar
 
-from .jax_toolbox import _normalize,_jaxlog
-from .jax_toolbox import compute_Gt_array,compute_novelty
-from .jax_toolbox import _condition_on,_compute_A_conditional_logliks
+from .jax_toolbox import _normalize,_jaxlog,_swapaxes,_condition_on
 
+from .shape_tools import to_vec_space,to_source_space
+from .shape_tools import to_vec_space_a,to_source_space_a
+from .shape_tools import vectorize_weights
+
+from .layer_infer_state import compute_state_posterior,_compute_log_likelihood_multi_mod
+
+
+# _______________________________________________________________________________________
+# ________________________________ Dirichlet Weights Updating ___________________________
+# _______________________________________________________________________________________
 def learn_a(hist_obs,hist_qs,pa,lr_a):
     def _learn_a_mod(o_mod,pa_mod):
-        da = jnp.einsum("it,jt->ijt",o_mod,hist_qs)
+        da = jnp.einsum("ti,tj->ijt",o_mod,hist_qs) # For flattened emission mappings only !
         return pa_mod + lr_a*da.sum(axis=-1)
     return tree_map(_learn_a_mod,hist_obs,pa)
 
 def learn_b(hist_u,hist_qs,pb,lr_b):
-    post_qs = hist_qs[:,1:]
-    pre_qs = hist_qs[:,:-1]
-    db = jnp.einsum("it,jt,ut->ijut",post_qs,pre_qs,hist_u)
+    post_qs = hist_qs[1:,:]
+    pre_qs = hist_qs[:-1,:]
+    db = jnp.einsum("ti,tj,tu->ijut",post_qs,pre_qs,hist_u) 
+                # For flattened transition mappings only !
     return pb + lr_b*db.sum(axis=-1)
 
-def learn_d(hist_qs,pd,lr_d):
-    return pd + lr_d*hist_qs[:,0]
+def learn_b_factorized(hist_u_tree,hist_qs_tree,pb_tree,lr_b):
+    
+    def learn_b_factor(hist_u_factor,hist_qs_factor,b_factor):
+        return learn_b(hist_u_factor,hist_qs_factor,b_factor,lr_b) 
+    
+    return tree_map(learn_b_factor,hist_u_tree,hist_qs_tree,pb_tree)
 
-def smooth_posterior_after_trial(hist_qs):
+def learn_d(hist_qs,pd,lr_d):
+    # We only look at the first timestep :
+    return pd + lr_d*hist_qs[0,:]
+
+def learn_d_factorized(hist_qs_tree,pd_tree,lr_d):
+    
+    def learn_d_factor(hist_qs_factor,d_factor):
+        return learn_d(hist_qs_factor,d_factor,lr_d)
+    
+    return tree_map(learn_d_factor,hist_qs_tree,pd_tree)
+
+
+# State smoothing (move this somewhere else ?)
+# Those are filters used a posteriori to refine posterior inference
+
+def forwards_pass(hist_obs_vect,hist_u_vect,
+          loc_a,loc_b,loc_d):
+    r"""Forwards filtering
+
+    Transition matrix may be either 2D (if transition probabilities are fixed) or 3D
+    if the transition probabilities vary over time. Alternatively, the transition
+    matrix may be specified via `transition_fn`, which takes in a time index $t$ and
+    returns a transition matrix.
+
+    Args:
+        D: $p(z_1 \mid u_1, \theta)$
+        B: $p(z_{t+1} \mid z_t, u_t, \theta)$
+        A: $p(y_t \mid z_t, u_t, \theta)$ for $t=1,\ldots, T$.
+        transition_fn: function that takes in an integer time index and returns a $K \times K$ transition matrix.
+
+    Returns:
+        filtered posterior distribution
+
+    """    
+    # Compute the log likelihooods of each observations
+    log_likelihoods_timestep_func = (lambda o_d_t : _compute_log_likelihood_multi_mod(loc_a, o_d_t))
+    logliks = vmap(log_likelihoods_timestep_func)(hist_obs_vect)
+    
+    num_timesteps, num_states = logliks.shape
+
+    def _step(carry, t):
+        carry_log_norm,prior_this_timestep = carry
+        
+        forward_filt_probs, log_norm = _condition_on(prior_this_timestep, logliks[t])
+        
+        carry_log_norm = carry_log_norm + log_norm
+        
+        
+        
+        # Predict the next state (going forward in time).
+        transition_matrix = jnp.einsum("iju,u->ij",loc_b,hist_u_vect[t-1,...])
+        prior_next_timestep = transition_matrix @ forward_filt_probs
+                
+        return (carry_log_norm,prior_next_timestep),forward_filt_probs
+
+    init_carry = (jnp.array([0.0]),loc_d)
+    (log_norm,_),forward_pred_probs = lax.scan(_step, init_carry, jnp.arange(num_timesteps))
+    
+    return log_norm,forward_pred_probs
+    
+def backwards_pass(hist_obs_vect,hist_u_vect,
+          loc_a,loc_b):
+    r"""Run the filter backwards in time. This is the second step of the forward-backward algorithm.
+
+    Transition matrix may be either 2D (if transition probabilities are fixed) or 3D
+    if the transition probabilities vary over time. Alternatively, the transition
+    matrix may be specified via `transition_fn`, which takes in a time index $t$ and
+    returns a transition matrix.
+
+    Args:
+        B: $p(z_{t+1} \mid z_t, u_t, \theta)$
+        A: $p(y_t \mid z_t, u_t, \theta)$ for $t=1,\ldots, T$.
+        transition_fn: function that takes in an integer time index and returns a $K \times K$ transition matrix.
+
+    Returns:
+        marginal log likelihood and backward messages.
+
+    """     
+    # Compute the log likelihooods of each observations
+    log_likelihoods_timestep_func = (lambda o_d_t : _compute_log_likelihood_multi_mod(loc_a, o_d_t))
+    logliks = vmap(log_likelihoods_timestep_func)(hist_obs_vect)
+    
+    num_timesteps, num_states = logliks.shape
+
+    def _step(carry, t):
+        carry_log_norm,prior_this_timestep = carry
+        
+        backward_filt_probs, log_norm = _condition_on(prior_this_timestep, logliks[t])
+        
+        carry_log_norm = carry_log_norm + log_norm
+        
+        
+        
+        # Predict the next (previous) state (going backward in time).
+        transition_matrix = jnp.einsum("iju,u->ij",loc_b,hist_u_vect[t-1,...])
+        prior_previous_timestep = transition_matrix.T @ backward_filt_probs
+                
+        return (carry_log_norm,prior_previous_timestep),backward_filt_probs
+
+    init_carry = (jnp.array([0.0]),jnp.ones(num_states))
+    (log_norm,_),backward_pred_probs_rev = lax.scan(_step, init_carry, jnp.arange(num_timesteps)[::-1])
+    
+    backward_pred_probs = backward_pred_probs_rev[::-1]
+    return log_norm, backward_pred_probs
+
+def smooth_posterior_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
+          pa,pb,pd,U, filter_type="two_filter"):
     """
     Not yet implemented !!
     TODO : Implement a Forwards-Backwards smoother here !
     For now, the smoothing does not change the state posteriors !
     """
-    return hist_qs
+    smoothed_posterior = hist_qs
+    if filter_type=="two_filter":
+        loc_a,loc_b,loc_d = vectorize_weights(pa,pb,pd,U)
+        
+        ll_for,forwards_smooths = forwards_pass(
+                hist_obs_vect,hist_u_vect,
+                loc_a,loc_b,loc_d
+        )
+        ll_back,backwards_smooths = backwards_pass(
+                hist_obs_vect,hist_u_vect,
+                loc_a,loc_b
+        )
+        smoothed_posterior,_ = _normalize(forwards_smooths*backwards_smooths,axis=-1)
+        
+    elif filter_type=="one_filter":
+        loc_a,loc_b,loc_d = vectorize_weights(pa,pb,pd,U)
+        
+        forwards_smooths = hist_qs 
+            # Assume that the forward filtering was done already during trial
+        ll_back,backwards_smooths = backwards_pass(
+                hist_obs_vect,hist_u_vect,
+                loc_a,loc_b
+        )
+        smoothed_posterior,_ = _normalize(forwards_smooths*backwards_smooths,axis=-1)
+        
+    elif filter_type == "rts_direct":  #a discrete implementation of a 
+                                        #  Rauch-Tung-Striebel smoother
+        raise NotImplementedError("The developer is lazy , this has not been done yet :'(")
+        
+    return smoothed_posterior
 
-def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
-          pa,pb,pd,
-          learn_what={"a":True,"b":True,"d":True},
-          learn_rates={"a":1.0,"b":1.0,"d":1.0},
-          post_trial_smooth = True):
-    # T is the last dimension, check that input vectors have the right shape !
+
+# _______________________________________________________________________________________
+# Playing with allowable actions : 
+# switching from a vectorized space (all actions in one dimension)
+# and a factorized space (allowable actions for each factor)
+def vectorize_factorwise_allowable_actions(_u,_B):
+    # This needs to be mapped across state factors ! 
+    def factorwise_allowable_action_vectors(idx,B_f):
+        return jax.nn.one_hot(idx,B_f.shape[-1])
     
+    # This function takes one of the action index, and decomposes it into action vectors across all factors
+    map_function = (lambda _x : tree_map(factorwise_allowable_action_vectors,list(_x),_B))
+    
+    return (vmap(map_function)(_u))
+    
+def posterior_transition_index_factor(transition_dict,posterior):
+    def posterior_transition_factor(allowable_action_factor):
+        return jnp.einsum("ij,ti->tj",allowable_action_factor,posterior)
+    return tree_map(posterior_transition_factor,transition_dict)
+# _______________________________________________________________________________________
+
+
+# Main function : 
+def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
+          pa,pb,pc,pd,pe,U,
+          learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
+          learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
+          post_trial_smooth = True):
+        
     hist_qs_loc = hist_qs
     if post_trial_smooth:
-        hist_qs_loc  = smooth_posterior_after_trial(hist_qs)
+        hist_qs_loc  = smooth_posterior_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
+                                pa,pb,pd,U,"one_filter")
     
+    # learning a requires the states to be in vectorized mode
     a = pa
     if learn_what["a"]:
-        a = learn_a(hist_obs_vect,hist_qs_loc,pa,learn_rates["a"])
-    else : 
-        a = pa
-        
+        # hist_obs_vect = _swapaxes(hist_obs_vect,tree=True)
+        post_a = learn_a(hist_obs_vect,hist_qs_loc,to_vec_space_a(pa),learn_rates["a"])
+        a = to_source_space_a(post_a,pa[0].shape[1:])
     
-    if learn_what["b"]:
-        b = learn_b(hist_u_vect,hist_qs_loc,pb,learn_rates["b"])
-    else : 
-        b = pb
-        
+    
+    # learning b and d requires the states to be in factorized mode : 
+    source_space_shape = pa[0].shape[1:]
+    qs_hist_all_f = vmap(lambda x : to_source_space(x,source_space_shape))(hist_qs_loc)
+
+    d = pd    
     if learn_what["d"]:
-        d = learn_d(hist_qs_loc,pd,learn_rates["d"])
-    else : 
-        d = pd
-    return a,b,d
+        d = learn_d_factorized(qs_hist_all_f,pd,learn_rates["d"])
+        # d = learn_d(hist_qs_loc,pd,learn_rates["d"])
+        
+    b = pb
+    if learn_what["b"]:
+        # This is constant across trials, TODO : integrate into a class
+        u_all = vectorize_factorwise_allowable_actions(U,pb)
+        
+        # This changes every trial : 
+        u_hist_all_f = posterior_transition_index_factor(u_all,hist_u_vect)
+        
+        b = learn_b_factorized(u_hist_all_f,qs_hist_all_f,pb,learn_rates["b"])
+    
+    c = pc
+    if learn_what["c"]:
+        raise NotImplementedError("TODO !") 
+    
+    e = pe
+    if learn_what["e"]:
+        raise NotImplementedError("TODO !") 
+    
+    return a,b,c,d,e
 
 if __name__ == "__main__":
     Ns = 10

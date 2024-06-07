@@ -4,7 +4,7 @@ import actynf
 from actynf.base.function_toolbox import spm_kron # iterative kronecker product
 
 def vectorize_list_of_1darr(x):
-    return np.ravel(reduce(np.multiply.outer, d),order="C")
+    return np.ravel(reduce(np.multiply.outer, x),order="C")
 
 def vectorize_latent_dim(a,b,c,d,e,u):
     # modify the matrices so that only one latent dimension remains, without changing the dynamics inherent to multiple factors

@@ -15,7 +15,7 @@ from .jax_toolbox import spm_wnorm,_jaxlog
 
 # EFE CALCULATIONS -------------------------------------------------------
 def compute_novelty(M,multidim=False):
-    HARDLIMIT = 1e-15  
+    HARDLIMIT = 1e-10 
             # Below this prior weight, novelty is no longer computed.
             # --> Trying to avoid huge overflows in high uncertainty situations ?
     if multidim:  # If M is a list of matrices
@@ -29,6 +29,7 @@ def compute_info_gain(qs,A):
     def info_gain_modality(A_m):
         # Likelihood entropy :        
         H_A_m = (A_m*_jaxlog(A_m)).sum(axis=0)
+                
         info_gain_m = (qs*H_A_m).sum()
         return info_gain_m
     
@@ -40,6 +41,7 @@ def compute_risk(t_pref, qo, C, timedim=False):
     
     def risk_modality(qo_m,C_m):
         pref_m_depends_on_time = (C_m.ndim>1)
+        # print(pref_m_depends_on_time)
             # if C.ndim = 1, the preferences are time invariant, t_pref has no purpose
             # if C.ndim = 2, the preferences are time dependent
             
@@ -56,7 +58,7 @@ def compute_risk(t_pref, qo, C, timedim=False):
     return jnp.stack(risk_all_m).sum()
 
 def _deprecated_compute_obs_novelty(qo,qs,Anovelty) :
-    """ Old version with unwanted edge-cases"""
+    """ Old version with unwanted edge-cases ?"""
     def novelty_mod(qo_m,Anovelty_m):
         modality_joint_predictive = jnp.einsum("i,j->ij",qo_m,qs)
         return (modality_joint_predictive*Anovelty_m).sum()
@@ -85,10 +87,12 @@ def compute_transition_novelty(action_vector,qs_prev,B_norm,B_novelty):
     prob_novel = -jnp.einsum("ijk,j,k",B_norm*B_novelty,qs_prev,action_vector)
     return prob_novel.sum()
 
+# @partial(jit,static_argnames=['efe_a_nov','efe_b_nov'])
 def compute_Gt_array(t,qo_next,qs_next,qs_prev,action_vect,
                     A,Anovelty,
                     B,Bnovelty,
-                    C):
+                    C,
+                    efe_a_nov,efe_b_nov,efe_old_a_nov):
     """ 
     Agent goal : plan actions to minimize this !
     """
@@ -99,10 +103,17 @@ def compute_Gt_array(t,qo_next,qs_next,qs_prev,action_vect,
     risk = compute_risk(t_next,qo_next, C)
     info_gain = compute_info_gain(qs_next,A)
     
-    # TODO : make these optional
-    novelty_A = compute_observation_novelty(qs_next,A,Anovelty)
-    # Only implemented for a single latent state factor :
-    novelty_B = compute_transition_novelty(action_vect,qs_prev,B,Bnovelty)
+    novelty_A = 0.0
+    if efe_a_nov:
+        if efe_old_a_nov:
+            novelty_A = _deprecated_compute_obs_novelty(qo_next,qs_next,Anovelty)
+        else :
+            novelty_A = compute_observation_novelty(qs_next,A,Anovelty)
+    novelty_B = 0.0
+    if efe_b_nov:
+        novelty_B = compute_transition_novelty(action_vect,qs_prev,B,Bnovelty)
+        
+    # jax.debug.print("EFE component [t={}]: {}", t,jnp.stack([risk,info_gain,novelty_A,novelty_B]))
     return jnp.stack([risk,info_gain,novelty_A,novelty_B])
 
 def autoexpand_preference_matrix(C_base,Th,option="nopref"):

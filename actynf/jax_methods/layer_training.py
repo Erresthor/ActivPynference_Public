@@ -25,9 +25,11 @@ from numpyro import handlers
 from numpyro.infer import MCMC, NUTS, Predictive    
     
 from .jax_toolbox import _normalize,convert_to_one_hot_list,_swapaxes
-from .layer_plan import sample_action_pyro
+from .layer_pick_action import sample_action_pyro
 
-from .layer_trial import synthetic_trial,compute_trial_posteriors_empirical
+from .layer_options import DEFAULT_PLANNING_OPTIONS,DEFAULT_LEARNING_OPTIONS
+
+from .layer_trial import synthetic_trial_direct_run,compute_trial_posteriors_empirical
 
 from .layer_learn import learn_after_trial
 
@@ -37,7 +39,8 @@ def training_step(trial_rng_key,Ns,Nos,Np,T,
             A,B,D,
             Th =3,
             selection_method="stochastic",alpha = 16,gamma = None, 
-            learn_dictionnary = {"bool":{"a":True,"b":True,"d":True},"rates":{"a":1.0,"b":1.0,"d":1.0}},smooth_state_estimates=False):
+            planning_options=DEFAULT_PLANNING_OPTIONS,
+            learn_dictionnary = DEFAULT_LEARNING_OPTIONS):
     
     # T timesteps happen below : 
     [obs_darr,obs_arr,obs_vect_arr,
@@ -49,18 +52,19 @@ def training_step(trial_rng_key,Ns,Nos,Np,T,
                     A,B,D,
                     T= T,Th = Th,
                     alpha = alpha,gamma = gamma, 
-                    selection_method=selection_method)
+                    selection_method=selection_method,planning_options=planning_options)
     
     # # Then, we update the parameters of our HMM model at this level
     # The learn function wants the T dimension to be the last one
-    o_hist_learn = _swapaxes(obs_vect_arr,tree=True)
-    s_hist_learn = _swapaxes(qs_arr)
-    u_hist_learn = _swapaxes(u_vect_arr)
+    # --> NOT ANYMORE :)
+    o_hist_learn = obs_vect_arr#_swapaxes(obs_vect_arr,tree=True)
+    s_hist_learn = qs_arr#_swapaxes(qs_arr)
+    u_hist_learn = u_vect_arr#_swapaxes(u_vect_arr)
     a_post,b_post,d_post = learn_after_trial(o_hist_learn,s_hist_learn,u_hist_learn,
                                                 pa,pb,pd,
                                                 learn_what=learn_dictionnary["bool"],
                                                 learn_rates=learn_dictionnary["rates"],
-                                                post_trial_smooth=smooth_state_estimates)
+                                                post_trial_smooth=learn_dictionnary["smooth_states"])
     
     return_tuple = ( obs_darr,obs_arr,obs_vect_arr,
                     true_s_darr,true_s_arr,true_s_vect_arr,
@@ -70,12 +74,14 @@ def training_step(trial_rng_key,Ns,Nos,Np,T,
     
     return return_tuple
 
+# Very fast methods
 def synthetic_training(rngkey,Ns,Nos,Np,Ntrials,T,
             a0,b0,c,d0,e,
             A,B,D,
             Th =3,
             selection_method="stochastic",alpha = 16,gamma = None, 
-            learn_dictionnary = {"bool":{"a":True,"b":True,"d":True},"rates":{"a":1.0,"b":1.0,"d":1.0}},smooth_state_estimates=False):
+            planning_options=DEFAULT_PLANNING_OPTIONS,
+            learn_dictionnary = DEFAULT_LEARNING_OPTIONS):
     A = _normalize(A,tree=True)
     B,_ = _normalize(B)
     D,_ = _normalize(D)
@@ -95,18 +101,20 @@ def synthetic_training(rngkey,Ns,Nos,Np,Ntrials,T,
                         A,B,D,
                         T= T,Th = Th,
                         alpha = alpha,gamma = gamma, 
-                        selection_method=selection_method)
+                        selection_method=selection_method,
+                        planning_options=planning_options)
         
         # # Then, we update the parameters of our HMM model at this level
         # The learn function wants the T dimension to be the last one
-        o_hist_learn = _swapaxes(obs_vect_arr,tree=True)
-        s_hist_learn = _swapaxes(qs_arr)
-        u_hist_learn = _swapaxes(u_vect_arr)
+        # --> NOT ANYMORE :)
+        o_hist_learn = obs_vect_arr#_swapaxes(obs_vect_arr,tree=True)
+        s_hist_learn = qs_arr#_swapaxes(qs_arr)
+        u_hist_learn = u_vect_arr#_swapaxes(u_vect_arr)
         a_post,b_post,d_post = learn_after_trial(o_hist_learn,s_hist_learn,u_hist_learn,
                                                  pa,pb,pd,
                                                  learn_what=learn_dictionnary["bool"],
                                                  learn_rates=learn_dictionnary["rates"],
-                                                 post_trial_smooth=smooth_state_estimates)
+                                                 post_trial_smooth=learn_dictionnary["smooth_states"])
         # a_post,b_post,d_post = pa,pb,pd
         return (a_post,b_post,d_post),(
                     obs_darr,obs_arr,obs_vect_arr,
@@ -131,22 +139,28 @@ def synthetic_training_multi_subj(rngkeys_for_all_subjects,Ns,Nos,Np,Ntrials,T,
             A,B,D,
             Th =3,
             selection_method="stochastic",alpha = 16,gamma = None, 
-            learn_dictionnary = {"bool":{"a":True,"b":True,"d":True},"rates":{"a":1.0,"b":1.0,"d":1.0}},smooth_state_estimates=False):
+            planning_options=DEFAULT_PLANNING_OPTIONS,
+            learn_dictionnary = DEFAULT_LEARNING_OPTIONS):
 
     map_this_function = partial(synthetic_training,Ns=Ns,Nos=Nos,Np=Np,Ntrials=Ntrials,T=T,
             a0=a0,b0=b0,c=c,d0=d0,e=e,
             A=A,B=B,D=D,
             Th = Th,
-            selection_method=selection_method,alpha = alpha,gamma = gamma, 
-            learn_dictionnary = learn_dictionnary,smooth_state_estimates=smooth_state_estimates)
+            selection_method=selection_method,alpha = alpha,gamma = gamma,
+            planning_options=planning_options, 
+            learn_dictionnary = learn_dictionnary)
     
     mapped_over_subjects = vmap(map_this_function)(rngkeys_for_all_subjects)
     return mapped_over_subjects
 
+
+
+# Used for fitting
 def compute_training_posteriors_empirical(obs_vect,act_vect,
         pa0,pb0,c,pd0,e,
         Np,Th =3,gamma=None,
-        learn_dictionnary = {"bool":{"a":True,"b":True,"d":True},"rates":{"a":1.0,"b":1.0,"d":1.0}},smooth_state_estimates=False):
+        planning_options=DEFAULT_PLANNING_OPTIONS,
+        learn_dictionnary = DEFAULT_LEARNING_OPTIONS):
     """,
     This method uses the compute_trial_posteriors_empirical function from the ai_jax_loop .py file
     It provides active inference agents with observation and returns their action posterior depending on their internal parameters.
@@ -171,27 +185,39 @@ def compute_training_posteriors_empirical(obs_vect,act_vect,
                                 Np,
                                 pre_a,pre_b,c,pre_d,e,
                                 Th =Th,gamma = gamma,
-                                include_last_observation=True)
+                                include_last_observation=True,
+                                planning_options=planning_options)
 
         # NO ACTION SELECTION HERE ! We're using empirical observations 
         # to compute the parameter evolution instead
         
-        # # Then, we update the parameters of our HMM model at the training level
-        # *Warning !* The learn function wants the T dimension to be the last one, so let's swap the axes -1 and -2 for the recorded history
-        o_hist_learn = _swapaxes(obs_trial,tree=True)
-        s_hist_learn = _swapaxes(qs_arr)
-        u_hist_learn = _swapaxes(act_trial)
+        
+        # # Then, we update the parameters of our HMM model at this level
+        # The learn function wants the T dimension to be the last one
+        # --> NOT ANYMORE :)
+        o_hist_learn = obs_trial#_swapaxes(obs_trial,tree=True)
+        s_hist_learn = qs_arr#_swapaxes(qs_arr)
+        u_hist_learn = act_trial#_swapaxes(act_trial)
         a_post,b_post,d_post = learn_after_trial(o_hist_learn,s_hist_learn,u_hist_learn,
                                                  pre_a,pre_b,pre_d,
                                                  learn_what=learn_dictionnary["bool"],
                                                  learn_rates=learn_dictionnary["rates"],
-                                                 post_trial_smooth=smooth_state_estimates)
+                                                 post_trial_smooth=learn_dictionnary["smooth_states"])
         
         return (a_post,b_post,d_post),(qs_arr,qpi_arr,a_post,b_post,d_post)
     
     final_matrices,(training_qs_arr,training_qpi_arr,training_a_post,training_b_post,training_d_post) = jax.lax.scan(_scan_training,(pa0,pb0,pd0),(obs_vect,act_vect))
     
     return [training_qs_arr,training_qpi_arr,training_a_post,training_b_post,training_d_post]
+
+
+
+
+
+
+
+
+
 
 def _test_simulate_trial():
     T = 10
@@ -306,8 +332,6 @@ def _test_simulate_trial():
     fig1.show()
     fig2.show()
     input()
-
-
 
 if __name__ == "__main__":
     T = 10

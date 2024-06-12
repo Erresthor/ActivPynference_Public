@@ -199,8 +199,10 @@ def compute_EFE(qs_current,start_t,
     #      thus we precompute an array of paths we want to explore, and then scan them
     # 2. We want to reduce redundant computation and therefore have an expanding tree. 
     #      it seems that using lists (or maybe pytrees ?) works best in that case
+    # 
+    # This function uses an application of 2.
 
-    exploration_tree = []  # We will fill this tree with Th branches
+    exploration_tree = []  # We will fill this tree with Th levels of branches
     
     # First timestep EFE computation
     qs_pi = qs_current
@@ -216,6 +218,10 @@ def compute_EFE(qs_current,start_t,
         # Predictive priors & efe for this timestep
         #      K x  [Np x Ns]  |  K x [Np]
     
+    
+    # The following steps will be unrolled by the compiler ! 
+    # We expand the tree repeateadly until we reach the desired temporal horizon
+    # Autobots, roll out !
     qs_previous = qs_pi  # This posterior will also be used for subsequent estimations
     N_efe_computed_history = []
     for explorative_timestep in range(1,Th+1): 
@@ -243,9 +249,7 @@ def compute_EFE(qs_current,start_t,
         qs_next,efe_next_actions = vmap(compute_node_func)(qs_pi) 
         
         efe_next_actions = efe_next_actions*filter_trial_end[explorative_timestep-1]  # If the previous timestep is trial end or after, this computation is not taken into account 
-        
-        # jax.debug.print("t={},filt_val={}",explorative_timestep,filter_trial_end[explorative_timestep])
-        # jax.debug.print("efe={}",efe_next_actions)
+
         N_efe_computed_history.append(efe_next_actions.shape[0])
         
         exploration_tree.append([qs_pi,efe_next_actions,state_branch_densities,new_ut])
@@ -276,9 +280,9 @@ def compute_EFE(qs_current,start_t,
         """ 
         carry_efe = jnp.einsum("abc,ab->ac",_children_ut,_efe_children)  
                 # Efe of subsequent next steps for the explored action paths
-
+                # _children_ut has shape Nbranches x Ph x Np
+                
         # What are the unexplored actions ?
-        # _children_ut has shape Nbranches x Ph x Np
         explored_filter = _children_ut.sum(axis=-2)  
                             # A (Nbranches x Np) tensor with 1.0 where we explored an action
                             # and 0 where we did not
@@ -288,7 +292,11 @@ def compute_EFE(qs_current,start_t,
                     # If the path was not explored, we may assume that the EFE is very high :(
         
         return carry_efe + unexplored_efe # jnp.where(carry_efe==0,EFE_FLOOR,carry_efe)
-                    
+    
+    
+    # This will be unrolled ! (needs to be done sequentially, 
+    # big Th values are obviously discouraged)
+    # Autobots, roll out !       
     carry_efe = jnp.zeros_like(exploration_tree[-1][1])
     for explorative_timestep in range(Th,0,-1): # Th -> Th-1 -> ... -> 1
         space_tuple_next = (exploration_step_shape*(explorative_timestep))
@@ -300,6 +308,7 @@ def compute_EFE(qs_current,start_t,
         efe_this_tsmtp = jnp.reshape(efe_this_tsmtp + carry_efe,space_tuple_next+(Np,))
                    
         # We marginalize the efe for the next timestep across expected actions ... 
+        # (should there be a precison parameter here ?)
         margin_efe = jnp.sum(efe_this_tsmtp*jax.nn.softmax(efe_this_tsmtp,axis=-1),axis=-1)
         # ... and states
         margin_efe_next_tmstp = jnp.sum(state_branch_densities*margin_efe,axis=-1)
@@ -358,7 +367,6 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     Ph = max(1,min(Np,Ph))  # Ph cannot be bigger than Np or smaller than 1
     # _______________________________________________________________________________________________________
     
-    # final_efe,u_post,state_predictive_posterior,N_efe_computed_history
     prep_qs = jnp.expand_dims(qs,axis=-2)
     EFE_per_action,last_action_posterior,predictive_state_posterior,N_efe_computed_history = compute_EFE(prep_qs,current_timestep,
                     vecA,vecB,vecC,vecE,

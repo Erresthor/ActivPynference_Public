@@ -53,13 +53,15 @@ def compute_G_action(t,
                           efe_a_nov,efe_b_nov,efe_old_a_nov)
     return Gt,qs_pi_tplus
 
-@partial(jit, static_argnames=['Np','Th','efe_a_nov',"efe_b_nov","efe_old_a_nov"])
-def scan_G_policy(policy_sequence,Np,
-                  initial_t,Th,
+@partial(jit, static_argnames=['efe_a_nov',"efe_b_nov","efe_old_a_nov"])
+def scan_G_policy(policy_sequence,
+                  initial_t,
                   qs_init,
                   A,B,C,E,
                   A_novel,B_novel,
                 efe_a_nov=True,efe_b_nov=False,efe_old_a_nov=False):
+    Th = policy_sequence.shape[0]
+    Np = B.shape[-1]
     
     def _scanner(carry,ti):
         qs = carry
@@ -80,11 +82,11 @@ def scan_G_policy(policy_sequence,Np,
 
     return complete_G_array,habits_biaises,qss
 
-@partial(jit, static_argnames=['Np','Th','filter_end_of_trial','efe_a_nov','efe_b_nov','efe_old_a_nov'])
+@partial(jit, static_argnames=['Th','efe_a_nov','efe_b_nov','efe_old_a_nov'])
 def bruteforce_treesearch(initial_t,Th,
                 qs_init,
                 A,B,C,E,
-                A_novel,B_novel,Np,
+                A_novel,B_novel,
                 filter_end_of_trial,
                 efe_a_nov=True,efe_b_nov=False,efe_old_a_nov=False):
     """ 
@@ -98,9 +100,10 @@ def bruteforce_treesearch(initial_t,Th,
     assert Th>=2,"Temporal horizon for planning should be >=2"
     
     Ns = qs_init.shape[0]
-      
-    scan_seq =  partial(scan_G_policy,Np=Np,initial_t=initial_t,Th = Th,qs_init=qs_init,A=A,B=B,C=C,E=E,A_novel=A_novel,B_novel=B_novel,efe_a_nov=efe_a_nov,efe_b_nov=efe_b_nov,efe_old_a_nov=efe_old_a_nov)
+    Np = B.shape[-1]
     actions_explored = jnp.arange(Np)
+      
+    scan_seq =  partial(scan_G_policy,initial_t=initial_t,qs_init=qs_init,A=A,B=B,C=C,E=E,A_novel=A_novel,B_novel=B_novel,efe_a_nov=efe_a_nov,efe_b_nov=efe_b_nov,efe_old_a_nov=efe_old_a_nov)
             # This is a fixed policy tree that the agent will explore. This is based on static parameters (Th and Np)
     
     combinations_idxs = [actions_explored]*Th
@@ -137,8 +140,9 @@ def bruteforce_treesearch(initial_t,Th,
     # Return the unfolded matrices : 
     return  efes_vectorized, states_vectorized, end_of_trial_filtered,qss_all_i
 
-@partial(jit, static_argnames=['Np','Th','efe_compute_a_nov','efe_compute_b_nov','old_a_nov'])
-def compute_EFE(t,Th,filter_end_of_trial,qs,A,B,C,E,A_novel,B_novel,Np,
+@partial(jit, static_argnames=['Th','efe_compute_a_nov','efe_compute_b_nov','old_a_nov'])
+def compute_EFE(t,Th,filter_end_of_trial,
+                qs,A,B,C,E,A_novel,B_novel,
                 efe_compute_a_nov,efe_compute_b_nov,old_a_nov):
     """ 
     lambda s -> G(u,s) for all allowable u
@@ -148,10 +152,13 @@ def compute_EFE(t,Th,filter_end_of_trial,qs,A,B,C,E,A_novel,B_novel,Np,
         
     efe_compute_a_nov = False
     efe_compute_b_nov = False
-    vect_efe,vect_states, flat_efe,flat_states = bruteforce_treesearch(t,Th,qs,A,B,C,E,A_novel,B_novel,Np,filter_end_of_trial,
-                                                 efe_a_nov=efe_compute_a_nov,
-                                                 efe_b_nov=efe_compute_b_nov,
-                                                 efe_old_a_nov=old_a_nov)
+    vect_efe,vect_states, flat_efe,flat_states = bruteforce_treesearch(t,Th,
+                                                qs,
+                                                A,B,C,E,
+                                                A_novel,B_novel,filter_end_of_trial,
+                                                efe_a_nov=efe_compute_a_nov,
+                                                efe_b_nov=efe_compute_b_nov,
+                                                efe_old_a_nov=old_a_nov)
             # For each path of actions i1->i2->...->iTh, get the efe at each timestep
             # vect efe is a Np x Np x Np x ... x Np x Th tensor
     
@@ -216,7 +223,9 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     efe_compute_b_nov = planning_options["b_novelty"]
     old_a_nov = planning_options["old_novelty_computation"]
     
-    EFE_per_action,last_action_posterior,predictive_state_posterior = compute_EFE(current_timestep,Th,filter_end_of_trial,qs,A,B,C,E,A_novel,B_novel,Np,
+    EFE_per_action,last_action_posterior,predictive_state_posterior = compute_EFE(current_timestep,Th,filter_end_of_trial,
+                                                        qs,
+                                                        A,B,C,E,A_novel,B_novel,
                                                         efe_compute_a_nov,efe_compute_b_nov,old_a_nov) #(negative EFE)
     return EFE_per_action,last_action_posterior
     # return EFE_per_action, jax.nn.softmax(gamma*EFE_per_action + _jaxlog(E))

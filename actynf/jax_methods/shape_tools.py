@@ -30,7 +30,7 @@ def kron_sum(list_of_tensors):
         _kron_sum = jax_add_kron(_kron_sum,tensor)
     return _kron_sum
 
-def sum_except_axis(array, axis):
+def sum_except_axis(array_to_sum, axis):
     """
     Sums the elements of the array along all axes except the specified axis.
 
@@ -42,13 +42,13 @@ def sum_except_axis(array, axis):
     jax.numpy.ndarray: An array with the sum along all axes except the specified one.
     """
     # Get the total number of dimensions in the array
-    num_dims = array.ndim
+    num_dims = array_to_sum.ndim
     
     # Create a tuple of all axes except the specified one
     axes_to_sum = tuple(i for i in range(num_dims) if i != axis)
     
     # Sum along the specified axes
-    result = jnp.sum(array, axis=axes_to_sum)
+    result = jnp.sum(array_to_sum, axis=axes_to_sum)
     
     return result
 
@@ -138,18 +138,20 @@ def get_vectorized_novelty(raw_a,raw_b,u,
 @jit
 def vectorize_weights(raw_a,raw_b,raw_d,u):
     """
-    modify the matrices so that only one latent dimension remains, without changing the dynamics inherent to multiple factors
+    Modify the matrices so that only one latent dimension remains, 
+    without changing the dynamics inherent to multiple factors
     This method normalizes the respective inputs !
     """
     Nf = len(raw_b)
     # c is unchanged
     # e is unchanged
     
-    # a : we flatten the latent state dimensions : 
+    # a : we flatten the latent state dimensions : (basically just a reshaping)
     a_vec_space = to_vec_space_a(raw_a)   
     a_norm_vec = _normalize(a_vec_space,tree=True)
-        
-    # Some way of "compressing" multiple factors into a single matrix 
+    
+    # b & d :  this is more complex and involves a kronecker product, which is
+    # a way of "compressing" multiple factors into a single matrix 
     # Slightly different from Matlab script, because our kronecker product orders dimension differently
     assert type(raw_b)==list,"b should be a list in order to vectorize"
     b_norm = _normalize(raw_b,tree=True)    

@@ -233,7 +233,7 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
     
     
     # learning b and d requires the states to be in factorized mode : 
-    source_space_shape = pa[0].shape[1:]
+    source_space_shape = pa[0].shape[1:]  # This is the shape of the source space
     qs_hist_all_f = vmap(lambda x : to_source_space(x,source_space_shape))(hist_qs_loc)
 
     d = pd    
@@ -259,7 +259,7 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
     if learn_what["e"]:
         raise NotImplementedError("TODO !") 
     
-    return a,b,c,d,e
+    return a,b,c,d,e,hist_qs_loc
 
 if __name__ == "__main__":
     Ns = 10

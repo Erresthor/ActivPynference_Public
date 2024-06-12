@@ -16,9 +16,15 @@ What you cannot do (yet):
 
 ## Installation : 
 
-In your Python environment, you may install active-pynference using pip :
+In your Python environment, you (will soon be able to) install active-pynference using pip :
 ```
     pip install active-pynference
+```
+
+In the meanwhile, you can use the test version (be aware that there may be a plethora of bugs :/ ): 
+
+```
+pip install -i https://test.pypi.org/simple/ active-pynference
 ```
 
 For more informations on package installation, check [the complete installation instructions notebook](demos/installation_instructions.ipynb).

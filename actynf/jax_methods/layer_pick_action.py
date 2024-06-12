@@ -26,17 +26,20 @@ def sample_action(qpi,alpha, selection_method="deterministic",rng_key=None):
         action_idx = jnp.argmax(qpi)
         action_dist = jax.nn.one_hot(action_idx,Np)
         action_vect = jax.nn.one_hot(action_idx,Np)
-    elif selection_method == "stochastic":
+    elif (selection_method == "stochastic")or(selection_method == "stochastic_alpha"):
         action_dist = alpha_weight(qpi,alpha)
         action_idx = jr.categorical(rng_key, _jaxlog(action_dist))
         action_vect = jax.nn.one_hot(action_idx,Np)
+    else : 
+        raise NotImplementedError("Action selection method not implemented : '" + str(selection_method) + "'.")
     return action_dist,action_idx,action_vect
 
-def sample_action_pyro(qpi,Np,alpha,selection_method = "stochastic_raw",observed_action=None):
+def sample_action_pyro(qpi,alpha,selection_method = "stochastic_raw",observed_action=None):
     """ 
     When lost about shapes in numpyro :
     https://ericmjl.github.io/blog/2019/5/29/reasoning-about-shapes-and-probability-distributions/
     """
+    Np = qpi.shape[-1]
     if observed_action != None:
         assert qpi.shape[:-1]==observed_action.shape,"Shape mismatch in sample_action_pyro"
     
@@ -47,10 +50,12 @@ def sample_action_pyro(qpi,Np,alpha,selection_method = "stochastic_raw",observed
         deterministic("action_t",action_idx)
     elif selection_method == "stochastic_alpha":
         action_dist = alpha_weight(qpi,alpha) # Along -1th axis
+        # One sample of a multivariate ((Ntrials x ) Ntimesteps-1 x ) Np distribution
         action_idx = sample("actions",distr.Categorical(probs=action_dist).to_event(action_dist.ndim-1),obs=observed_action)
         action_vect = jax.nn.one_hot(action_idx,Np)
     elif selection_method == "stochastic_raw":
         action_dist = qpi
+        # One sample of a multivariate ((Ntrials x ) Ntimesteps-1 x ) Np distribution
         action_idx = sample("actions",distr.Categorical(probs=action_dist).to_event(action_dist.ndim-1),obs=observed_action)
         action_vect = jax.nn.one_hot(action_idx,Np)
     return action_dist,action_idx,action_vect

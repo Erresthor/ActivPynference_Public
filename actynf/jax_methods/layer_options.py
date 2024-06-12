@@ -3,11 +3,12 @@
 # that are used by our layer as options for planning / learning (/action picking ?)
 
 def get_planning_options(
-                        planning_method = "full_tree",
+                        Th,planning_method = "full_tree",
                         state_horizon = 2,action_horizon=5,explore_remaining_paths=True,
                         a_novel=True,b_novel=False,
                         old_a_novel=True):
     return {
+        "horizon" : Th,
         "a_novelty" : a_novel,
         "b_novelty" : b_novel,
         "old_novelty_computation" : old_a_novel,
@@ -44,7 +45,8 @@ def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=
         "method":selection_method
     }
 
-DEFAULT_PLANNING_OPTIONS = get_planning_options()
+# Default temporal horizon is the minimum (2)
+DEFAULT_PLANNING_OPTIONS = get_planning_options(2)
 
 DEFAULT_LEARNING_OPTIONS = get_learning_options()
 

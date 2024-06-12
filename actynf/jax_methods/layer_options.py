@@ -3,7 +3,7 @@
 # that are used by our layer as options for planning / learning (/action picking ?)
 
 def get_planning_options(
-                        Th,planning_method = "full_tree",
+                        Th,planning_method = "sophisticated",
                         state_horizon = 2,action_horizon=5,explore_remaining_paths=True,
                         a_novel=True,b_novel=False,
                         old_a_novel=True):

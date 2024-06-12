@@ -24,8 +24,8 @@ from .layer_options import DEFAULT_PLANNING_OPTIONS
 from .layer_process import initial_state_and_obs,process_update,fetch_outcome
 from .layer_infer_state import compute_state_posterior
 
-from .layer_plan_joint import policy_posterior as policy_posterior_joint
-from .layer_plan_tree import policy_posterior as policy_posterior_full
+from .layer_plan_basic import policy_posterior as policy_posterior_basic
+from .layer_plan_sophisticated import policy_posterior as policy_posterior_sophisticated
 
 from .layer_pick_action import sample_action
 
@@ -44,17 +44,17 @@ def compute_step_posteriors(t,prior,observation,
     qs,F = compute_state_posterior(prior,observation,a)
             
     
-    if planning_options["method"]=="full_tree":
+    if planning_options["method"]=="sophisticated":
         # filter_end_of_trial = filter_end_of_trial[1:]
-        efe,raw_qpi = policy_posterior_full(t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_sophisticated(t,Th,filter_end_of_trial,
                                             qs,
                                             a,b,c,e,
                                             a_novel,b_novel,
                                             planning_options)
-    elif planning_options["method"]=="joint_tree":
+    elif planning_options["method"]=="basic":
         filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST]
         # Policy planning
-        efe,raw_qpi = policy_posterior_joint(t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_basic(t,Th,filter_end_of_trial,
                                              qs,
                                              a,b,c,e,
                                              a_novel,b_novel,
@@ -183,6 +183,7 @@ def synthetic_trial(rngkey,T,
 
     return [obs_darr,obs_arr,obs_vect_arr,true_s_darr,true_s_arr,true_s_vect_arr,u_d_arr,u_arr,u_vect_arr,qs_arr,qpi_arr,efes]
 
+# An old function to use set values for process states & observations
 def _depr_synthetic_trial_set_vals(rngkey,T,
               pa,pb,c,pd,e,
               A,B,D,

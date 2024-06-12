@@ -14,6 +14,11 @@ What you cannot do (yet):
 - Fit experimental data to find the optimal parameters
 - Find [the answer to life the universe and everything](https://en.wikipedia.org/wiki/42_(number))
 
+
+## Disclaimer !
+
+This package is still under development ! Final testing and code cleaning are currently underway, be mindful of potential errors ! Contributions welcomed (feel free to write @ <come.annicchiarico@inserm.fr> !)
+
 ## Installation : 
 
 In your Python environment, you (will soon be able to) install active-pynference using pip :

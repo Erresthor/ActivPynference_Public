@@ -7,8 +7,10 @@ This package started off as a simple Python port of the Wellcome Centre for Huma
 ## Status
 
 ![status](https://img.shields.io/badge/status-active-green)
-![Pypi version](https://img.shields.io/badge/Accessible_on%20---%20Test_Pypi-orange?style=flat-square)
-
+![Static Badge](https://img.shields.io/badge/python-3.10-blue?logo=python)
+![License](https://img.shields.io/badge/license-MIT-yellow)
+![Accessibility](https://img.shields.io/badge/Accesible_on-TestPypi-orange?link=https%3A%2F%2Ftest.pypi.org%2Fproject%2Factive-pynference%2F)
+![Publication](https://img.shields.io/badge/Published-No-red)
 
 
 What you can do using <b>active-pynference</b> :

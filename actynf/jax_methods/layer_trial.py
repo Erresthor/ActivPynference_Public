@@ -24,7 +24,7 @@ from .layer_options import DEFAULT_PLANNING_OPTIONS
 from .layer_process import initial_state_and_obs,process_update,fetch_outcome
 from .layer_infer_state import compute_state_posterior
 
-from .layer_plan_basic import policy_posterior as policy_posterior_basic
+from .layer_plan_classic import policy_posterior as policy_posterior_basic
 from .layer_plan_sophisticated import policy_posterior as policy_posterior_sophisticated
 
 from .layer_pick_action import sample_action
@@ -51,7 +51,7 @@ def compute_step_posteriors(t,prior,observation,
                                             a,b,c,e,
                                             a_novel,b_novel,
                                             planning_options)
-    elif planning_options["method"]=="basic":
+    elif planning_options["method"]=="classic":
         filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST]
         # Policy planning
         efe,raw_qpi = policy_posterior_basic(t,Th,filter_end_of_trial,

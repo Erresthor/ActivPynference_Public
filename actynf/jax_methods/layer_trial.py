@@ -19,12 +19,12 @@ from jax import lax, vmap, jit
     
 from .jax_toolbox import _normalize,_jaxlog,convert_to_one_hot_list
 from .planning_tools import compute_novelty
-from .layer_options import DEFAULT_PLANNING_OPTIONS
+from .layer_options import DEFAULT_PLANNING_OPTIONS,DEFAULT_ACTION_SELECTION_OPTIONS
 
 from .layer_process import initial_state_and_obs,process_update,fetch_outcome
 from .layer_infer_state import compute_state_posterior
 
-from .layer_plan_classic import policy_posterior as policy_posterior_basic
+from .layer_plan_classic import policy_posterior as policy_posterior_classic
 from .layer_plan_sophisticated import policy_posterior as policy_posterior_sophisticated
 
 from .layer_pick_action import sample_action
@@ -54,7 +54,7 @@ def compute_step_posteriors(t,prior,observation,
     elif planning_options["method"]=="classic":
         filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST]
         # Policy planning
-        efe,raw_qpi = policy_posterior_basic(t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_classic(t,Th,filter_end_of_trial,
                                              qs,
                                              a,b,c,e,
                                              a_novel,b_novel,
@@ -90,8 +90,8 @@ def synthetic_trial(rngkey,T,
               A,B,D,
               a_norm,b_norm,c,d_norm,e,
               a_novel,b_novel,
-              selection_method="stochastic",alpha = 16,
-              planning_options=DEFAULT_PLANNING_OPTIONS):
+              planning_options=DEFAULT_PLANNING_OPTIONS,
+              action_selection_options=DEFAULT_ACTION_SELECTION_OPTIONS):
     """Computes the infered states and actions for T timesteps for a Sophisticated Inference agent.
     Agent options are written in planning options.
     All input weights must be vectorized (only 1 latent dim).
@@ -147,7 +147,7 @@ def synthetic_trial(rngkey,T,
         # jax.debug.print("efe: {}", efe)
         
         # Action sampling
-        u_d,u_idx,u_vect = sample_action(raw_qpi,alpha, selection_method=selection_method,rng_key=key_agent)
+        u_d,u_idx,u_vect = sample_action(raw_qpi,action_selection_options,rng_key=key_agent)
         
         # Prior for next timestep
         new_prior = jnp.einsum("iju,j,u->i",b_norm,qs,u_vect)

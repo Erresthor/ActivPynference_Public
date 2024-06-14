@@ -91,6 +91,7 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     """
     cap_state_explo = layer_options.cap_state_explo
     cap_action_explo = layer_options.cap_action_explo
+    compute_novelty_a = layer_options.a_novelty
     compute_novelty_b = layer_options.b_novelty
     
     _depth = depth 
@@ -183,8 +184,9 @@ def spm_forwards(O,P_t,U,layer_variables,t,
 
                 # Adding exploration terms (reduce uncertainty relative to environment dynamics)
                 A_exploration_term = 0
-                if layer_learn_options.learn_a : # if we learn a :
-                    A_exploration_term = - np.dot(qo.T,np.dot(flattened_W,Q[action]))
+                if compute_novelty_a:
+                    if layer_learn_options.learn_a : # if we learn a :
+                        A_exploration_term = - np.dot(qo.T,np.dot(flattened_W,Q[action]))
                 G[action,3] = G[action,3] + A_exploration_term
                 
                 B_exploration_term = 0

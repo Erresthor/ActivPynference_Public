@@ -111,13 +111,10 @@ def get_T_maze_gen_process(pinit,pHa,pWin):
         [2,0],
         [3,0]
     ]).astype(int)
-    
-    #Habits
-    E = np.ones((U.shape[0],))
 
-    return A,B,D,E,U
+    return A,B,D,U
 
-def get_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs):
+def get_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs,context_belief):
     """
     pinit : prob of reward initial position being left / right
     pHA : probability of clue giving the correct index position
@@ -126,7 +123,9 @@ def get_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs):
     # print("T-maze gen. model set-up ...  ",end='')
     T = 3
 
-    d = [np.array([128.0,1.0,1.0,1.0]),np.array([2.0,2.0])]
+    # d = [np.array([128.0,1.0,1.0,1.0]),np.array([2.0,2.0])]
+    k_conf = 2.0
+    d = [np.array([128.0,1.0,1.0,1.0]),np.array([context_belief*k_conf,(1.0-context_belief)*k_conf])]
 
         #Mapping from states to observed positions & hints
     A_extero = np.zeros(((5,4,2)))
@@ -208,7 +207,19 @@ def get_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs):
     ])
     c = [c_extero,c_intero]
     # print("Done!")
-    return a,b,c,d
+    
+    
+    U = np.array([
+        [0,0],
+        [1,0],
+        [2,0],
+        [3,0]
+    ]).astype(int)
+    
+    #Habits
+    e = np.ones((U.shape[0],))
+
+    return a,b,c,d,e,U
 
 
 def get_jax_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs,context_belief):
@@ -305,7 +316,17 @@ def get_jax_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs,context_belief):
     ])
     c = [c_extero,c_intero]
     # print("Done!")
-    return a,b,c,d
+    
+    U = jnp.array([
+        [0,0],
+        [1,0],
+        [2,0],
+        [3,0]
+    ]).astype(int)
+    
+    e = jnp.ones((U.shape[0],))
+    
+    return a,b,c,d,e,U
 
 
 
@@ -317,7 +338,7 @@ if __name__ =="__main__":
     la = -4
     rs = 2
     context_belief = 0.5
-    a,b,c,d = get_jax_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs,context_belief)
+    a,b,c,d,e,U = get_jax_T_maze_model(pHa,pWin,initial_hint_confidence,la,rs,context_belief)
     
     print(a)
     print(b)

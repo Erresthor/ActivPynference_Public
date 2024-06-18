@@ -3,6 +3,16 @@ Python package for simulating perception, decision-making & learning in uncertai
 
 This package started off as a simple Python port of the Wellcome Centre for Human Neuroimaging's SPM12 "MDP_VB_XX" files but we're continuously working on additionnal orignal features ! Work in progress !
 
+
+## Status
+
+![status](https://img.shields.io/badge/status-active-green)
+![Static Badge](https://img.shields.io/badge/python-3.10-blue?logo=python)
+![License](https://img.shields.io/badge/license-MIT-yellow)
+![Accessibility](https://img.shields.io/badge/Accesible_on-TestPypi-orange?link=https%3A%2F%2Ftest.pypi.org%2Fproject%2Factive-pynference%2F)
+![Publication](https://img.shields.io/badge/Published-No-red)
+
+
 What you can do using <b>active-pynference</b> :
 - Build your own Markov Decision Processes - based environments
 - Build Active-Inference models of those environments

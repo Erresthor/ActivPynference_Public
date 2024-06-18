@@ -38,7 +38,7 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr
         "smooth_states":run_smoother
     }
 
-def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=None,):
+def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=None):
     return {
         "alpha":alpha,
         'gamma':gamma,

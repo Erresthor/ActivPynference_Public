@@ -1,7 +1,6 @@
 import numpy as np
 import actynf
 
-
 def build_training_process(Ns,p_up,p_low,kas):
     """
     pinit : prob of reward initial position being left / right
@@ -55,7 +54,6 @@ def build_training_process(Ns,p_up,p_low,kas):
     #     mdp_layer(name of the layer,process or model, a,b,c,d,e,u,T)
     print("Done.")
     return a,b,d,u
-
 
 def build_subject_model(Ns,
                         a_str,kas_subj,

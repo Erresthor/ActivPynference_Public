@@ -166,7 +166,6 @@ def run_training_multi_factors(rngkey,Ns,Nos,Np,
     # return [all_obs_vect_arr,all_true_s_arr,all_u_vect_arr,all_qs_arr,all_qpi_arr,efes_arr,a_hist,b_hist,d_hist]
     return [all_obs_arr,all_true_s_arr,all_u_arr,all_qs_arr,all_qpi_arr,efes_arr,a_hist,b_hist,d_hist]
 
-
 def learn_example():
     # Environment variables
     Nsubjects = 1

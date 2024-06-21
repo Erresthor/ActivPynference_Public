@@ -15,7 +15,6 @@ class hyperparameters :
         # TODO : dynamic time-based tree search limiter (go as far as you can into
         # the future as long as it's below a certain time threshold)
         # self.global_time_cap_explo = 500 # ms
-
         self.a_novelty = False
         self.b_novelty = False
         

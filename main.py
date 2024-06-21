@@ -18,12 +18,6 @@ from actynf.jax_methods.jax_toolbox import _normalize
 
 from actynf.jax_methods.planning_tools import compute_novelty
 
-from demos.jax_demos.utils.basic_task import build_training_process,build_subject_model
-
-from actynf.jax_methods.layer_trial import synthetic_trial,synthetic_trial_set_vals,synthetic_trial_direct_run,compute_step_posteriors,end_of_trial_filter
-
-from actynf.jax_methods.layer_process import fetch_outcome,initial_state_and_obs
-
 from actynf.demo_tools.tmaze.weights import get_T_maze_gen_process,get_T_maze_model
 # def kronecker_prod_action(b_normed):
     

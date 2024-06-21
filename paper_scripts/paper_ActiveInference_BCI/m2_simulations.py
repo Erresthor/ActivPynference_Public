@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 import actynf
 from tools import clever_running_mean,color_spectrum
-from paper_scripts.paper1.m2_model import neurofeedback_training_one_action
+from paper_scripts.paper_ActiveInference_BCI.m2_model import neurofeedback_training_one_action
 
 # Useful function, might add it to the network class !
 def simulate_and_save(my_net,savepath,Nsubj,Ntrials,override=False):

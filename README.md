@@ -13,15 +13,20 @@ This package started off as a simple Python port of the Wellcome Centre for Huma
 ![Publication](https://img.shields.io/badge/Published-No-red)
 
 
-What you can do using <b>active-pynference</b> :
-- Build your own Markov Decision Processes - based environments
-- Build Active-Inference models of those environments
-- <i>Link</i> those process and model together to simulate environments and various subject models structures
+What you can do using <b>actynf</b> :
+- Build your own synthetic environments based on Markov Decision Processes using the *layer* class.
+- Build Active-Inference models of those environments using the same *layer* class !
+- Build networks of *layers* by creating *links* between them ! 
 - Run simulations of agent behaviour & learning
 
+We recently introduced a **Jaxified** version of Sophisticated Inference. Now, you can also : 
+- JIT & Vectorize Sophisticated Inference simulations to make them faster !
+- Use Inference librairies such as [numpyro](https://num.pyro.ai/en/latest/index.html#introductory-tutorials) to perform Bayesian Inference on empirical data and fit these models !  
+
 What you cannot do (yet):
-- Use the classical policy comparison scheme (SPM12's MDP_VB_X)
-- Fit experimental data to find the optimal parameters
+- Build hierarchical planning networks : layers receiving their observations from lower rank layers, and trying to plan actions (work in progress !).
+- Perform structure learning
+- Run the classical Active Inference (Policy comparison) scheme ... But you can [here](https://github.com/infer-actively/pymdp/tree/master) !
 - Find [the answer to life the universe and everything](https://en.wikipedia.org/wiki/42_(number))
 
 

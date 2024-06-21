@@ -235,11 +235,12 @@ class mdp_layer :
     action + state ---> [ layer ] ---> observation / observation distr
 
     notable functions : 
-    - layer learn : use the in-memory observations and actions of the last trial to update the current model
+    - layer learn : use the in-memory observations, inferences and actions of the last trial to update the current model
     - layer update : update the current beliefs about action and states given a new perception stimuli
+    
+    
+    NOTE : a layer is defined by a single action modality, but as many state factors & observation modalities as you want !
     """
-    # NOTE : a layer is defined by a single action modality.
-
     # Agent constructor
     def __init__(self,name,mode="model",
                  A = None,B=None,C=None,D=None,E=None,
@@ -277,9 +278,11 @@ class mdp_layer :
         self.T_horizon = T_horiz
 
         # Layer parameters
-        self.hyperparams = hyperparameters()
+        self.hyperparams = hyperparameters() # TODO : rename this to planning_options
+                # TODO : introduce an action_selection_option here (alpha, gamma, etc.)
         self.learn_options = learning_parameters(memory_decay_type,memory_decay_value, learn_backward_pass,state_structure_assumption)
-
+                # TODO : rename this to learning_options
+        
         #Model building blocks -----------------------------------------------------------------------------------------------
         # Beliefs (learning process, =/= generative process) --> What our agent believes about the dynamics of the world
         self.a = flexible_copy(A)       # A matrix 
@@ -320,12 +323,12 @@ class mdp_layer :
 
     def reseed(self,new_seed=None,auto_reseed=False):
         if (not(isField(new_seed))):
-            assert type(self.seed)==int,"No pre existing seed, please provide one ..."
+            assert isField(self.seed),"No pre existing seed, please provide one ..."
         else : 
             self.seed = new_seed
         if auto_reseed :
             self.seed = random.randint(0,9999)
-        self.RNG = random.Random(self.seed)
+        self.RNG = random.Random(int(self.seed))
         self.trials_with_this_seed=0
 
     def copy(self,newName=None):

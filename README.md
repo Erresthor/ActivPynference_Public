@@ -48,17 +48,29 @@ For more informations on package installation, check [the complete installation 
 
 ## Examples 
 
-- [Navigating a T-maze using Sophisticated Inference](demos/T-maze_demo.ipynb)
+- [Navigating a T-maze using Sophisticated Inference](demos/Tmaze_demo.ipynb)
 
-Behavioural simulation outputs : 
+A mouse has to pick either the left or the right (one-way) door. Behind one of the door is a reward (cheese), and behind the other is an adversive stimulus (mousetrap). The context may be either random or stable. The mouse also has access to a hint with an associated quality (i.e. *Does it actually provide any useful information about the reward whereabouts ?*). 
 
-![Image1](./resources/tmaze/renders/render_good_clue_2.gif)
+We use sophisticated inference to model the mouse learning both the context as well as the quality of the hint in various environments. Behavioural simulation outputs below : 
 
-![Image2](./resources/tmaze/renders/render_good_clue_cheese_stabilizes_at_10.gif)
 
-![Image3](./resources/tmaze/renders/render_bad_clue_random_env.gif)
+1. Reliable clue, random environment       | 2. Reliable clue , environment stabilizes after trial 10 | 3. Unreliable clue & random environment
+:--------------------------------------:|:------------------------------------:|:------------------------------------:
+![Image1](./resources/tmaze/renders/render_good_clue_2.gif) |![Image2](./resources/tmaze/renders/render_good_clue_cheese_stabilizes_at_10.gif)|![Image3](./resources/tmaze/renders/render_bad_clue_random_env.gif)
+
+
 
 - [Navigating a complex "soft" maze](demos/mazeX_demo.ipynb)
+
+An agent is taked with reaching a target cell in a complex "soft" maze. Contrary to a "hard" maze with uncrossable walls, there are adversive and neutral cells in this maze. An optimal agent tries to avoid adversive cells by exploring which cells are neutral and which cells are adversive. One interesting parameter we can play around in this simulation is the initial confidence of the agent regarding its prior mapping of the maze. When this confidence is very low, the agent will learn very fast. When it is too high, it won't learn at all. We can also toggle the novelty seeking part of the Sophisticated Inference planning algorithm to prompt more or less explorative behaviour.
+
+![Image1](demos/local_resources/mazex/renders/maze_explor_0.1.png)
+
+![Image2](demos/local_resources/mazex/renders/without_novelty_seeking.png)
+
+![Image3](demos/local_resources/mazex/renders/with_novelty_seeking.png)
+
 
 ## What is Active Inference ? Sophisticated Inference ?
 

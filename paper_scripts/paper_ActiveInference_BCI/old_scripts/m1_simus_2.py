@@ -4,12 +4,13 @@ import scipy.stats as scistats
 import math,sys,os
 import pickle 
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 import actynf
 from tools import clever_running_mean,color_spectrum
-from paper_scripts.paper1.tools_trial_plots import trial_plot_figure
+from paper_scripts.paper_ActiveInference_BCI.tools_trial_plots import trial_plot_figure
 
-from paper_scripts.paper1.m1_model import neurofeedback_training
+from paper_scripts.paper_ActiveInference_BCI.m1_model import neurofeedback_training
 
 # Useful function, might add it to the network class !
 def simulate_and_save(my_net,savepath,Nsubj,Ntrials,override=False):
@@ -49,14 +50,18 @@ def extract_training_data(savepath):
     return stms,weights,Nsubj,Ntrials
 
 if __name__ == "__main__":
-    Nsubj = 5
-    Ntrials = 300
+    Nsubj = 20
+    Ntrials = 50
     action_selection_inverse_temp = 32.0
     belief_feedback_std = [0.01]
-    true_feedback_std = [0.8,1.0,2.0]#2.0,5.0
+    true_feedback_std = [0.01,0.3,0.5,0.8,1.0,2.0]
+
+    def savepath_func(belief_fb_std,true_fb_std,action_selection_inverse_temp,learn_a_bool):
+        learn_a_rule = ("learn_a" if learn_a_bool else "no_learn_a")
+        return os.path.join("simulation_outputs","paper1","stairs",learn_a_rule,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
 
     for belief_fb_std in belief_feedback_std:
-        for true_fb_std in true_feedback_std:
+        for true_fb_std in true_feedback_std:      
             learn_a = False 
             clamp_gaussian = False
             
@@ -101,13 +106,13 @@ if __name__ == "__main__":
                                 # asit : inverse temperature of the action selection process
                                 # learn_a : Weither to learn the perception matrix on the go                                       
 
-            savepath = os.path.join("simulation_outputs","paper1","stairs","long_term","no_learn_a",str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
-
+            savepath = savepath_func(belief_fb_std,true_fb_std,action_selection_inverse_temp,learn_a)
             simulate_and_save(net,savepath,Nsubj,Ntrials,override=False)
 
     
-    for alearning in ["no_learn_a"]:
 
+    # Plotting the results of the sims
+    for alearning in [True,False]:
         fig3 = plt.figure(constrained_layout=True)
 
         widths = [1, 1, 3]
@@ -125,8 +130,8 @@ if __name__ == "__main__":
         colorlist = [color_spectrum(np.array([1.0,0.0,0.0]),np.array([0.0,0.0,1.0]),t) for t in np.linspace(0,1,len(true_feedback_std))]
         for id2,belief_fb_std in enumerate(belief_feedback_std):
             for id1,true_fb_std in enumerate(true_feedback_std):
-                savepath = os.path.join("simulation_outputs","paper1","stairs",alearning,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
-                savepath = os.path.join("simulation_outputs","paper1","stairs","long_term",alearning,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
+                alearning_str = "learn_a" if alearning else "no_learn_a"
+                savepath = os.path.join("simulation_outputs","paper1","stairs",alearning_str,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
 
                 _stm,_weight,_Nsubj,_Ntrials = extract_training_data(savepath)
                 color = colorlist[id1]
@@ -153,11 +158,9 @@ if __name__ == "__main__":
                 arr_s = arr_s[:,1:]
                 Xs = np.linspace(1,Ntrials,Ntrials-1)
 
-                
-
                 meanarr = np.mean(arr_o,0)
                 stdarr = np.std(arr_o,axis=0)
-                print(meanarr)
+                # print(meanarr)
                 o_ax.plot(Xs,meanarr,color=full_color,linewidth=2.0)
                 o_ax.fill_between(Xs,meanarr-stdarr,meanarr+stdarr,color = trans_color)  
 
@@ -174,5 +177,106 @@ if __name__ == "__main__":
         s_ax.set_ylim([0.0,4.0])
         o_ax.grid()
         s_ax.grid()
+    # plt.show()
+    
+    # matfig,matgif_axes = plt.subplots(2,Nsubj)
+    # plot_true_fb = 0.5
+    # plot_belief_fb = 0.01
+    # def animate(i):
+    #     trial = i
+    #     print(i)
+    #     imlist =[]
+    #     for subj in range(Nsubj):
+    #         for k,alearning in enumerate(["learn_a","no_learn_a"]):
+    #             matgif_axes[k,subj].clear()
+
+    #             savepath = os.path.join("simulation_outputs","paper1","stairs",alearning,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(plot_belief_fb)+"_noClamp","simulations_3."+str(plot_true_fb)+".pickle")
+    #             _stm,_weight,_Nsubj,_Ntrials = extract_training_data(savepath)
+    #             a_img_model = _weight[subj][trial][1]['a'][0]
+    #             imlist.append(matgif_axes[k,subj].imshow(actynf.normalize(a_img_model),vmin=0,vmax=1))
+    #     return imlist
+    # ani = FuncAnimation(matfig, animate, interval=40, blit=True, repeat=True, frames=Ntrials)    
+    # ani.save("TLI.gif", dpi=300, writer=PillowWriter(fps=10))
+
+    # exit()
+    colors = [np.array([1.0,0.0,0.0]),np.array([0.0,0.0,1.0])]
+    fig,axs=plt.subplots(len(true_feedback_std))
+    for aid,alearning in enumerate(["learn_a","no_learn_a"]):
+
+        # colorlist = [color_spectrum(np.array([1.0,0.0,0.0]),np.array([0.0,0.0,1.0]),t) for t in np.linspace(0,1,len(true_feedback_std))]
+        for id2,belief_fb_std in enumerate(belief_feedback_std):
+            for id1,true_fb_std in enumerate(true_feedback_std):
+                savepath = os.path.join("simulation_outputs","paper1","stairs",alearning,str(action_selection_inverse_temp),"subject_expects_feedback_std_"+str(belief_fb_std)+"_noClamp","simulations_3."+str(true_fb_std)+".pickle")
+                ax = axs[id1]
+
+                _stm,_weight,_Nsubj,_Ntrials = extract_training_data(savepath)
+                color = colors[aid]
+                full_color = np.concatenate([color,np.array([1.0])],axis=0)
+                trans_color = np.concatenate([color,np.array([0.2])],axis=0)
+
+                # Extract parameters used
+                subj = 0
+                trial = 0
+                a_img_process = _weight[subj][trial][0]['a'][0]    
+                a_img_model = _weight[subj][trial][1]['a'][0]
+
+                # Extract training curves
+                arr_o = np.zeros((Nsubj,Ntrials))
+                arr_s = np.zeros((Nsubj,Ntrials))
+                for subj in range(Nsubj):
+                    for trial in range(1,Ntrials):
+                        arr_o[subj,trial] = np.mean(_stm[subj][trial][0].o[0])
+                        arr_s[subj,trial] = np.mean(_stm[subj][trial][0].x[0])
+                
+                arr_o = arr_o[:,1:]
+                arr_s = arr_s[:,1:]
+                Xs = np.linspace(1,Ntrials,Ntrials-1)
+
+                meanarr = np.mean(arr_o,0)
+                stdarr = np.std(arr_o,axis=0)
+                # o_ax.plot(Xs,meanarr,color=full_color,linewidth=2.0)
+                # o_ax.fill_between(Xs,meanarr-stdarr,meanarr+stdarr,color = trans_color)  
+
+                meanarr = np.mean(arr_s,0)
+                stdarr = np.std(arr_s,axis=0)
+                ax.plot(Xs,meanarr,color=full_color,linewidth=2.0)
+                ax.fill_between(Xs,meanarr-stdarr,meanarr+stdarr,color = trans_color) 
+                ax.set_ylim([0.0,4.0])
+                ax.grid()
+
+                print(alearning)
+                print(np.round(_weight[subj][-1][1]['a'][0],2))
+                # matrix_true_ax.imshow(actynf.normalize(a_img_process),vmin=0,vmax=1)
+                # matrix_belief_ax.imshow(actynf.normalize(a_img_model),vmin=0,vmax=1)
     plt.show()
+        
+# x1 = np.arange(0, -0.2, -0.002)
+# y1 = np.arange(0, -0.2, -0.002)
+# x2 = np.arange(3.9, 3.7, -0.002)
+# y2 = np.arange(0, 1, 0.01)
+# x3 = np.arange(0, 1.8, 0.018)
+# y3 = np.array(x3**2)
+
+# fig,ax = plt.subplots()
+
+# def animate(i):
+#     ax.clear()
+#     ax.set_xlim(-4,4)
+#     ax.set_ylim(-4,4)
+#     line, = ax.plot(x1[0:i], y1[0:i], color = 'blue', lw=1)
+#     line2, = ax.plot(x2[0:i], y2[0:i], color = 'red', lw=1)
+#     line3, = ax.plot(x3[0:i], y3[0:i], color = 'purple', lw=1)
+#     point1, = ax.plot(x1[i], y1[i], marker='.', color='blue')
+#     point2, = ax.plot(x2[i], y2[i], marker='.', color='red')
+#     point3, = ax.plot(x3[i], y3[i], marker='.', color='purple')
+#     return line, line2, line3, point1, point2, point3,
+        
+# ani = FuncAnimation(fig, animate, interval=40, blit=True, repeat=True, frames=100)    
+# ani.save("TLI.gif", dpi=300, writer=PillowWriter(fps=25))
+
+
+#         # s_ax.set_ylim([0.0,4.0])
+#         # o_ax.grid()
+        
+#     plt.show()
     

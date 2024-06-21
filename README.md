@@ -63,18 +63,24 @@ Reliable clue, random environment       | Reliable clue , environment stabilizes
 
 - [Navigating a complex "soft" maze](demos/mazeX_demo.ipynb)
 
-An agent is taked with reaching a target cell in a complex "soft" maze. Contrary to a "hard" maze with uncrossable walls, there are adversive and neutral cells in this maze. An optimal agent tries to avoid adversive cells by exploring which cells are neutral and which cells are adversive. One interesting parameter we can play around in this simulation is the initial confidence of the agent regarding its prior mapping of the maze. When this confidence is very low, the agent will learn very fast. When it is too high, it won't learn at all. We can also toggle the novelty seeking part of the Sophisticated Inference planning algorithm to prompt more or less explorative behaviour.
+An agent is tasked with reaching a target cell in a complex "soft" maze. Contrary to a "hard" maze with uncrossable walls, there are adversive and neutral cells in this maze. An optimal agent tries to avoid adversive cells by exploring which cells are neutral and which cells are adversive. One interesting parameter we can play around in this simulation is the initial confidence of the agent regarding its prior mapping of the maze. When this confidence is very low, the agent will learn very fast. When it is too high, it won't learn at all. We can also toggle the novelty seeking part of the Sophisticated Inference planning algorithm to prompt more or less explorative behaviour.
 
 
 <img src="demos/local_resources/mazex/renders/maze_explor_0.1.png" width="400">
 <!-- ![Image1](demos/local_resources/mazex/renders/maze_explor_0.1.png) -->
 
+In this plot, the background represents the agent's final perception of the maze, with each cell's background reflecting the agent belief about the state of a cell (adversive = dark cells, neutral = bright cells).
+We also plot the firstr 20 trajectories of the agent. The first ones are blue-ish, and the later ones are red-ish.
+
 <img src="demos/local_resources/mazex/renders/without_novelty_seeking.png" width="400">
 <!-- ![Image2](demos/local_resources/mazex/renders/without_novelty_seeking.png) -->
+
+This simulation shows the various trajectories of agents with varying initial confidence in their maze mappings. Importantly, the agents didn't actively try to improve their knowledge of the maze (i.e. novelty seeking) when planning new actions.
 
 <img src="demos/local_resources/mazex/renders/with_novelty_seeking.png" width="400">
 <!-- ![Image3](demos/local_resources/mazex/renders/with_novelty_seeking.png) -->
 
+Same plot as before, with the agents now actively trying to target unexplored cells to increase their knowledge of the maze.
 
 ## What is Active Inference ? Sophisticated Inference ?
 

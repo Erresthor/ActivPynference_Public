@@ -248,8 +248,10 @@ def compute_EFE(qs_current,start_t,
                                             option_a_nov,option_b_nov,additional_options_planning))
         qs_next,efe_next_actions = vmap(compute_node_func)(qs_pi) 
         
-        efe_next_actions = efe_next_actions*filter_trial_end[explorative_timestep-1]  # If the previous timestep is trial end or after, this computation is not taken into account 
-
+        efe_next_actions = efe_next_actions*filter_trial_end[explorative_timestep-1]  
+                # If the previous timestep is trial end or after, this computation is not taken into account 
+                # This is redundant, can we just remove it ?
+                
         N_efe_computed_history.append(efe_next_actions.shape[0])
         
         exploration_tree.append([qs_pi,efe_next_actions,state_branch_densities,new_ut])
@@ -297,7 +299,7 @@ def compute_EFE(qs_current,start_t,
     # This will be unrolled ! (needs to be done sequentially, 
     # big Th values are obviously discouraged)
     # Autobots, roll out !       
-    carry_efe = jnp.zeros_like(exploration_tree[-1][1])
+    carry_efe = jnp.zeros_like(exploration_tree[Th][1])
     for explorative_timestep in range(Th,0,-1): # Th -> Th-1 -> ... -> 1
         space_tuple_next = (exploration_step_shape*(explorative_timestep))
 
@@ -305,6 +307,7 @@ def compute_EFE(qs_current,start_t,
         # We only use the computed EFE here !
         [qs_tsmtp,efe_this_tsmtp,state_branch_densities,ut_next_tsmtp] = exploration_tree[explorative_timestep]
         state_branch_densities = jnp.reshape(state_branch_densities,space_tuple_next)
+        
         efe_this_tsmtp = jnp.reshape(efe_this_tsmtp + carry_efe,space_tuple_next+(Np,))
                    
         # We marginalize the efe for the next timestep across expected actions ... 

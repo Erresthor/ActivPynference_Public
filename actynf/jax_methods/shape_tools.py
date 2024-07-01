@@ -141,6 +141,8 @@ def vectorize_weights(raw_a,raw_b,raw_d,u):
     Modify the matrices so that only one latent dimension remains, 
     without changing the dynamics inherent to multiple factors
     This method normalizes the respective inputs !
+    
+    TODO : there should be a battery of shape testing functions here ! 
     """
     Nf = len(raw_b)
     # c is unchanged

@@ -56,7 +56,7 @@ class network():
         else :
             if layers_auto_reseed :
                 for lay in self.layers:
-                    lay.reseed(auto_reseed=True) # to avoid all layers with the same seed
+                    lay.reseed(auto_reseed=True) # to avoid all layers running with the same seed
 
     def update_T(self):
         """ Using the layers of the network, guess how many timesteps per trial the network should run."""
@@ -119,48 +119,7 @@ class network():
                 plt.xlabel("Iterations")
             plt.show()
         self.run_order = list(np.argsort(np.mean(xs[...,int((1.0-mean_of_last_percent)*xs.shape[1]):],axis=1)))
-
-    def old_update_order_run(self,mean_of_last_percent = 0.25):
-        """
-        General philosophy : inputs & outputs should NOT be cleaned after a run : some layers 
-        will use the same input over two trials dependind on the general ordering of the fire events. 
-        A layerLink is a directional object that sends data from a layer to another.
-        By iterating over layerlinks, we may build a general gradient of layer run orders : 
-        ideally, this should depend on the "strength" of the layerLinks
-        """
-        assert len(self.layers) > 0, "There are no layers in the network " + self.name + " . Please add layers to the network before running network.update_order_run ."
-        # 1. Get a list of upstream and downstream layers for each layer. 
-        # If a dowstream layer is in generative process mode and the source
-        # layer is in generative model mode, ignore the downstream layer.
-        list_of_neighbors = [] # per layer, the layers connected through upstream or downstream links
-        for lay_idx in range(len(self.layers)) :
-            lay = self.layers[lay_idx]
-            linked_layers = lay.get_connection_weighted_linked_layers()
-
-            # UPSTREAM LAYER -------------> CURRENT LAYER
-            #                  layerLink
-            # provides forces towards high x values for current
-            upstream_neighbors = []
-            for us in linked_layers["to_self"]:
-                upstream_layer, cardinal, is_process_to_model = us
-                if not(is_process_to_model):
-                    upstream_layer_idx = self.layers.index(upstream_layer)
-                    upstream_neighbors.append([upstream_layer_idx,cardinal])
-
-            # CURRENT_LAYER -------------> DONWSTREAM LAYER
-            #                  layerLink
-            # provides forces towards low x values for current
-            downstream_neighbors = []
-            for ds in linked_layers["from_self"]:
-                downstream_layer, cardinal, is_process_to_model = ds
-                if not(is_process_to_model):
-                    downstream_layer_idx = self.layers.index(downstream_layer)
-                    downstream_neighbors.append([downstream_layer_idx,cardinal])
-            list_of_neighbors.append([upstream_neighbors,downstream_neighbors])
-        xs,xxs,xxxs = (mechanical_equations_ordering(list_of_neighbors,opt=1))
-
-        self.run_order = list(np.argsort(np.mean(xs[:,int((1.0-mean_of_last_percent)*xs.shape[1]):],axis=1)))
-
+    
     def prerun(self):
         for order_idx in self.run_order:
             self.layers[order_idx].prerun()

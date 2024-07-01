@@ -9,10 +9,13 @@ def get_planning_options(
                         old_a_novel=True):
     return {
         "horizon" : Th,
+        
         "a_novelty" : a_novel,
         "b_novelty" : b_novel,
         "old_novelty_computation" : old_a_novel,
-        "method": planning_method,  # "full_tree" or "joint_tree"
+        
+        "method": planning_method,  # for now, only "classic" or "sophisticated" are supported
+        
         "plantree_action_horizon":action_horizon,
         "plantree_state_horizon":state_horizon,
         "explore_joint_remaining":explore_remaining_paths

@@ -13,7 +13,6 @@ from ..enums import NO_MEMORY_DECAY,NO_STRUCTURE
 
 from .parameters.hyperparameters import hyperparameters
 from .parameters.learning_parameters import learning_parameters
-# from .spm_forwards import spm_forwards
 from .spm_forwards_decompose_G import spm_forwards
 from .layer_learn import learn_from_experience
 from .policy_tree import policy_tree_node
@@ -230,8 +229,11 @@ class mdp_layer :
     I am a MDP layer. I operate independently.
     This is a very generic class with generic components, which can be used both for generative process AND model.
     
+    Process :
     observations ----> [ layer ] ----> q_s and q_pi
 
+    
+    
     action + state ---> [ layer ] ---> observation / observation distr
 
     notable functions : 
@@ -241,6 +243,7 @@ class mdp_layer :
     
     NOTE : a layer is defined by a single action modality, but as many state factors & observation modalities as you want !
     """
+    
     # Agent constructor
     def __init__(self,name,mode="model",
                  A = None,B=None,C=None,D=None,E=None,
@@ -253,9 +256,6 @@ class mdp_layer :
         self.verbose = False
         self.debug = False
 
-        self.sources = []  # Where I get my information from !
-        self.dependent = [] # Where I send my output !
-
         # Seeding
         if (not(isField(in_seed))):
             in_seed = random.randint(0,9999)
@@ -264,13 +264,9 @@ class mdp_layer :
         self.RNG = None
         self.reseed()
 
+        # TODO : create children classes for each ?
         assert (mode == "model" or mode=="process"),"The layer should either be a process or a model ! (currently " + str(mode) + ")"
         self.layerMode = (layerMode.MODEL if mode=="model" else layerMode.PROCESS)
-
-        # self.update_frequency = 1 # ]0,1] 
-                # --> At most, you can be updated once every loop, at worst, only once in total$
-                # Could be a probability of being selected every loop, describe cognitive processes at different timescales
-                # To be implemented
         
         # Layer simulation parameters 
         self.t = 0          # The current time step, if t==T, the experience is over  
@@ -359,10 +355,7 @@ class mdp_layer :
     def check(self):
         if(self.name == '') :
             self.name = 'unnamed_layer'
-
-        
-        
-        
+ 
         pcmm = "" #potential_component_missing_message
         if not(isField(self.a)): pcmm += self.name +" : A not filled in " +  "\n"
         if not(isField(self.b)): pcmm += self.name +" : B not filled in " +  "\n"
@@ -525,7 +518,7 @@ class mdp_layer :
         return joint.flatten('C')
 
     def joint_to_kronecker_accross_time(self,joint):
-        return joint.reshape(-1, joint.shape[-1]) # I don't like it but I'm too lazy to change this
+        return joint.reshape(-1, joint.shape[-1],order='C') 
     
     def kronecker_to_joint(self,x_kron):
         return np.reshape(x_kron,self.Ns,'C')

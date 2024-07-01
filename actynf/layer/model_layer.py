@@ -255,6 +255,10 @@ class mdp_layer :
         self.name = name
         self.verbose = False
         self.debug = False
+        
+        # Network structure
+        self.sources = []  # Where I get my information from !
+        self.dependent = [] # Where I send my output !
 
         # Seeding
         if (not(isField(in_seed))):

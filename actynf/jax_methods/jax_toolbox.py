@@ -1,3 +1,6 @@
+import random as ra
+import numpy as np
+
 import jax
 import jax.numpy as jnp
 import jax.random as jr
@@ -9,6 +12,26 @@ from functools import partial
 from itertools import product
 
 import tensorflow_probability.substrates.jax.distributions as tfd
+
+def tensorify(*args):
+    """ A very ugly function that transforms numpy arrays into jax tensors, while conserving list structures."""
+    all_results = []
+    for arg in args :
+        if type(arg)==list :
+            # We return a list of tensorified args :
+            return_list = []
+            for el in arg :
+                return_list.append(tensorify(el))
+            all_results.append(return_list)
+        else :
+            all_results.append(jnp.array(arg))
+    
+    if len(all_results)==1:
+        return all_results[0]
+    else :
+        return tuple(all_results)
+
+
 
 def _swapaxes(arr,ax1=-1,ax2=-2,tree=False):
     if tree : 
@@ -102,7 +125,6 @@ def spm_wnorm(A,eps=1e-10):
     wA = norm - avg
     return wA
 
-
 def random_split_like_tree(rng_key, target=None, treedef=None):
     """
     From : https://github.com/google/jax/discussions/9508
@@ -116,9 +138,62 @@ def convert_to_one_hot_list(list_of_idxs,list_of_shapes):
     mapped_func = (lambda x_idx,x_shape : jax.nn.one_hot(x_idx,x_shape))
     return tree_map(mapped_func,list_of_idxs,list_of_shapes)
 
-if __name__=="__main__":
-    import random as ra
-    import numpy as np
+# Soft ranking approximations to allow differentiating under a sorting condition : 
+def soft_rank(X,temp=1.0):
+    """
+    Soft ranking of elements in x.
+    :param X: Input tensor of shape (n,).
+    :param temperature: Temperature parameter for the softmax.
+    :return: Soft ranking of x.
+    """
+    D = (X[:, None] - X[None, :])/temp
+    D = jax.nn.softmax(D,axis=-1)
+    print(D)
+    for k in range(10):
+        D /= D.sum(axis=-1,keepdims=True)
+        D /= D.sum(axis=-2,keepdims=True)
+    print(D)
+    exit()
+    n = X.shape[0]
+    Y = jnp.arange(n)
+    pairwise_distances = jax.vmap(jax.vmap(lambda x,y: x-y, (0, None)), (None, 0))(X,Y)
+    print(pairwise_distances)
+    print(jax.nn.softmax(pairwise_distances/temp,axis=0))
+
+def sinkhorn(a,b,x,y,dist,temp,N):
+    n = x.shape[0]
+    
+    print(x)
+    print(y)
+    C = vmap(vmap(dist,(0,None)),(None,0))(x,y)
+    print(C)
+    K = jnp.exp(-C/temp)
+    
+    u = jnp.ones((n,))
+    
+    for t in range(N):
+        v = b/jnp.dot(K.T,u)
+        u = a/jnp.dot(K,v)
+    print(v)
+    print(u)
+    eldoto = jnp.dot(jnp.dot(jnp.diag(u),K),jnp.diag(v))
+    # print(*K*jnp.diag(v))
+    print(eldoto)
+    
+if __name__=="__main__": 
+    X = jnp.array([0.5,0.3,0.2,0.0,0.0])
+    Y = jnp.arange(X.shape[0]).astype(float)
+    temp = 0.01
+    source_dist = np.array([1, 1, 1, 1, 1])
+    target_dist = np.array([1, 1, 1, 1, 1])
+    distance_func = lambda x,y:(x-y)*(x-y)
+    N = 20
+    
+    sinkhorn(source_dist,target_dist,X,Y,distance_func,temp,N)
+    
+    exit()
+    print(soft_rank(a,temp=1.0))
+    exit()
     Nos = np.array([10,3,2])
     Ns = 10
     T = 10

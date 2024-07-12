@@ -69,113 +69,140 @@ def compute_efe_node(t,
 
     return qs_pi_tplus,trial_end_scalar*jnp.sum(EFE_pi_tplus,axis=-1) + vecE
 
-@partial(jit,static_argnames=["Ph","Sh","remainder_state_bool"])
-def expand_tree(current_EFE_node,q_previous,
-                vecA,vecB,
-                Ph,Sh,
-                remainder_state_bool=True):
-    Ns = q_previous.shape[-1]
-    Np = current_EFE_node.shape[-1]
+
+def path_heuristic(visited_state_densities,visited_efes):
+    """Returns a scalar value that is used as an heuristic to decide if this path should be
+    explored further or not. Higher values promise higher neg EFE and are thus more sought-after.
     
-    # 1.
-    # Explore Ph different action paths based on their relative EFE
-    # Outputs some predictive priors for the next timestep
-    def pick_future_action_paths(_efe,_qs_t):
-        # current EFE has been computed for this timestep, now, let's pick 
-        # the most plausible ones !
-        # current_posterior : [Ns]
-        # current_EFE : [Np]
-        # returns : 
-        # next_priors [Np x Ns], policies_explored[Np]
-        
-        # TODO : replace this by a "soft sort" / "top k" operation that doesn't annul the gradients    
-        scanner = jnp.argsort(-_efe)[::-1] # Order policies by their EFE in this timestep
-        
-        _policies_explored = scanner[:Ph]  # Take the first Ph !                      
-        # _policies_explored = jnp.arange(Np) # If we want to explore all policies !
-        
-        _mapped_policies = vmap(lambda x : jax.nn.one_hot(x,Np))(_policies_explored)
-        
-        _next_priors = vmap(lambda _p : jnp.einsum("iju,j,u->i",vecB,_qs_t,_p))(_mapped_policies)
-        
-        return _next_priors,_mapped_policies
+    Note : this path may have a low probability of actually happening. This is encoded in the
+    visited_densities part of the tree. 
+    Each path has its own "promised negative EFE" (= sum of the visited neg-EFEs)
+    and the probability of actually coming through with it = prod(p_i)
     
-    # 2.
-    # Decompose each predictive priors into Sh individual states !
-    # If remainder_state is set to True, also group the remaining unexplored states
-    # together and compute its EFE too !
-    def pick_future_state_paths(_pred_prior):       
-        
-        # TODO : replace this by a "soft sort" / "top k" operation that doesn't annul the gradients
-        scanner = jnp.argsort(_pred_prior)[::-1][:Sh]  
-                        # Deterministic pruning (should we add a small noise ?) 
-                        # More likely states first, up to the first Sh !
-        
-        # scanner = jnp.arange(Ns) 
-                        # If we want to explore all possible states (warning, this is unrealistic in most cases)
-        
-        mapped_states = (vmap(lambda x : jax.nn.one_hot(x,Ns)))(scanner)
-        mapped_densities = jnp.einsum("bi,i->b",mapped_states,_pred_prior)
-        
-        if (remainder_state_bool):
-            # Get the remaining unexplored predictions :
-            explored_filter = mapped_states.sum(axis=-2)  
-                    # This is a vector with 1 where the state is explored
-                    # and 0 for every other state
-            unexplored_filter = jnp.ones_like(explored_filter) - explored_filter
-                    # And this is the complementary
-                    
-                    
-            # This is gonna be ugly :D
-            remaining_state_joint = _pred_prior*unexplored_filter  # A [Ns] vector (unnormalized !)
-            remainder_density = jnp.array([jnp.sum(remaining_state_joint)])
-                        # This is the total density not yet explored in this branch
-            
-            remainder_state_joint_norm,_ = _normalize(remaining_state_joint+1e-10)
-            remainder_state_joint_norm = jnp.expand_dims(remainder_state_joint_norm,axis=-2)
-            
-            
-            # Add this to the previously explored paths
-            mapped_states = jnp.concatenate([mapped_states,remainder_state_joint_norm],axis=-2)
-            mapped_densities = jnp.concatenate([mapped_densities,remainder_density],axis=-1)
-        
-        return mapped_states,mapped_densities  # Either Ns x (Sh) or Ns x (Sh + 1)
     
-    # 3. (might be better outside this function)
-    # + Compute the expected observations under this state and how it will affect
-    # the posterior
+    The bigger result is the most interesting, but importantly, the agent has to penalize 
+    low probability outcomes because they may not be that interesting.
+    
+    
+    Args:
+        visited_state_densities (_type_): _description_
+        visited_efes (_type_): a set of T negative EFE values
+                ( the higher, the better !). 
+                
+            
+
+    Raises:
+        RuntimeError: _description_
+
+    Returns:
+        _type_: _description_
+    """
+
+
+
+# @partial(jit,static_argnames=["Th","path_cap","path_compute_cap","option_a_nov",'option_b_nov','additional_options_planning'])
+def compute_EFE(initial_qs,initial_t,
+        vecA,vecB,vecC,vecE,
+        nov_a,nov_b,
+        filter_trial_end,
+        Th,path_cap=None,path_compute_cap=None,
+        option_a_nov=True,option_b_nov=False,
+        additional_options_planning=False):
+    
+    # Initialize the needed weights :
+    EFE_FLOOR = -10000
+    Ns = initial_qs.shape[-1]
+    Np = vecB.shape[-1]
+    
+    there_is_no_provided_cap = ((path_compute_cap == None)and(path_cap==None))
+    if (there_is_no_provided_cap):
+        raise RuntimeError("Can't use capped learning without a cap ! Please specify a path or a compute cap.")
+    
+    K = path_cap
+    if not(path_compute_cap == None):
+        K = path_compute_cap/(Ns*Np)
+        pass # The cap affects the amount of computations performed
+    
+    individual_actions_extractor = vmap(lambda x : jax.nn.one_hot(x,Np))(jnp.arange(Np))
+    individual_state_extractor = vmap(lambda x : jax.nn.one_hot(x,Ns))(jnp.arange(Ns))
+    
+    
     def next_posterior(_explored_state,_pred_post):
         # Predictive observation based on explored_state realization
         po = tree_map(lambda a_m : jnp.einsum('oi,i->o',a_m,_explored_state),vecA)
-        
         # Use it to compute the expected posterior if that happens : 
         qs,F = compute_state_posterior(_pred_post,po,vecA)
-        
         return qs
-    
-    # This is the same quantity computed in compute_node, but it may be smaller if Ph < Np
-    next_priors,action_branches_explored = pick_future_action_paths(current_EFE_node,q_previous)
-        #  p_next is of shape Ph x Ns !
-        #  action_branches_explored is of shape Ph !
-    
-    # For each action, we take the Sh most likely states (and possibly the joint distribution of the remaining ones)
-    next_potential_states,next_branches_densities = vmap(pick_future_state_paths)(next_priors)
-        # next_potential_states is of shape Ph x (Sh(+1?)) x Ns !
-        # This is used to compute observation predictions
+    vect_compute_next_posterior = vmap(vmap(vmap(next_posterior, in_axes=(0,None))))
+        # This vectorized function will help us later :D
         
-    # We want to vectorize explore_one_path_function along : 
-    # 1 dimension for the predictive posterior argument
-    # 2 dimensions for the explored state argument 
-    vectorized_next_posterior = vmap(vmap(next_posterior, in_axes=(0,None)))
-    
-    next_posteriors = vectorized_next_posterior(next_potential_states,next_priors)
-        # prior_states is also of shape Ph x (Sh(+1?)) x Ns !
-        # And this is used as a predictive posterior
         
-    return next_branches_densities,next_priors,next_posteriors,action_branches_explored
+    compute_efe_func = (lambda _qs,_t,_filt : compute_efe_node(_t,_qs,
+                                            vecA,vecB,vecC,vecE,
+                                            nov_a,nov_b,
+                                            _filt, # Are we at the last timestep ?
+                                            option_a_nov,option_b_nov,additional_options_planning))    
+    vect_compute_efe = vmap(compute_efe_func,in_axes=(0,None,None))
+        
+    
+    # Tree building : 
+    def scanner(carry,x):
+        (previous_posteriors
+            ,sum_of_path_Gs,sum_of_path_logliks) = carry
+        (explored_t,filter_trial_horizon) = x
+        
+        # previous_posteriors is a tensor with size [K x Ns]
+        
+        # Expand here : 
+        # From K to Ns x Nu x K
+        # 1. Effect of actions
+        _next_priors = vmap(lambda _p : jnp.einsum("iju,kj,eu->eki",vecB,previous_posteriors,individual_actions_extractor))
+                        # size [Np x K x Ns], e is the extracted dim in the einsum
+        
+        # 2. Extract the density of the states explored 
+        _next_densities = jnp.einsum("eki,si->sek",_next_priors,individual_state_extractor)
+                        # size [Ns x Np x K], s is the extracted dim in the einsum
+        # And their one-hot encoding
+        _next_states_explored = jnp.einsum("eki,sj->sekj",_next_priors,individual_state_extractor)
+                        # size [Ns x Np x K x Ns] 
+                        
+                
+        # We evaluate next_posterior for :
+        # + _next_priors along dimensions 1,2
+        # + _next_states_explorex along dimensions 0,1,2
+        _next_posteriors = vect_compute_next_posterior(_next_states_explored,_next_priors)
+                        # size [Ns x Np x K x Ns] 
+        
+        # The branches are created and their parameters noted. Now, let's flatten them :
+        # (here, -1 = K' = K x Ns x Np)
+        _next_densities = jnp.reshape(_next_densities,(-1,))
+        _next_states_explored = jnp.reshape(_next_states_explored,(-1,Ns))
+        _next_posteriors = jnp.reshape(_next_states_explored,(-1,Ns))
+        
+        
+        # compute the efe for all these new branches ! (no flattening here, avoid implicit shape changes)
+        _next_efe = vect_compute_efe(_next_posteriors,explored_t,filter_trial_horizon)
+                        # size [K' x Np] 
+        
+        # Nice , we've got the quantities needed. Now, we need to pick the 
+        # ones that we will keep exploring and the ones we will give up !
+        
+        
+        # Dynamic tree pruning : remove the paths that a) seem implausible and b) have low efe
+        # until we get back to the cap K
+        # marginalized sum EFE : = sum(log (qs_t) * G_t) ? (this does )
+        heuristic = a_nice_function(path_efe_history,path_prob_history)
+            # A [K']-sized tensor that we may sort to pick relevant action-state paths
+        keep_those = jnp.argsort(heuristic)[:K]
+        
+        carry_next = (sum_of_path_Gs,sum_of_path_logliks)
+        
+        return carry_next
+    
+    
 
 @partial(jit,static_argnames=["Th","Sh","Ph","option_a_nov",'option_b_nov','additional_options_planning','explore_remaining_paths'])
-def compute_EFE(qs_current,start_t,
+def compute_EFE_old(qs_current,start_t,
         vecA,vecB,vecC,vecE,
         nov_a,nov_b,
         filter_trial_end,
@@ -201,10 +228,12 @@ def compute_EFE(qs_current,start_t,
     #      thus we precompute an array of paths we want to explore, and then scan them
     # 2. We want to reduce redundant computation and therefore have an expanding tree. 
     #      it seems that using lists (or maybe pytrees ?) works best in that case
+    # 3. We want to use scan WITHOUT predefining the explored action paths. Let's introduce a 
+    #      planning algorithm that continuously prunes the potential new paths explored.
+    #      This needs to be further refined (what is the minimized quantity).
+    #      For now, we'll use a mix of state log likelihood and path negative EFE.
     # 
-    # This function uses an application of 2.
-
-    exploration_tree = []  # We will fill this tree with Th levels of branches
+    # This function uses an application of 3.
     
     # First timestep EFE computation
     qs_pi = qs_current

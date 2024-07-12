@@ -1,4 +1,4 @@
-__version__ = '0.1.38'
+__version__ = '0.1.39.local'
 __author__ = 'Come Annicchiarico'
 __credits__ = 'Centre de Recherche en Neurosciences de Lyon'
 

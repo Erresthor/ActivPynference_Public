@@ -42,9 +42,13 @@ from ..base.extrapolate_diagonally import extrap_diag_2d
 from ..base.function_toolbox import spm_dekron,spm_complete_margin,spm_cross,normalize
 from .spm_backwards import spm_backwards,backward_state_posterior_estimation
 from .utils import dist_from_definite_outcome_accross_t
+from .model_avg_utils import joint_to_kronecker_accross_time,kronecker_to_joint_accross_time#,kronecker_to_joint,joint_to_kronecker
 
 from ..enums.memory_decay import MemoryDecayType
 from ..enums.space_structure import AssumedSpaceStructure
+
+# This whole page should be updated using the einsums ! 
+# --> use jax_functions here ?
 
 class layerPlasticity:
     def __init__(self,eta,mem_decay_type,mem_loss,assume_state_space_structure,gen_f):
@@ -91,7 +95,9 @@ def generalize(base_information, structure_assumption,fadeout_function=(lambda x
 
 def a_learning(o_d_history,s_kron_d_history,old_a_matrix,
                plasticityOptions):
-    """Returns an updated perception matrix given an history of :
+    """
+    TODO : reimplement with einsums !
+    Returns an updated perception matrix given an history of :
     - observations o_d
     - state inferences s_d
     - old perception matrix a
@@ -117,7 +123,9 @@ def a_learning(o_d_history,s_kron_d_history,old_a_matrix,
 
 def b_learning(u_d_history,s_margin_history,old_b_matrix,action_transition_mapping,
                plasticityOptions):
-    """Returns an updated transition matrix given an history of :
+    """
+    TODO : reimplement with einsums !
+    Returns an updated transition matrix given an history of :
     - state inferences across times s_d
     - action inferences across times u_d
     - old transition matrix b
@@ -223,8 +231,9 @@ def learn_from_experience(layer):
     N = layer.T_horizon
     Nmod = layer.Nmod
     Nf = layer.Nf
+    Ns = layer.Ns
 
-
+    # All learning options --------------------------------------
     backwards_pass = layer.learn_options.backwards_pass
     eta = layer.learn_options.eta
     mem_loss = layer.learn_options.memory_loss
@@ -235,15 +244,18 @@ def learn_from_experience(layer):
     gamma_generalize = max(layer.learn_options.generalize_fadeout_function_temperature,0) # The temperature is at least 0 !
     exponential_decay_function = (lambda x: np.exp(-gamma_generalize*x))
     
-    # print(assume_state_space_structure)
     if (type(assume_state_space_structure)==list):
         if not(len(assume_state_space_structure)==Nf):
             assert len(assume_state_space_structure)==1, "Your defined structural assumptions list length does not match the number of states : " + str(len(assume_state_space_structure)) + " =/= " + str(Nf)
+            
             assume_state_space_structure = assume_state_space_structure[0]
             print("WARNING : Got one value in the list of space structure assumption. Assuming that this assumption is valid for all states factors.")
             print("If this is wanted behviour and you want to hide this message, please set your assumed state space structure to AssumedSpaceStructure type.")
     general_plasticity = layerPlasticity(eta,mem_decay_type,mem_loss,assume_state_space_structure,exponential_decay_function)
 
+    
+    
+    
     STM = layer.STM
 
     o_history = STM.o
@@ -253,7 +265,9 @@ def learn_from_experience(layer):
     x_d_history = STM.x_d
     
     t_first= time.time()
-    x_kron_history = layer.joint_to_kronecker_accross_time(x_d_history)
+    x_kron_history = joint_to_kronecker_accross_time(x_d_history)
+        # Flatten the states !
+        
     if show_timers :
         print("     Kroneckerization pass took {:.2f} seconds".format(time.time() - t_first))
 
@@ -286,20 +300,26 @@ def learn_from_experience(layer):
     #     b_kron_action_model_avg.append(layer.kronecker_action_model_average(transition_history_u_d[:,t]))
     # print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
 
-    # NEW CODE
-    t_first= time.time()
-    b_kron_action_model_avg = []
-    for t in range(T-1):
-        b_kron_action_model_avg.append(layer.kronecker_action_model_average(u_history[t],just_slice=True))
-    if show_timers :
-        print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
-
+    
+    # EVEN NEWER CODE 
+    b_kron_array = np.stack(layer.var.b_kron,axis=-1) # Shape Ns x Ns x Np
+    
+    history_of_state_transitions = np.einsum("iju,ut->tij",b_kron_array,transition_history_u_d)
+       
+    
+    # # NEW CODE
+    # t_first= time.time()
+    # b_kron_action_model_avg = []
+    # for t in range(T-1):
+    #     b_kron_action_model_avg.append(layer.kronecker_action_model_average(u_history[t],just_slice=True))
+    # if show_timers :
+    #     print("     Transition model averaging pass took {:.2f} seconds".format(time.time() - t_first))
 
     backward_pass_is_fixed = True # HMM backward pass to "smooth the probabilities"
     if backwards_pass and backward_pass_is_fixed :
         t_first = time.time()
-        smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,b_kron_action_model_avg)
-        STM.x_d_smoothed = layer.kronecker_to_joint_accross_time(smoothed_x_kron_history) # Let's save it to the layer's STM !
+        smoothed_x_kron_history = backward_state_posterior_estimation(marginalized_o,x_kron_history,layer.var.a_kron,history_of_state_transitions)
+        STM.x_d_smoothed = kronecker_to_joint_accross_time(smoothed_x_kron_history,layer.Ns) # Let's save it to the layer's STM !
         marginalized_smoothed_x = spm_complete_margin(STM.x_d_smoothed,x_d_history.ndim-1)
         if show_timers :
             print("     Backward pass took {:.2f} seconds".format(time.time() - t_first))
@@ -323,8 +343,7 @@ def learn_from_experience(layer):
             print("     Learning b took {:.2f} seconds".format(time.time() - t_first))
 
     if (layer.learn_options.learn_c) :
-        c_learning(marginalized_o,layer.c,
-                general_plasticity)
+        c_learning(marginalized_o,layer.c,general_plasticity)
     
     if (layer.learn_options.learn_d) : #Update initial hidden states beliefs
         t_first = time.time()
@@ -332,7 +351,7 @@ def learn_from_experience(layer):
             new_d = d_learning_smooth(marginalized_smoothed_x,layer.d,general_plasticity)
         else :
             new_d = d_learning_base(marginalized_o,x_kron_history,layer.var.a_kron,
-                            b_kron_action_model_avg,layer.d,
+                            history_of_state_transitions,layer.d,
                     general_plasticity)
         layer.d = new_d   
         if show_timers :

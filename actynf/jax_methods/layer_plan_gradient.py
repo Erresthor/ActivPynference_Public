@@ -338,6 +338,9 @@ def compute_EFE(qs_current,start_t,
     return final_efe[0,...],u_post[0,...],state_predictive_posterior,N_efe_computed_history
     
 
+
+
+
 ### Compute log policy posteriors --------------------------------------------------------------------------------
 # @partial(jit, static_argnames=['Np','Th','gamma'])
 def policy_posterior(current_timestep,Th,filter_end_of_trial,

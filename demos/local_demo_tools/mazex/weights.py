@@ -80,10 +80,10 @@ def build_maze(maze_array,start_idx,end_idx,dirac_goal=False,p_transition=1.0):
         else :
             c2[c_ix] = -1.0*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))# - 1.0
     if dirac_goal:
-        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 0
+        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 100
     c = [c1,c2]
 
-    U = np.array(range(Nu))
+    U = np.expand_dims(np.array(range(Nu)),-1)
     e = np.ones(U.shape)
     return a,b,c,d,e,U
 
@@ -134,7 +134,7 @@ def build_maze_model(maze_array,start_idx,end_idx,
     b = [B]
     
     Xtarget,Ytarget = end_idx[1],end_idx[0]
-    c1 = np.array([2,-la])
+    c1 = np.array([2,la])
     c2 = np.zeros((Ns,))
     for c_ix in range(Ns):
         x,y = ind2sub(maze_array.shape,c_ix)
@@ -143,13 +143,13 @@ def build_maze_model(maze_array,start_idx,end_idx,
         else :
             c2[c_ix] = -1.0*rs*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))# - 1.0
     if dirac_goal:
-        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 0
+        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = rs
     c = [c1,c2]
     
     d = [np.ones((Ns,))]
     # d[0][start_pos] = 1
     
-    U = np.array(range(Nu))
+    U = np.expand_dims(np.array(range(Nu)),-1)
     e = np.ones(U.shape)
     return a,b,c,d,e,U
 

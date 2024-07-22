@@ -1,4 +1,5 @@
 from ...enums import NO_MEMORY_DECAY,NO_STRUCTURE
+import numpy as np
 
 class learning_parameters :
     def __init__(self,memory_decay = NO_MEMORY_DECAY,memory_loss = 0.0,
@@ -23,10 +24,15 @@ class learning_parameters :
             # and may not use information it gathered later during the trial 
         self.use_backward_pass_to_learn_d = use_backward_pass_to_learn_d
 
+
+
         self.assume_state_space_structure = state_structure_assumption
             # Either a list of AssumedSpaceStructure
             # or a signle AssumedSpaceStructure
             # Default : NO_STRUCTURE
+            
+        self.generalize_fadeout_function = (lambda x,param: np.exp(-max(param,0)*x))
+        
         self.generalize_fadeout_function_temperature = 0.0
             # Generalization occurs relative to the position of the
             # actual inference
@@ -36,3 +42,6 @@ class learning_parameters :
         self.learn_c = False
         self.learn_d = False
         self.learn_e = False
+    
+    def get_generalize_fadeout_function(self):
+        return (lambda x : self.generalize_fadeout_function(x,self.generalize_fadeout_function_temperature))

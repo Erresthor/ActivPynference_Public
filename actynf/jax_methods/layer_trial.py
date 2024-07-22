@@ -59,6 +59,14 @@ def compute_step_posteriors(t,prior,observation,
                                              a,b,c,e,
                                              a_novel,b_novel,
                                              planning_options)
+    elif planning_options["method"]=="gradient":
+        filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST] # ?
+        # Policy planning
+        efe,raw_qpi = policy_posterior_classic(t,Th,filter_end_of_trial,
+                                             qs,
+                                             a,b,c,e,
+                                             a_novel,b_novel,
+                                             planning_options)
     else : 
         raise NotImplementedError("Not implemented planning method : " + str(planning_options["method"])) 
     return qs,raw_qpi,efe

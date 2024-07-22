@@ -73,9 +73,6 @@ def shifted_matrix(arr, offset,clamp_extrema=False,periodic=False):
     else : 
         return np.copy(arr)
     return shifted
-    return np.roll(arr,offset,(0,1))
-    # If offset is positive
-    # return_mat[offset:,offset:] = arr[]
 
 if __name__ == '__main__':
 

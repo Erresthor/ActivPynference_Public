@@ -26,17 +26,13 @@ from .layer_infer_state import compute_state_posterior
 
 # Vectorize this along all tree nodes for a specific explored future tmstp
 @partial(jit,static_argnames=["option_a_nov","option_b_nov",'additional_options_planning'])
-def compute_efe_node(t,
-            previous_posterior,
+def compute_efe_node(previous_posterior,t,
             vecA,vecB,vecC,vecE,
             vecA_nov,vecB_nov,
             trial_end_scalar,   
             option_a_nov=True,option_b_nov=False,
             additional_options_planning=False):
     # For :
-    # state_branch is [Ns]
-    # prior_branch is [Ns]
-    # action_performed_branch is [Np]
     # previous_posterior is [Ns]
     # Remember, we might be at the end of the trial. If we are, trial_end_scalar = 0 and G(pi_t) = E 
     
@@ -210,7 +206,7 @@ def compute_EFE(qs_current,start_t,
     qs_pi = qs_current
         
     # qs_pi is K x [Ns]
-    compute_node_func = (lambda _qs : compute_efe_node(start_t,_qs,
+    compute_node_func = (lambda _qs : compute_efe_node(_qs,start_t,
                                             vecA,vecB,vecC,vecE,
                                             nov_a,nov_b,
                                             filter_trial_end[0], # Are we at the last timestep ?
@@ -243,7 +239,7 @@ def compute_EFE(qs_current,start_t,
         qs_pi = jnp.reshape(new_posteriors,(-1,Ns))
         
         # 3. Compute the efe for this new branch !
-        compute_node_func = (lambda _qs : compute_efe_node(t,_qs,
+        compute_node_func = (lambda _qs : compute_efe_node(_qs,t,
                                             vecA,vecB,vecC,vecE,
                                             nov_a,nov_b,
                                             filter_trial_end[explorative_timestep],  # If we are at trial end, this is equivalent to the habits vecE

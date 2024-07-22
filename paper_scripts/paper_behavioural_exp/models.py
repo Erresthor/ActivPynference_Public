@@ -1,12 +1,7 @@
-import numpy as np, matplotlib.pyplot as plt, sys,os
+import numpy as np
 
 from actynf.base.function_toolbox import normalize
-from actynf.layer.model_layer import mdp_layer
-from actynf.architecture.network import network
-
-from .utils import sub2ind,ind2sub,distance,discretized_distribution_from_value
-
-from actynf import NO_STRUCTURE
+from utils import sub2ind,ind2sub,distance,discretized_distribution_from_value
 
 
 def behavioural_process(grid_size,start_idx,end_idx,n_feedback_ticks):
@@ -38,10 +33,13 @@ def behavioural_process(grid_size,start_idx,end_idx,n_feedback_ticks):
     # Transition matrices
     # A lot of possible actions, we discretize them as follow : 
     # 9 possible angles x 9 possible mean positions x 3 possible distances = 243 possible actions
+    # To sample efficiently, we assume that subjects  entertain different hypotheses regarding what actions
+    # affect the feedback, that they sample simultaneously
     
     # Angle mappings : 
     angle_maps = [[0,0],[0,1],[1,1],[1,0],[1,-1],[0,-1],[-1,-1],[-1,0], [-1,1]]
     #angle degrees :NA,   0 ,   45,   90,   135,  180,    225,  270,   315
+    
     # Warning ! VERTICAL axis (x coords) is inverted for numpy arrays !
     B_angle = np.zeros((Ns,Ns,9))
     for from_state in range(Ns):
@@ -68,7 +66,6 @@ def behavioural_process(grid_size,start_idx,end_idx,n_feedback_ticks):
     # To simplify, let's assume that only the angle input is connected to the process :
     b = [B_angle]
     u = np.array(range(b[0].shape[-1])) # allowable actions
-    Nu = u.shape[0]
 
     # We receive action outputs from 3 differents sources
     c = [np.linspace(0,n_feedback_ticks-1,n_feedback_ticks)]
@@ -120,7 +117,6 @@ def naive_model(parameters,action_model="angle"):
 
     # Assume a linear preference matrix c = ln p(o)
     c = [np.linspace(0,n_feedback_ticks-1,n_feedback_ticks)]
-    
     # # Non linear preference matrix
     # c0 = [1.0]
     # for x in range(1,number_of_ticks):
@@ -129,19 +125,7 @@ def naive_model(parameters,action_model="angle"):
 
     u = np.array(range(b[0].shape[-1]))
     e = np.ones(u.shape)
-    # maze_model = mdp_layer("subj_"+action_model,"model",a,b,c,d,e,u,T,Th,in_seed=seed)
 
-
-    # maze_model.hyperparams.alpha = 32
-    # maze_model.hyperparams.cap_action_explo = action_cap
-    # maze_model.hyperparams.cap_state_explo = state_cap
-
-    # maze_model.learn_options.eta = 10
-    # maze_model.learn_options.learn_a = False
-    # maze_model.learn_options.learn_b = True
-    # maze_model.learn_options.learn_d = True
-    # maze_model.learn_options.assume_state_space_structure = structure_hypothesis
-    # maze_model.learn_options.generalize_fadeout_function_temperature = generalize_temperature
     return a,b,c,d,e,u
 
 def basic_latent_model(parameters,action_model="angle"):

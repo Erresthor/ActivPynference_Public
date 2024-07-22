@@ -514,6 +514,8 @@ class mdp_layer :
                         self.STM.u_d[:,t-1] = np.array([1.0])
                     return
                 else :  
+                    print("Inputs:")
+                    print(self.inputs)
                     raise ValueError("No valid inputs were detected for the layer at time "+str(t)+". The layer can't be updated.")
         
         if (isField(self.inputs.val_o_d)):

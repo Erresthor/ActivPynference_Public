@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='active_pynference',
-    version='0.1.39.local',    
+    version='0.1.40',    
     description='A Python implementation of an Active Inference engine using Sophisticated Inference.',
     url='https://github.com/Erresthor/ActivPynference_Public',
     author='Come Annicchiarico',
@@ -14,7 +14,7 @@ setuptools.setup(
                     'scipy',
                     'matplotlib',
                     'pillow'                
-                    ],
+                    'jax'],
     keywords=[
         "artificial intelligence",
         "active inference",

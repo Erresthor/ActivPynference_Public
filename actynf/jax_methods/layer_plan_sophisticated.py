@@ -152,7 +152,7 @@ def expand_tree(current_EFE_node,q_previous,
     # This is the same quantity computed in compute_node, but it may be smaller if Ph < Np
     next_priors,action_branches_explored = pick_future_action_paths(current_EFE_node,q_previous)
         #  p_next is of shape Ph x Ns !
-        #  action_branches_explored is of shape Ph !
+        #  action_branches_explored is of shape Ph x Np !
     
     # For each action, we take the Sh most likely states (and possibly the joint distribution of the remaining ones)
     next_potential_states,next_branches_densities = vmap(pick_future_state_paths)(next_priors)
@@ -317,7 +317,7 @@ def compute_EFE(qs_current,start_t,
 
         # To get a quantity that can be added to the (previous) explorative timestep, it
         # has to map to the policy axis. To do this, we use our history of the explored action !
-        # The unexplored actions should have EFE = -inf.
+        # The unexplored actions should have nEFE = -inf.
         flattened_margin_efe = jnp.reshape(margin_efe_next_tmstp,(-1,Ph))
                     # Last dim shape is Ph
         
@@ -345,10 +345,9 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     # Extract all the options from the planning_options
     efe_compute_a_nov = planning_options["a_novelty"]
     efe_compute_b_nov = planning_options["b_novelty"]
-    other_option = planning_options["old_novelty_computation"]
+    old_efe_computation = planning_options["old_novelty_computation"]
     
     Ph = planning_options["plantree_action_horizon"]
-    
     Sh = planning_options["plantree_state_horizon"]
     explore_remaining_paths = planning_options["explore_joint_remaining"]
         # When Sh action paths have been explored, do we also explore the remaining
@@ -376,6 +375,6 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
                     filter_end_of_trial,
                     Th,Sh,Ph,
                     option_a_nov=efe_compute_a_nov,option_b_nov=efe_compute_b_nov,
-                    additional_options_planning=other_option,explore_remaining_paths=explore_remaining_paths)
+                    additional_options_planning=old_efe_computation,explore_remaining_paths=explore_remaining_paths)
 
     return EFE_per_action,last_action_posterior

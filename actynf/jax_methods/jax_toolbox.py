@@ -138,7 +138,28 @@ def convert_to_one_hot_list(list_of_idxs,list_of_shapes):
     mapped_func = (lambda x_idx,x_shape : jax.nn.one_hot(x_idx,x_shape))
     return tree_map(mapped_func,list_of_idxs,list_of_shapes)
 
+# To generalize action mappings in linear state spaces
+def weighted_padded_roll(matrix,generalize_fadeout):
+    assert matrix.ndim == 2,"Weighted Padded Roll only implemented for 2D arrays"
+    K = matrix.shape[0]
+    roll_limit = K
+    
+    padded_matrix = jnp.pad(matrix,((K,K),(K,K)),mode="constant",constant_values=0)
+     
+    rolling_func = lambda k : jnp.roll(padded_matrix,k,[-1,-2])*generalize_fadeout(jnp.abs(k))
+    
+    all_rolled = vmap(rolling_func)(jnp.arange(-roll_limit,roll_limit+1))
+    
+    # Remove padding : 
+    all_rolled = all_rolled[...,K:-K,K:-K]
+    
+    new_db = all_rolled.sum(axis=-3)
+    
+    return new_db
+
+
 # Soft ranking approximations to allow differentiating under a sorting condition : 
+# Work in progress, see test_sophistacted_treesearch.py (local branch)
 def soft_rank(X,temp=1.0):
     """
     Soft ranking of elements in x.

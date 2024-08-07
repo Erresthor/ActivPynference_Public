@@ -154,14 +154,17 @@ class network():
                 raise ValueError("Could not find a suitable value for T. Aborting run ...")
             
         self.prerun()
+        
+        
         list_of_layer_tickgenerators = ([layr.tick_generator() for layr in self.layers])
         for timestep in range(self.T):
             if (verbose) : 
                 print(" Network [" + self.name + "] : Timestep " + str(timestep+1) + " / " + str(self.T), end='\r')
             for order_idx in self.run_order:
                 updated_layer = self.layers[order_idx]
+                # print(self.run_order)
                 try:
-                    searchtree = next(list_of_layer_tickgenerators[order_idx])
+                    next(list_of_layer_tickgenerators[order_idx])
                 except :
                     raise RuntimeError("ERROR in network <"+ self.name + "> - layer [" + (self.layers[order_idx]).name + "] :")
                 # updated_layer.transmit_outputs()
@@ -169,6 +172,8 @@ class network():
             print()
             seeds = [str(lay.seed)+"-"+str(lay.trials_with_this_seed) for lay in self.layers]
             print(" Done !   -------- (seeds : [" + ';'.join(seeds) + "])")
+        
+        
         self.postrun()
 
         

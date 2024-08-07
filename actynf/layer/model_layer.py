@@ -61,6 +61,10 @@ class layer_variables :
             b_complex_kron.append(1)
             for f in range(layer.Nf):
                 b_kron[k] = spm_kron(b_kron[k],b_norm[f][:,:,layer.U[k,f]])
+                
+                # Warning, this is only true for one factor state spaces.
+                # For multiple state factors : 
+                # - Either use the kronecker sum trick (see jax_methods/shape_tools.py)
                 b_complex_kron[k] = spm_kron(b_complex_kron[k],b_complexity[f][:,:,layer.U[k,f]])                
 
         # prior over initial states d/D
@@ -503,9 +507,9 @@ class mdp_layer :
         """
         t = self.t 
         T = self.T
-
+                
         if(self.inputs.is_input_memory_empty()):
-            if (t>0):
+            if (t>0):                    
                 # This may be normal, if there is only one action possible : 
                 only_one_action_possible = (self.U.shape[0]==1)
                 if only_one_action_possible:
@@ -514,9 +518,8 @@ class mdp_layer :
                         self.STM.u_d[:,t-1] = np.array([1.0])
                     return
                 else :  
-                    print("Inputs:")
-                    print(self.inputs)
                     raise ValueError("No valid inputs were detected for the layer at time "+str(t)+". The layer can't be updated.")
+        
         
         if (isField(self.inputs.val_o_d)):
             assert self.STM.o_d[...,t].shape == self.inputs.val_o_d.shape ,"Observation dist input size " + str(self.inputs.val_o_d.shape) + " should fit layer awaited outcome size " + str(self.STM.o_d[...,t].shape) + " ."
@@ -820,13 +823,12 @@ class mdp_layer :
         """
         t = self.t 
 
-        if (t>=self.T-1) :
+        if (t>=self.T-1) : # If we are at the end of the trial
             # No action selection needed here
             return 
 
         Ru = softmax(self.hyperparams.alpha * nat_log(self.STM.u_d[:,t]))
         action_selected_tuple = sample_distribution(Ru,random_number_generator=self.RNG)
-        # print(Ru,action_selected_tuple[0])
         return action_selected_tuple,self.U[action_selected_tuple[0],:]
     
     def model_update(self):
@@ -849,24 +851,23 @@ class mdp_layer :
             u_idx, state_u_idx = self.pick_action()
             self.STM.u[t] = u_idx[0]
             self.STM.Gd[:,:,t] = G
-            self.STM.u[t]
-        return None
-
+            
     def model_tick(self,
                    update_t_when_over=True,
                    clear_inputs_when_over=True):
         t = self.t
         self.use_inputs_to_populate_STM()
-        searchtree = self.model_update()
+        self.model_update()
         self.outputs.generate_outputs_from_STM(t,self.T,  # Outputs the results
                 x_d = self.STM.x_d,  #qs
-                u=self.STM.u,u_d = self.STM.u_d) #u, qu        
+                u=self.STM.u,u_d = self.STM.u_d) #u, qu 
+               
+        # print(self.outputs)
         
         if (update_t_when_over):
             self.t = t+1
         if(clear_inputs_when_over):
             self.clear_inputs()
-        return searchtree
 
     def model_learn(self):
         learn_from_experience(self)
@@ -921,18 +922,16 @@ class mdp_layer :
         self.get_inputs()
 
         if self.layerMode == layerMode.MODEL:
-            returns = self.model_tick(update_t_when_over,clear_inputs_when_over)
+            self.model_tick(update_t_when_over,clear_inputs_when_over)
         elif self.layerMode == layerMode.PROCESS : 
-            returns = self.process_tick(update_t_when_over,clear_inputs_when_over)
-        
-        return returns
+            self.process_tick(update_t_when_over,clear_inputs_when_over)
     
     
     def postrun(self,verbose=False):
         if (verbose):
             print("Updating " + self.name +" 's beliefs")
         if self.layerMode == layerMode.MODEL:
-            returns = self.model_learn()
+            self.model_learn()
         elif self.layerMode == layerMode.PROCESS : 
             pass
         self.trials_with_this_seed += 1

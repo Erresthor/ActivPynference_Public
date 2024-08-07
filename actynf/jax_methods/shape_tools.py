@@ -111,13 +111,18 @@ def to_log_space(c,e):
     # Preference matrix : 
     def logspace_c_mod(c_m):
         return _jaxlog(jax.nn.softmax(c_m,axis=0))
-    return tree_map(logspace_c_mod,c),_jaxlog(_normalize(e)[0])
+    log_c = tree_map(logspace_c_mod,c)
+    log_e = _jaxlog(_normalize(e)[0])
+    return log_c,log_e
 
 @partial(jit,static_argnames=["compute_a_novelty",'compute_b_novelty'])
 def get_vectorized_novelty(raw_a,raw_b,u,
                       compute_a_novelty=False,
                       compute_b_novelty=False):
     Nf = len(raw_b)
+    
+    if u.ndim==1:
+        u = jnp.expand_dims(u,-1)
     
     a_novelties = None
     if compute_a_novelty:
@@ -160,7 +165,10 @@ def vectorize_weights(raw_a,raw_b,raw_d,u):
         
     # "Flatten" in a single latent dimension using a kronecker form
     # For the novelty, we add the novelties together
-    # Kronecker sum of the novelties : 
+    if u.ndim==1:
+        u = jnp.expand_dims(u,-1)
+        
+    # Kronecker product 
     flat_b = []
     for u_idx,act in enumerate(u):
         action_factor_transition_list = [b_norm[f_idx][...,act[f_idx]] for f_idx in range(Nf)]         

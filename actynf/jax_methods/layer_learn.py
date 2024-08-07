@@ -23,6 +23,8 @@ from .shape_tools import vectorize_weights
 
 from .layer_infer_state import compute_state_posterior,_compute_log_likelihood_multi_mod
 
+from .jax_toolbox import weighted_padded_roll
+
 
 # _______________________________________________________________________________________
 # ________________________________ Dirichlet Weights Updating ___________________________
@@ -40,12 +42,51 @@ def learn_b(hist_u,hist_qs,pb,lr_b):
                 # For flattened transition mappings only !
     return pb + lr_b*db.sum(axis=-1)
 
-def learn_b_factorized(hist_u_tree,hist_qs_tree,pb_tree,lr_b):
+
+def learn_b_generalize(hist_u,hist_qs,pb,lr_b,
+                       generalize_function):
+    post_qs = hist_qs[1:,:]
+    pre_qs = hist_qs[:-1,:]
+    db = jnp.einsum("ti,tj,tu->ijut",post_qs,pre_qs,hist_u) 
+                # For flattened transition mappings only !
     
-    def learn_b_factor(hist_u_factor,hist_qs_factor,b_factor):
-        return learn_b(hist_u_factor,hist_qs_factor,b_factor,lr_b) 
+    # Across all timesteps :
+    db_all_timesteps = db.sum(axis=-1)
     
-    return tree_map(learn_b_factor,hist_u_tree,hist_qs_tree,pb_tree)
+    # db is the history of state transitions for each action and at each timestep
+    # Making some broad hypotheses about the structure of the latent state space,
+    # we can generalize the findings at a coordinate $(s_{t+1},s_t)$ to over states
+    # This can be done by rolling the db_all_timesteps matrix across s_(t+1) and s_t axes
+    # simultaneously : 
+    gen_db = vmap(lambda bu : weighted_padded_roll(bu,generalize_function),in_axes=(-1))(db_all_timesteps)
+    gen_db = jnp.moveaxis(gen_db,0,-1)
+    
+    return pb + lr_b*gen_db
+
+
+def learn_b_factorized(hist_u_tree,hist_qs_tree,pb_tree,lr_b,
+                    linear_state_space=False,generalize_fadeout_function=None):
+    
+    # For now, we assume a single generalize fading function across all factors
+    def learn_b_factor(hist_u_factor,hist_qs_factor,b_factor,linear_state_space_f):
+        if linear_state_space_f:
+            assert generalize_fadeout_function != None, "State space action generalization requires a fadeout function."
+            b = learn_b_generalize(hist_u_factor,hist_qs_factor,b_factor,lr_b,generalize_fadeout_function)
+        else:
+            b = learn_b(hist_u_factor,hist_qs_factor,b_factor,lr_b) 
+        return b
+    
+    if (type(linear_state_space)==list):
+        assert len(linear_state_space)==len(hist_u_tree),"If linear_state_space is a list, it should match the number of state factors"
+        
+        # assert type(generalize_fadeout_function)==list,"If state space structure assumption is a list, there should be a corr"
+        function_to_map = learn_b_factor
+        return tree_map(function_to_map,hist_u_tree,hist_qs_tree,pb_tree,linear_state_space)
+    else :
+        function_to_map = partial(learn_b_factor,linear_state_space_f=linear_state_space)
+        return tree_map(function_to_map,hist_u_tree,hist_qs_tree,pb_tree)
+
+
 
 def learn_d(hist_qs,pd,lr_d):
     # We only look at the first timestep :
@@ -62,8 +103,7 @@ def learn_d_factorized(hist_qs_tree,pd_tree,lr_d):
 # State smoothing (move this somewhere else ?)
 # Those are filters used a posteriori to refine posterior inference
 
-def forwards_pass(hist_obs_vect,hist_u_vect,
-          loc_a,loc_b,loc_d):
+def forwards_pass(hist_obs_vect,hist_u_vect,loc_a,loc_b,loc_d):
     r"""Forwards filtering
 
     Transition matrix may be either 2D (if transition probabilities are fixed) or 3D
@@ -107,8 +147,7 @@ def forwards_pass(hist_obs_vect,hist_u_vect,
     
     return log_norm,forward_pred_probs
     
-def backwards_pass(hist_obs_vect,hist_u_vect,
-          loc_a,loc_b):
+def backwards_pass(hist_obs_vect,hist_u_vect,loc_a,loc_b):
     r"""Run the filter backwards in time. This is the second step of the forward-backward algorithm.
 
     Transition matrix may be either 2D (if transition probabilities are fixed) or 3D
@@ -137,8 +176,6 @@ def backwards_pass(hist_obs_vect,hist_u_vect,
         backward_filt_probs, log_norm = _condition_on(prior_this_timestep, logliks[t])
         
         carry_log_norm = carry_log_norm + log_norm
-        
-        
         
         # Predict the next (previous) state (going backward in time).
         transition_matrix = jnp.einsum("iju,u->ij",loc_b,hist_u_vect[t-1,...])
@@ -194,7 +231,7 @@ def smooth_posterior_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
 # _______________________________________________________________________________________
 # Playing with allowable actions : 
 # switching from a vectorized space (all actions in one dimension)
-# and a factorized space (allowable actions for each factor)
+# to a factorized space (allowable actions for each factor)
 def vectorize_factorwise_allowable_actions(_u,_B):
     # This needs to be mapped across state factors ! 
     def factorwise_allowable_action_vectors(idx,B_f):
@@ -217,7 +254,8 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
           pa,pb,pc,pd,pe,U,
           learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
           learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
-          post_trial_smooth = True):
+          post_trial_smooth = True,
+          assume_linear_state_space=False,generalize_fadeout_function=None):
         
     hist_qs_loc = hist_qs
     if post_trial_smooth:
@@ -249,8 +287,8 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
         # This changes every trial : 
         u_hist_all_f = posterior_transition_index_factor(u_all,hist_u_vect)
         
-        b = learn_b_factorized(u_hist_all_f,qs_hist_all_f,pb,learn_rates["b"])
-    
+        b = learn_b_factorized(u_hist_all_f,qs_hist_all_f,pb,learn_rates["b"],assume_linear_state_space,generalize_fadeout_function)
+  
     c = pc
     if learn_what["c"]:
         raise NotImplementedError("TODO !") 

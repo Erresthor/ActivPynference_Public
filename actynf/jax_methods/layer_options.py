@@ -1,3 +1,4 @@
+import jax.numpy as jnp
 # _summary_
 # A set of dictionnaries (and the functions to make them)
 # that are used by our layer as options for planning / learning (/action picking ?)
@@ -6,13 +7,13 @@ def get_planning_options(
                         Th,planning_method = "sophisticated",
                         state_horizon = 2,action_horizon=5,explore_remaining_paths=True,
                         a_novel=True,b_novel=False,
-                        old_a_novel=True):
+                        old_efe_computation=True):
     return {
         "horizon" : Th,
         
         "a_novelty" : a_novel,
         "b_novelty" : b_novel,
-        "old_novelty_computation" : old_a_novel,
+        "old_novelty_computation" : old_efe_computation,
         
         "method": planning_method,  # for now, only "classic" or "sophisticated" are supported
         
@@ -22,7 +23,9 @@ def get_planning_options(
     }
 
 
-def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr_b=1.0,lr_d=1.0,run_smoother=False):
+def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr_b=1.0,lr_d=1.0,
+                         run_smoother=False,
+                         assume_linear_state_space=False,gen_fadeout_func = (lambda x : jnp.exp(-x))):
     return {
         "bool":{
             "a":learn_a,
@@ -38,7 +41,9 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr
             "d":lr_d,
             "e":0.0
         },
-        "smooth_states":run_smoother
+        "smooth_states":run_smoother,
+        "assume_linear_state_space":assume_linear_state_space,
+        "generalize_fadeout_function" : gen_fadeout_func
     }
 
 def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=None):

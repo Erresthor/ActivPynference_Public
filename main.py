@@ -1,103 +1,50 @@
-import numpy as np
-
+from actynf.jax_methods.jax_toolbox import spm_wnorm,_normalize
 import jax
 import jax.numpy as jnp
-import jax.random as jr
-from jax import lax,vmap, jit
-from jax.tree_util import tree_map
-from functools import partial,reduce
 
 
-import actynf
-print("Actynf version : " + str(actynf.__version__))
-from actynf.jax_methods.layer_training import synthetic_training_multi_subj
-from actynf.jax_methods.layer_options import get_planning_options
-from actynf.jax_methods.planning_tools import autoexpand_preference_matrix
-
-from actynf.jax_methods.jax_toolbox import _normalize
-
-from actynf.jax_methods.planning_tools import compute_novelty
-
-from actynf.demo_tools_remove_this.tmaze.weights import get_T_maze_gen_process,get_T_maze_model
-# def kronecker_prod_action(b_normed):
-    
-from actynf.jax_methods.layer_infer_state import compute_state_posterior
-from actynf.jax_methods.layer_learn import learn_after_trial,backwards_pass
-from actynf.jax_methods.jax_toolbox import _normalize,convert_to_one_hot_list,_swapaxes
-from actynf.jax_methods.layer_options import DEFAULT_PLANNING_OPTIONS,DEFAULT_LEARNING_OPTIONS,get_learning_options
-
-
-from actynf.jax_methods.shape_tools import to_log_space,vectorize_weights,get_vectorized_novelty
-
-from demos.local_demo_tools.tmaze.weights import get_T_maze_gen_process,get_T_maze_model,get_jax_T_maze_model
-# 2. Classical actynf simulations : 
-from actynf import layer,link,layer_network
-
-T = 3
-Th = 2
-
-# Those weights will remain the same for the whole notebook :
-true_process_pHA = 1.0
-true_process_pinit = 1.0
-true_process_pwin = 0.98  # For a bit of noise !
-
-true_A,true_B,true_D,U = get_T_maze_gen_process(true_process_pinit,true_process_pHA,true_process_pwin)
-
-
-true_model_pHA = 1.0
-true_model_pwin = 0.98
-true_model_context_belief = 0.5
-true_model_hint_conf = 2.0
-true_model_la = -4.0
-true_model_rs = 2.0
-true_alpha = 16.0
-
-true_a,true_b,true_c,true_d,true_e,_ = get_T_maze_model(true_model_pHA,true_model_pwin,true_model_hint_conf,
-                                        true_model_la,true_model_rs,true_model_context_belief)
-
-
-def get_tmaze_net_classic():
-    # The T-maze environment : 
-    process_layer = layer("T-maze_environment","process",true_A,true_B,None,true_D,None,U,T)
+if __name__ == "__main__":
     
     
-    # The mouse model :
-    model_layer = layer("mouse_model","model",true_a,true_b,true_c,true_d,true_e,U,T,T_horiz=Th)
-    # This time, we define our layer as a "model" 
-
-    # Here, we give a few hyperparameters guiding the beahviour of our agent :
-    model_layer.hyperparams.alpha = true_alpha # action precision : 
-        # for high values the mouse will always perform the action it perceives as optimal, with very little exploration 
-        # towards actions with similar but slightly lower interest
-
-    model_layer.learn_options.eta = 1.0 # learning rate (shared by all channels : a,b,c,d,e)
-    model_layer.learn_options.learn_a = True  # The agent learns the reliability of the clue
-    model_layer.learn_options.learn_b = False # The agent does not learn transitions
-    model_layer.learn_options.learn_d = True  # The agent has to learn the initial position of the cheese
-    model_layer.learn_options.backwards_pass = True  # When learning, the agent will perform a backward pass, using its perception of 
-                                               # states in later trials (e.g. I saw that the cheese was on the right at t=3)
-                                               # as well as what actions it performed (e.g. and I know that the cheese position has
-                                               # not changed between timesteps) to learn more reliable weights (therefore if my clue was
-                                               # a right arrow at time = 2, I should memorize that cheese on the right may correlate with
-                                               # right arrow in general)
-    model_layer.learn_options.memory_loss = 0.0
-                                            # How many trials will be needed to "erase" 50% of the information gathered during one trial
-                                            # Used during the learning phase. 0.0 means that the mouse doens't forget
-                                            # anything.
-
+    qs = jnp.array([0.5,0.5])
+    # If the predicted state distribution has high entropy (e.g. [0.5,0.5]) 
+    # Thus result in a poorly defined predicted observation dist ([0.5,0.5]),  
+    # for a quite well defined likelihood mapping :
+    # A = [  0.01  0.99]
+    #     [  0.99  0.01]
+    # This results in very high novelty counts whereas the subjct's model may be well fit,
+    # resulting in degenrating behaviour ...
+    # W = [ -10.0 -0.01]
+    #     [ -0.01 -10.0]
+    # This is probably a result of a MFA somewhere ? 
+    # Here's a hack to avoid this kind of situation :
+    K =100
+    pA = jnp.array([
+        [0.01,0.99*K],
+        [0.99*K,0.01]
+    ])
+    W = spm_wnorm(pA)
+    A ,_=_normalize(pA)
+    
+    qo = jnp.einsum("ij,j->i",A,qs)  # Predicted observation, $o_t = As_t$
+    old_novelty = jnp.einsum("os,o,s->",W,qo,qs)
+    print(old_novelty)  # Significantly high, tricking the agent into favoring this outcome
+                        # That can be excused if the agent does not face too much uncertainty 
+                        # when planning actions. But the agent will likely never solve this 
+                        # if it can't completely remove state uncertainty due to noisy priors...
     
     
-    # Create a link from observations generated by the environment to the mouse sensory states :
-    model_layer.inputs.o = link(process_layer, lambda x : x.o)
-    #     the layer from which we get the data | the function extracting the data
-
-    # Create a link from the actions selected by the mouse to the t-maze environment :
-    process_layer.inputs.u = link(model_layer,lambda x : x.u)
     
-    return layer_network([process_layer,model_layer],"t-maze_network")
+    # For each possible unit state s, the corresponding observation distribution is given by the matrix A
+    # in the s-th column : A[i,j=s]
+    # Each of those distributions has an individual associated novelty encoded in W
+    # new_novelty = 
+    novelty_depending_on_state = (A*W).sum(axis=0)
 
-
-from actynf import layer,link
-if __name__ == '__main__': 
-    network = get_tmaze_net_classic()
-    network.run_N_trials(100)
+    print(novelty_depending_on_state)
+    
+    expected_novelty = jnp.einsum("i,j->",novelty_depending_on_state,qs)
+    
+    print(expected_novelty)  # Significantly lower than the old one, 
+                             # The agent is aware that emission that would seem "novel"
+                             # in the old formulation are in fact caused by well-known dynamics

@@ -8,8 +8,6 @@ from jax import lax,vmap, jit
 from functools import partial
 from itertools import product
 
-import tensorflow_probability.substrates.jax.distributions as tfd
-
 from .jax_toolbox import spm_wnorm,_jaxlog
 
 
@@ -71,7 +69,12 @@ def compute_observation_novelty(qs,A,Anovelty):
     # we compute the novelty for the observations of each separate state : 
     # This avoids high uncertainty cases where the predicted state dist
     # has high entropy (e.g. [0.5,0.5]) and results in a high entropy 
-    # observation dist ([0.5,0.5]), thus marginalizing over the state 
+    # observation dist ([0.5,0.5]),  for a quite well defined likelihood mapping :
+    # A = [  0.01  0.99]
+    #     [  0.99  0.01]
+    # W = [ -10.0 -0.01]
+    #     [ -0.01 -10.0]
+    # thus marginalizing over the state 
     # dimension and providinb biaised novelty predictions.
     def _mod_scan(A_nov_m,A_m):
         return jnp.einsum("ij,j->i",A_nov_m*A_m,qs).sum()
@@ -92,7 +95,7 @@ def compute_Gt_array(t,qo_next,qs_next,qs_prev,action_vect,
                     A,Anovelty,
                     B,Bnovelty,
                     C,
-                    efe_a_nov,efe_b_nov,efe_old_a_nov):
+                    efe_a_nov,efe_b_nov,old_efe_computation):
     """ 
     Agent goal : plan actions to minimize this !
     """
@@ -105,13 +108,16 @@ def compute_Gt_array(t,qo_next,qs_next,qs_prev,action_vect,
     
     novelty_A = 0.0
     if efe_a_nov:
-        if efe_old_a_nov:
+        if old_efe_computation:
             novelty_A = _deprecated_compute_obs_novelty(qo_next,qs_next,Anovelty)
         else :
             novelty_A = compute_observation_novelty(qs_next,A,Anovelty)
     novelty_B = 0.0
     if efe_b_nov:
-        novelty_B = compute_transition_novelty(action_vect,qs_prev,B,Bnovelty)
+        if old_efe_computation :
+            novelty_B = _deprecated_compute_transition_novelty(action_vect,qs_prev,qs_next,Bnovelty)
+        else :
+            novelty_B = compute_transition_novelty(action_vect,qs_prev,B,Bnovelty)
         
     # jax.debug.print("EFE component [t={}]: {}", t,jnp.stack([risk,info_gain,novelty_A,novelty_B]))
     return jnp.stack([risk,info_gain,novelty_A,novelty_B])

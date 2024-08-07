@@ -82,7 +82,6 @@ def scan_G_policy(policy_sequence,
 
     return complete_G_array,habits_biaises,qss
 
-
 @partial(jit, static_argnames=['Th','efe_a_nov','efe_b_nov','efe_old_a_nov'])
 def bruteforce_treesearch(initial_t,Th,
                 qs_init,
@@ -100,6 +99,7 @@ def bruteforce_treesearch(initial_t,Th,
     """  
     assert Th>=2,"Temporal horizon for planning should be >=2"
     
+    Ns = qs_init.shape[0]
     Np = B.shape[-1]
     actions_explored = jnp.arange(Np)
       
@@ -114,15 +114,26 @@ def bruteforce_treesearch(initial_t,Th,
     gs_all_i,habs_all_i,qss_all_i = vmap(scan_seq)(all_combinations)
         # gs_all_i[actions_explored**Th,Th,4] --> the last component is a decomposition of each EFE term
     
-    compressed_last_dimension= gs_all_i.sum(axis=-1)
+    # compressed_last_dimension=  gs_all_i.sum(axis=-1) + habs_all_i
+    compressed_last_dimension=  gs_all_i.sum(axis=-1)
         # We don't care about each component of the EFE for non-diagnostic purposes
     
-    # If we reach the horizon, only habits are taken into account
-    G_end_of_trial_filtered = jnp.einsum("ij,j->ij",compressed_last_dimension,filter_end_of_trial) + habs_all_i
+    end_of_trial_filtered = jnp.einsum("ij,j->ij",compressed_last_dimension,filter_end_of_trial) + habs_all_i
         # This is a (Np**(Th)) * Th tensor
         # Let's unfold the (Np**(Th)) into (Np*Np*...*Np) [Th dimensions]
-    return G_end_of_trial_filtered,qss_all_i
+    
 
+    def unfold_dims(tensor,wanted_shape):
+        return tensor.reshape(*wanted_shape)
+    
+    temporal_tree_shape = [Np]*(Th) + [Th]
+    efes_vectorized = unfold_dims(end_of_trial_filtered,temporal_tree_shape)
+    # return end_of_trial_filtered,efes_vectorized
+    state_temporal_tree_shape = [Np]*(Th) + [Th,Ns]
+    states_vectorized = unfold_dims(qss_all_i,state_temporal_tree_shape)
+
+    # Return the unfolded matrices : 
+    return  efes_vectorized, states_vectorized, end_of_trial_filtered,qss_all_i
 
 @partial(jit, static_argnames=['Th','efe_compute_a_nov','efe_compute_b_nov','old_a_nov'])
 def compute_EFE(t,Th,filter_end_of_trial,
@@ -133,12 +144,10 @@ def compute_EFE(t,Th,filter_end_of_trial,
     
     To be compared with spm_forwards !    
     """
-    Np = B.shape[-1]
-    Ns = qs.shape[0]
         
     efe_compute_a_nov = False
     efe_compute_b_nov = False
-    efe_tree,state_tree = bruteforce_treesearch(t,Th,
+    vect_efe,vect_states, flat_efe,flat_states = bruteforce_treesearch(t,Th,
                                                 qs,
                                                 A,B,C,E,
                                                 A_novel,B_novel,filter_end_of_trial,
@@ -146,32 +155,58 @@ def compute_EFE(t,Th,filter_end_of_trial,
                                                 efe_b_nov=efe_compute_b_nov,
                                                 efe_old_a_nov=old_a_nov)
             # For each path of actions i1->i2->...->iTh, get the efe at each timestep
-            # efe_tree is a (Np x Np x Np x ... x Np) x Th tensor
+            # vect efe is a Np x Np x Np x ... x Np x Th tensor
     
     # _________________________________________________________________________________
     # Collapse ! We've moved forward in the tree, let's move backwards and perform successive summations 
     # of EFEs given the predictive action posterior!
     # _________________________________________________________________________________
-    # I would like to derive a scan based version of this, but i don't know how to ...
-    expected_fe_next_step = jnp.full_like(efe_tree[...,0],jnp.sum(E*jax.nn.softmax(E)))
-    for k in range(Th,1,-1):
-        # Take next set of tree efes :
-        horizon_efe = efe_tree[...,k]
-        
-        # Add previously computed efes and reshape to show the next marginalized dim:
-        horizon_efe = jnp.reshape(horizon_efe + expected_fe_next_step,(-1,Np))
-        
-        # Marginalize and flatten:
-        expected_fe_next_step = ((jax.nn.softmax(horizon_efe,axis=-1)*horizon_efe).sum(axis=-1))#.ravel()
-        
-        # Slice out the unneeded dimensions in the tree :
-        efe_tree = jnp.reshape(efe_tree,(-1,Np,Th))[:,0,:] 
-    last_efe = efe_tree[...,0] + expected_fe_next_step
-    last_action_posterior = jax.nn.softmax(last_efe)
-    first_state_level = jnp.reshape(state_tree,(Np,-1,Ns))[:,0,:]
+    updating_efe_tree = jnp.copy(vect_efe)
+    updating_state_tree = jnp.copy(vect_states)
+        # Every iteration, we want to "collapse" thes tree along their last temporal horizon dimension
+
+    # expected_fe_next_step = jnp.zeros_like(updating_efe_tree[...,0])      
+         # The agent does not predicts the EFE for timesteps > t + Th
+         # Instead, it uses its habits ! 
+    # expected_fe_last_step is a Np x Np x ... x Np array
+    # Where each last cell has the same vecE*softmax(vecE)
+    expected_fe_last_step = jnp.full_like(updating_efe_tree[...,0],jnp.sum(E*jax.nn.softmax(E)))
+    expected_fe_next_step = expected_fe_last_step
     
-    next_predicted_posterior = jnp.einsum("us,u->s",first_state_level,last_action_posterior)
-    return last_efe,last_action_posterior,next_predicted_posterior
+    
+    # This will be unrolled ! (needs to be done sequentially, 
+    # big Th values are obviously discouraged)
+    # Autobots, roll out !
+    for index in range(-1,-Th,-1):
+        # if index == -Th+1:
+        #     return updating_efe_tree[...,index]
+        intermediate_value = updating_efe_tree[...,-1] + expected_fe_next_step
+        # if index == -4:
+        #     return [intermediate_value.flatten()]
+        softmax_for_index = jax.nn.softmax(intermediate_value,axis=(-1))
+                    # Expected action at time Th+index
+        
+        expected_fe_next_step = (softmax_for_index*intermediate_value).sum(axis=-1)       
+                    # A Np x ... x Np (Th - index elements) expected value tensor
+                    # The values are the same along the index-th dimension
+                    # Note that the elements on dimensions > index are irrelevant 
+                    # to the remainder of the computations
+
+        # Predictive posterior over hidden states, store this somewhere if needed
+        pred_state_posterior = (jnp.expand_dims(softmax_for_index,-1)*updating_state_tree[...,-1,:]).sum(axis=-2)
+                        # = Expectation of the hidden state at t + Th + index given the action posterior
+
+        # Pruning the exploratoration trees, this should not be done for the very last summation
+        # At index, all the values in updating_tree are the same 
+        updating_efe_tree = updating_efe_tree[...,0,:-1] # We don't need this dimension any longer !
+        updating_state_tree = updating_state_tree[...,0,:-1,:] # We don't need this dimension any longer !
+
+    last_G =  updating_efe_tree[...,0] + expected_fe_next_step
+    # return [last_G]
+    
+    last_action_posterior = jax.nn.softmax(last_G)
+    last_pred_posterior = (jnp.expand_dims(last_action_posterior,-1)*updating_state_tree[...,0,:]).sum(axis=-2)
+    return last_G,last_action_posterior,last_pred_posterior
 
 ### Compute log policy posteriors --------------------------------------------------------------------------------
 # @partial(jit, static_argnames=['Np','Th','gamma'])

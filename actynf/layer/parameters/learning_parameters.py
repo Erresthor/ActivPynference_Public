@@ -1,5 +1,9 @@
 from ...enums import NO_MEMORY_DECAY,NO_STRUCTURE
 import numpy as np
+from functools import partial
+
+def DEFAULT_FADEOUT_FUNCTION(x,param):
+    return np.exp(-max(param,0)*x)
 
 class learning_parameters :
     def __init__(self,memory_decay = NO_MEMORY_DECAY,memory_loss = 0.0,
@@ -30,8 +34,10 @@ class learning_parameters :
             # Either a list of AssumedSpaceStructure
             # or a signle AssumedSpaceStructure
             # Default : NO_STRUCTURE
-            
-        self.generalize_fadeout_function = (lambda x,param: np.exp(-max(param,0)*x))
+        
+        
+        
+        self.generalize_fadeout_function = DEFAULT_FADEOUT_FUNCTION
         
         self.generalize_fadeout_function_temperature = 0.0
             # Generalization occurs relative to the position of the

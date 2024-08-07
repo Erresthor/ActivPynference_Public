@@ -2,7 +2,6 @@ import jax.numpy as jnp
 import jax.random as jr
 import jax
 
-from numpyro import plate,sample,deterministic
 import numpyro.distributions as distr
 
 from jax.tree_util import tree_map
@@ -16,10 +15,10 @@ from .jax_toolbox import _normalize,_jaxlog
 from .planning_tools import compute_Gt_array,compute_novelty
 from .layer_infer_state import compute_state_posterior
 
+from .jax_gumbel import gumbel_softmax
+
 # A set of functions for agents to plan their next moves.  Note that we use a bruteforce treesearch approach, which is
 # a computational nightmare, but may be adapted to fit short term path planning.
-
-
 
 @partial(jit,static_argnames=["option_a_nov","option_b_nov",'additional_options_planning'])
 def compute_efe_one_action(action_posterior,previous_state_posterior,
@@ -86,103 +85,90 @@ def compute_efe_each_action(previous_posterior,
 #  --> Add a level to the tree (changing a tensor of shape K to shape K x (Ph x Sh))
 #  --> Evaluate the EFE at a specific level of the tree
 
-# "---------------------------------------"
-
-def branching_out_actions(efe_each_action,N_action_branches,
+# "soft" branch selection functions
+def branching_out_actions_gumbel(efe_each_action,N_action_branches,rngkey,
                          _action_sample_temperature = 0.001):
+    # See papers like : Differentiable Subset Pruning of Transformer Heads, Jiaoda Li, Ryan Cotterell, Mrinmaya Sachan
+    # Or implementations like : https://gist.github.com/rahular/6091da25c8c8ce32f6310ec7399a135b
+        
     Np = efe_each_action.shape[-1]
     
-    # TODO : We should use a Gumbel-Softmax trick here to avoid 
-    # split actions !   
+    # We use a Gumbel-Softmax trick here to avoid 
+    # split actions in case of similar EFEs !
     
-    # Here, we add a deterministic biais to avoid equal value actions :
-    # (in case the EFE for two actions is exactly equal)
-    EPSILON = 1e-8
-    BIAIS = jnp.arange(Np)*EPSILON # [0.0, EPSILON/(Np-1),..., EPSILON]
-    biaised_efe = efe_each_action + BIAIS
-    
+    # A gumbel softmax powered top k operator :
     def action_brancher(carry,xs):
-        remaining_distribution = carry
+        remaining_logits = carry   # The EFEs yet to explore ! 
+        rngkey_k = xs 
         
-        branch_explored_state_distribution = jax.nn.softmax(remaining_distribution/_action_sample_temperature)
-            # A (nearly) one-hot encoding of the explored state branch
+        # Softmax approximation of the sampled distribution :
+        sampled_branch = gumbel_softmax(remaining_logits,_action_sample_temperature,rngkey_k)
+       
+        # Recursively penalize already explored branches :
+        remaining_logits += _jaxlog(1.0-sampled_branch)  # from 1.0 (unexplored) to 0.0 (fully explored)
         
-        # explored_density = (branch_explored_state_distribution*_pred_prior).sum()
-        explored_density = (branch_explored_state_distribution*remaining_distribution).sum()
-            # a scalar estimate of the total density predicted by this path
-        
-        remaining_distribution = jax.nn.relu(remaining_distribution - branch_explored_state_distribution*explored_density)
-        
-        return remaining_distribution,(branch_explored_state_distribution,explored_density)
+        return remaining_logits,(sampled_branch,remaining_logits)
     
     # Distribution over what actions we may explore, to be further branched !
-    init_distribution_scan = jax.nn.softmax(biaised_efe)
-    print(init_distribution_scan)
-    unexplored_remainder,(explored_actions,explored_action_densities) = jax.lax.scan(action_brancher,init_distribution_scan,jnp.arange(N_action_branches))
-    print(explored_action_densities)
+    init_distribution_scan = efe_each_action
+    
+    _,(explored_actions,efes_after_sampling) = jax.lax.scan(action_brancher,init_distribution_scan,jr.split(rngkey,N_action_branches))
+    
     # No remainder computations here : the unexplored actions are assumed to have very low (neg)EFE.
-    return explored_actions
-    
-    
+    return explored_actions,efes_after_sampling
 
-@partial(jit,static_argnames=["N_state_branches","_state_remainder_branch"])
-def branching_out_states(_pred_prior,N_state_branches,
+def branching_out_states_gumbel(_pred_prior,N_state_branches,rngkey,
                          _state_remainder_branch=True,
-                         _state_sample_temperature = 0.01):       
-    """
-    Decompose each predictive priors into Sh individual states !
-    If remainder_state is set to True, also group the remaining unexplored states
-    together and compute its EFE too !
-    TODO : make a version of this that uses OTT : 
-    https://ott-jax.readthedocs.io/en/latest/tutorials/soft_sort.html
-
-    Args:
-        _pred_prior (_type_): _description_
-        N_state_branches (_type_): _description_
-        _state_remainder_branch (bool, optional): _description_. Defaults to True.
-        _state_sample_tempoerature (float, optional): _description_. Defaults to 0.01.
-
-    Returns:
-        _type_: _description_
-    """
+                         _state_sample_temperature = 0.01):
+    # See papers like : Differentiable Subset Pruning of Transformer Heads, Jiaoda Li, Ryan Cotterell, Mrinmaya Sachan
+    # Or implementations like : https://gist.github.com/rahular/6091da25c8c8ce32f6310ec7399a135b
+        
     EPSILON = 1e-10
     Ns, = _pred_prior.shape
-
-    # TODO : We should use a Gumbel-Softmax trick here to avoid 
-    # split states !
     
-    # Decompose the probability distribution into individual realizations :
+    # We use a Gumbel-Softmax trick here to avoid 
+    # split actions in case of similar EFEs !
     
-    
+    # A gumbel softmax powered top k operator :
     def state_brancher(carry,xs):
-        remaining_distribution = carry
+        remaining_logits,remaining_density = carry   # The logprobs yet to explore ! 
+        rngkey_k = xs 
         
-        branch_explored_state_distribution = jax.nn.softmax(remaining_distribution/_state_sample_temperature)
-            # A one-hot encoding of the explored state branch
+        # Softmax approximation of the sampled distribution :
+        sampled_branch = gumbel_softmax(remaining_logits,_state_sample_temperature,rngkey_k)
         
-        # explored_density = (branch_explored_state_distribution*_pred_prior).sum()
-        explored_density = (branch_explored_state_distribution*remaining_distribution).sum()
-            # a scalar estimate of the total density predicted by this path
-        
-        remaining_distribution = jax.nn.relu(remaining_distribution - branch_explored_state_distribution*explored_density)
-        
-        return remaining_distribution,(branch_explored_state_distribution,explored_density)
+        # Recursively penalize already explored branches :
+        remaining_logits += _jaxlog(1.0-sampled_branch)   # from 1.0 (unexplored) to 0.0 (fully explored)
         
         
-    init_distribution_scan = _pred_prior
-    unexplored_remainder,(explored_states,explored_densities) = jax.lax.scan(state_brancher,init_distribution_scan,jnp.arange(N_state_branches))
+        # Compute the density of the explored path : 
+        sampled_density = (remaining_density*sampled_branch)  
+                    # The "quantity" of the possible future states explored 
+        remaining_density = remaining_density - sampled_density
+                    # This is the part of the distribution left unexplored
+        sampled_density_sum = sampled_density.sum()
+        
+        
+        return (remaining_logits,remaining_density),(sampled_branch,sampled_density_sum,remaining_logits)
+    
+    density_tracker = _pred_prior
     
     
+    # Distribution over what actions we may explore, to be further branched !
+    init_distribution_scan = (_jaxlog(_pred_prior),density_tracker)
+    remaining_distribution,(explored_states,explored_densities,efes_after_sampling) = jax.lax.scan(state_brancher,init_distribution_scan,jr.split(rngkey,N_state_branches))
+        
+    # return remaining_distribution,unexplored_distribution
     if _state_remainder_branch:
-        # This was the total distibution space left unexplored :
-        norm_remainder,_ = _normalize(unexplored_remainder+EPSILON)
-            # The epsilon term is to avoid empty distributions for
-            # very low temperatures
-            # TODO : correct the _normalize definition ?
+        unexplored_mask = 1.0-explored_states.sum(axis=-2)
+        unexplored_distribution = unexplored_mask*_pred_prior
+        
+        norm_remainder,_ = _normalize(unexplored_distribution+EPSILON)
+        remainder_density = jnp.array([unexplored_distribution.sum()])
+        
         last_explored_state = jnp.expand_dims(norm_remainder,axis=-2)
         
-        remainder_density = jnp.array([unexplored_remainder.sum()])
-
+        
 
         # Add this to the previously explored paths
         explored_states = jnp.concatenate([explored_states,last_explored_state],axis=-2)
@@ -191,8 +177,8 @@ def branching_out_states(_pred_prior,N_state_branches,
     explored_densities,_ = _normalize(explored_densities) # Explored densities should sum to 1
     
     return explored_states,explored_densities
+    # return explored_actions,efes_after_sampling
 
-@jit
 def branch_predictive_posterior(_predictive_prior,_branch_state_outcome,vecA):
     # Compute the expected observations under this state outcome
     # and how it will affect our posterior beliefs
@@ -205,93 +191,137 @@ def branch_predictive_posterior(_predictive_prior,_branch_state_outcome,vecA):
     
     return qs
 
+# Tree building based on branch functions
+def expand_branch(rngkey,G_branch,q_previous_branch,
+                vecA,vecB,
+                N_action_branches,_action_sample_temperature,
+                N_state_branches,_state_sample_temperature,_state_remainder_branch):    
+    # 1. Let's select which actions to explore :
+    rngkey,rngkey_action = jr.split(rngkey)
+    explored_actions,efes_after_sampling = branching_out_actions_gumbel(G_branch,N_action_branches,rngkey_action,
+                                                            _action_sample_temperature = _action_sample_temperature)
+        #  p_next is of shape Ph x Ns !
+        #  action_branches_explored is of shape Ph !
+    
+    # 2. What are the corresponding next predictive priors ?
+    pred_priors = vmap(lambda action : jnp.einsum("iju,j,u->i",vecB,q_previous_branch,action))(explored_actions)
+    
+    
+    # 3. Let's explore individual realizations of these priors
+    rngkey,rngkey_state = jr.split(rngkey)
+    next_priors,next_densities = vmap(lambda prior : branching_out_states_gumbel(prior,N_state_branches,rngkey_state,
+                                                            _state_remainder_branch=_state_remainder_branch,
+                                                            _state_sample_temperature = _state_sample_temperature))(pred_priors)
+        #  p_next is of shape Ph x Ns !
+        #  action_branches_explored is of shape Ph !
+    # reshaped_explored_actions = jnp.repeat(jnp.expand_dims(explored_actions,-3),next_priors.shape[-3],axis=-3)
+    reshaped_explored_actions = explored_actions
+    
+    # 4. Compute the expected posteriors for each of those realizations ! 
+    next_posteriors = vmap(vmap(lambda __pred_prior,__outcome : branch_predictive_posterior(__pred_prior,__outcome,vecA), in_axes=(None,0)))(pred_priors,next_priors)
+    
+    return next_posteriors,next_densities,reshaped_explored_actions
+
+def expand_tree(rngkey,G_tree,q_previous_tree,
+                vecA,vecB,
+                N_action_branches,_action_sample_temperature,
+                N_state_branches,_state_sample_temperature,_state_remainder_branch):
+    Ns = q_previous_tree.shape[-1]
+    Kt,Np = G_tree.shape  
+      
+    expand_branch_func = partial(expand_branch,
+                vecA=vecA,vecB=vecB,
+                N_action_branches=N_action_branches,_action_sample_temperature=_action_sample_temperature,
+                N_state_branches=N_state_branches,_state_sample_temperature=_state_sample_temperature,_state_remainder_branch=_state_remainder_branch)
+    rng_keys_all_branches = jr.split(rngkey,Kt)
+    
+    all_posteriors,all_densities,all_actions = vmap(expand_branch_func)(rng_keys_all_branches,G_tree,q_previous_tree)
+
+    # Reshape so that these are 1 or 2 dimensionnal vectors :
+    all_posteriors = jnp.reshape(all_posteriors,(-1,Ns))
+    all_densities = jnp.reshape(all_densities,(-1,))
+    # all_actions = jnp.reshape(all_actions,(-1,Np)) # Actions should stay 3dimensionnal
+    return all_posteriors,all_densities,all_actions
 
 
-@partial(jit,static_argnames=["Th","Sh","Ph","option_a_nov",'option_b_nov','additional_options_planning','explore_remaining_paths'])
-def compute_EFE(qs_current,start_t,
+@partial(jit,static_argnames=["Th","N_action_branches","N_state_branches",'_state_remainder_branch',"option_a_nov",'option_b_nov','additional_options_planning'])
+def compute_EFE(rngkey,qs_current,start_t,
         vecA,vecB,vecC,vecE,
         nov_a,nov_b,
         filter_trial_end,
-        Th,Sh,Ph,
+        Th,
+        N_action_branches,_action_sample_temperature,
+        N_state_branches,_state_sample_temperature,_state_remainder_branch,
         option_a_nov=True,option_b_nov=False,
-        additional_options_planning=False,explore_remaining_paths=False):
+        additional_options_planning=False):
     EFE_FLOOR = -10000
     
     Ns = qs_current.shape[-1]
     Np = vecB.shape[-1]
     
-    # Utils -------------------------------------------------------- 
-    # These are the predicted shapes for the next timestep
-    # We only use the computed EFE here !
-    if explore_remaining_paths:
-        exploration_step_shape = (Ph,Sh+1)
-    else : 
-        exploration_step_shape = (Ph,Sh)
-    
-    
     # Forward tree building ----------------------------------------
     # 2 philosophies for this problem : 
     # 1. We want to use scan, and therefore need a constant shape for each prospective step
-    #      thus we precompute an array of paths we want to explore, and then scan them
+    #      thus we precompute an array of paths we want to explore, and then scan them (see layer_plan_classic.py)
     # 2. We want to reduce redundant computation and therefore have an expanding tree. 
     #      it seems that using lists (or maybe pytrees ?) works best in that case
     # 
     # This function uses an application of 2.
-
-    exploration_tree = []  # We will fill this tree with Th levels of branches
     
+    
+    # Functions used : 
+    expand_tree_func = partial(expand_tree,vecA=vecA,vecB=vecB,
+                N_action_branches=N_action_branches,_action_sample_temperature=_action_sample_temperature,
+                N_state_branches=N_state_branches,_state_sample_temperature=_state_sample_temperature,_state_remainder_branch=_state_remainder_branch)
+        # Function of rngkey,G_tree,q_previous_tree
+    
+    compute_node_efe_func = vmap(partial(compute_efe_each_action,
+                vecA=vecA,vecB=vecB,vecC=vecC,vecE=vecE,
+                vecA_nov=nov_a,vecB_nov=nov_b,   
+                option_a_nov=option_a_nov,option_b_nov=option_b_nov,
+                additional_options_planning=additional_options_planning),in_axes=(0,None,None))
+        # Function of previous_posterior,t,trial_end_scalar
+    
+
+
+
     # First timestep EFE computation
     qs_pi = qs_current
-        
-    # qs_pi is K x [Ns]
-    compute_node_func = (lambda _qs : compute_efe_node(start_t,_qs,
-                                            vecA,vecB,vecC,vecE,
-                                            nov_a,nov_b,
-                                            filter_trial_end[0], # Are we at the last timestep ?
-                                            option_a_nov,option_b_nov,additional_options_planning))
-    qs_next_initial,efe_next_actions = vmap(compute_node_func)(qs_pi)
-    exploration_tree = [[qs_pi,efe_next_actions,None,None]]
-        # Predictive priors & efe for this timestep
-        #      K x  [Np x Ns]  |  K x [Np]
+    qs_next_initial,G_tree = compute_node_efe_func(qs_current,start_t,filter_trial_end[0])  # Only one branch !
+
+    exploration_tree = [{
+            "posteriors" : qs_pi,
+            "efe" : G_tree,
+            "densities" : None,
+            "actions" : None}]
+
     
     
     # The following steps will be unrolled by the compiler ! 
     # We expand the tree repeateadly until we reach the desired temporal horizon
     # Autobots, roll out !
     qs_previous = qs_pi  # This posterior will also be used for subsequent estimations
-    N_efe_computed_history = []
     for explorative_timestep in range(1,Th+1): 
         t = start_t+explorative_timestep # t in [start_t+1, current_t+Th]
                       
         # 1. expand the tree :
-        expand_tree_func = (lambda _efe,_qprev : expand_tree(_efe,_qprev,
-                                                    vecA,vecB,
-                                                    Ph,Sh,
-                                                    remainder_state_bool=explore_remaining_paths))
-        state_branch_densities,new_priors,new_posteriors,new_ut = vmap(expand_tree_func)(efe_next_actions,qs_previous)       
+        rngkey,rngkey_expand_t = jr.split(rngkey)
+        explored_posteriors,explored_densities,explored_actions = expand_tree_func(rngkey_expand_t,G_tree,qs_previous)
         
+        # 2. Compute the efe for this new branch !
+        _,G_tree = compute_node_efe_func(explored_posteriors,t,filter_trial_end[explorative_timestep])
         
-        # 2. Flatten the tree branches : 
-        # For the new branches, the posterior is new_posteriors K x [Ns x Np] x Ns
-        #                                   (previous branches) - (new branches) - Dist
-        qs_pi = jnp.reshape(new_posteriors,(-1,Ns))
+        # G_tree = G_tree*filter_trial_end[explorative_timestep-1]  
+        #         # If the previous timestep is trial end or after, this computation is not taken into account 
+        #         # This is redundant, can we just remove it ?
         
-        # 3. Compute the efe for this new branch !
-        compute_node_func = (lambda _qs : compute_efe_node(t,_qs,
-                                            vecA,vecB,vecC,vecE,
-                                            nov_a,nov_b,
-                                            filter_trial_end[explorative_timestep],  # If we are at trial end, this is equivalent to the habits vecE
-                                            option_a_nov,option_b_nov,additional_options_planning))
-        qs_next,efe_next_actions = vmap(compute_node_func)(qs_pi) 
+        exploration_tree.append({
+            "posteriors" : explored_posteriors,
+            "efe" : G_tree,
+            "densities" : explored_densities,
+            "actions" : explored_actions})
         
-        efe_next_actions = efe_next_actions*filter_trial_end[explorative_timestep-1]  
-                # If the previous timestep is trial end or after, this computation is not taken into account 
-                # This is redundant, can we just remove it ?
-                
-        N_efe_computed_history.append(efe_next_actions.shape[0])
-        
-        exploration_tree.append([qs_pi,efe_next_actions,state_branch_densities,new_ut])
-        qs_previous = qs_pi
+        qs_previous = explored_posteriors
         
         
         # # debug
@@ -305,182 +335,72 @@ def compute_EFE(qs_current,start_t,
         #             print("EFE = " + str(np.round(np.array(reformated_efes[action,state,:]),2)))
         #             print("Prior = " + str(np.round(np.array(reformated_priors[action,:]),2)))
         #             print("Posterior = " + str(np.round(np.array(reformated_posterior[action,state,:]),2)))
-     
-    # space_tuple_next = (exploration_step_shape*(Th-1))
-    # [_,efe_next_tsmtp,_,_] = exploration_tree[-1]
-    # efe_next_tsmtp = jnp.reshape(efe_next_tsmtp,space_tuple_next+(Np,))    
+    
     
     # Backward tree summing ----------------------------------------
-    def remerge_action(_efe_children,_children_ut):
+    def remerge_action(_efe_children,_children_ut,_eps=1e-10):
         """ 
         Map a K x Ph tensor of EFE onto a K x Np space using a K x Ph x Np mapping rule.
         Unexplored action paths should have a very low EFE !
+        Difference with argsort based tree pruning : here, the same branch can be selected twice !
+        
         """ 
-        carry_efe = jnp.einsum("abc,ab->ac",_children_ut,_efe_children)  
-                # Efe of subsequent next steps for the explored action paths
-                # _children_ut has shape Nbranches x Ph x Np
-                
-        # What are the unexplored actions ?
-        explored_filter = _children_ut.sum(axis=-2)  
-                            # A (Nbranches x Np) tensor with 1.0 where we explored an action
-                            # and 0 where we did not
+        
+        # Project _efes to the Full action space ,normalized by the total density
+        # of the branch selected: 
+        norm_projected_efe = jnp.einsum("abc,ab->ac",_children_ut,_efe_children)/jnp.sum(_children_ut+_eps,axis=-2)
+        
+        
+        # A value of 0.0 to 1.0 rating how explored a specific action branch is overall:
+        explored_filter = jnp.clip(jnp.sum(_children_ut+_eps,axis=-2),max=1.0)
         unexplored_filter = 1.0 - explored_filter
-        
         unexplored_efe = unexplored_filter * EFE_FLOOR
-                    # If the path was not explored, we may assume that the EFE is very high :(
         
-        return carry_efe + unexplored_efe # jnp.where(carry_efe==0,EFE_FLOOR,carry_efe)
+        return norm_projected_efe + unexplored_efe
     
     
     # This will be unrolled ! (needs to be done sequentially, 
     # big Th values are obviously discouraged)
     # Autobots, roll out !       
-    carry_efe = jnp.zeros_like(exploration_tree[Th][1])
+    carry_efe = jnp.zeros_like(exploration_tree[Th]["efe"])
+    # print(carry_efe.shape)
     for explorative_timestep in range(Th,0,-1): # Th -> Th-1 -> ... -> 1
-        space_tuple_next = (exploration_step_shape*(explorative_timestep))
+        tree_t = exploration_tree[explorative_timestep]
 
-        # These are the predicted values for the next timestep
-        # We only use the computed EFE here !
-        [qs_tsmtp,efe_this_tsmtp,state_branch_densities,ut_next_tsmtp] = exploration_tree[explorative_timestep]
+        efe_this_tsmtp = tree_t["efe"] + carry_efe
+                # Shape : K' x Np
         
-        state_branch_densities = jnp.reshape(state_branch_densities,space_tuple_next)
         
-        efe_this_tsmtp = jnp.reshape(efe_this_tsmtp + carry_efe,space_tuple_next+(Np,))
-                   
-        # We marginalize the efe for the next timestep across expected actions ... 
+        # Now, let's sum up this branch in order to transmit it to the parent branches !
+        # 1st, we marginalize the efe for the next timestep across expected actions ... 
         # (should there be a precison parameter here ?)
-        margin_efe = jnp.sum(efe_this_tsmtp*jax.nn.softmax(efe_this_tsmtp,axis=-1),axis=-1)
-        # ... and states
-        margin_efe_next_tmstp = jnp.sum(state_branch_densities*margin_efe,axis=-1)
-
-        # To get a quantity that can be added to the (previous) explorative timestep, it
-        # has to map to the policy axis. To do this, we use our history of the explored action !
-        # The unexplored actions should have EFE = -inf.
-        flattened_margin_efe = jnp.reshape(margin_efe_next_tmstp,(-1,Ph))
-                    # Last dim shape is Ph
+        margin_efe_actions = jnp.sum(efe_this_tsmtp*jax.nn.softmax(efe_this_tsmtp,axis=-1),axis=-1)
+                # margin_efe_actions is the expected efe for the subsequent timestep for each state branch
+                # Shape : (K'/Sh = K*Ph)
         
-        carry_efe = remerge_action(flattened_margin_efe,ut_next_tsmtp)
-                    # Last dim shape is Np
+        # ... and states
+        margin_efe_actions_states = jnp.reshape(tree_t["densities"]*margin_efe_actions,(-1,N_state_branches)).sum(axis=-1)
+                # Shape : K'/(Sh*Ph) = K
+                
+        # Reshape to explicitely show the various action branches : 
+        parent_branches_efe = jnp.reshape(margin_efe_actions_states,(-1,N_action_branches))
+                # Shape : K'/(Sh*Ph) = K
+        # Include the unexplored actions ! 
+        carry_efe = remerge_action(parent_branches_efe,tree_t["actions"])
     
-    final_efe = carry_efe+exploration_tree[0][1]
+    
+    total_efe = carry_efe + exploration_tree[0]["efe"]
     
     # predictive posterior over the very next hidden state given this posterior : 
-    u_post = jax.nn.softmax(final_efe,axis=-1)
-    
+    u_post = jax.nn.softmax(total_efe,axis=-1)
     state_predictive_posterior = jnp.einsum("aus,au->s",qs_next_initial,u_post)
-    
-    return final_efe[0,...],u_post[0,...],state_predictive_posterior,N_efe_computed_history
-    
+    return total_efe[0,...],u_post[0,...],state_predictive_posterior
 
-@partial(jit,static_argnames=["Sh","option_a_nov",'option_b_nov','additional_options_planning','explore_remaining_paths'])
-def diff_efe(initial_posterior,qpi,
-                vecA,vecB,vecC,vecE,
-                nov_a,nov_b,
-                Sh,
-                option_a_nov=True,option_b_nov=False,
-                additional_options_planning=False,explore_remaining_paths=True,
-                tau_branch_split = 0.05):
-    """
-    Planning without an explicit action tree !
-    Using a tensor of action probabilities from current_t to current_t+Th,
-    compute the expected free energy.
-    
-    This function is meant to be differentiated to be minimized. 
-    Intuition : differentiating w.r.t. later /earlier slices of qpi will lead to 
-    different ways of perceiving the future ! 
-
-    Args:
-        qpi (_type_): _description_
-    """
-    Th,Np = qpi.shape
-    Ns, = initial_posterior.shape
-    
-    # Utils -------------------------------------------------------- 
-    # These are the predicted shapes for the next timestep
-    # We only use the computed EFE here !
-    if explore_remaining_paths:
-        exploration_step_size = Sh+1
-    else :
-        exploration_step_size = Sh
-        
-    
-    state_branching_func =  vmap(partial(branching_out_states, N_state_branches=Sh,
-                                    _state_remainder_branch=explore_remaining_paths,
-                                   _state_sample_temperature = tau_branch_split))
-    state_belief_update_func = vmap(vmap(partial(branch_predictive_posterior,vecA=vecA),in_axes=(None,0)))
-    
-    
-    
-    
-    
-    efe_compute_func = partial(compute_efe_action_posterior,vecA=vecA,vecB=vecB,vecC=vecC,vecE=vecE,
-                                    vecA_nov=nov_a,vecB_nov=nov_b,  
-                                    option_a_nov=option_a_nov,option_b_nov=option_b_nov,
-                                    additional_options_planning=additional_options_planning)
-    mapped_efe_compute = vmap(efe_compute_func,in_axes=[None,0,None,None])
-        # This function will get mapped accross previous posterior and predicted posteriors
-    
-    initial_posterior = jnp.expand_dims(initial_posterior,-2)
-    
-    trial_end_scalar = 1.0
-    previous_prior,initial_efe = mapped_efe_compute(qpi[0],initial_posterior,0,trial_end_scalar)
-    
-    # Tree building
-    density_tree = [jnp.array([1.0])]
-    efe_tree = [initial_efe]
-    
-    for t in range(1,Th):
-        trial_end_scalar = 1.0
-        # previous_prior is a tensor of shape K x Ns, with K = (Sh+1)^t        
-        
-        # Split into Sh branches accounting for each potential outcome:
-        branch_outcomes,branch_densities =state_branching_func(previous_prior)
-            # Branched states : [K x (Sh(+1)?) x Ns] 
-            # branched densities : [K x (Sh(+1)?)] 
-        
-        # Each branched states generates a predicted observation, that the agent
-        # expects will change its beliefs !
-        branch_predictive_posteriors = state_belief_update_func(previous_prior,branch_outcomes)
-            # branch_predictive_posteriors : [K x (Sh(+1)?) x Ns] 
-        
-        branch_densities = jnp.reshape(branch_densities,(-1,))
-        branch_posterior = jnp.reshape(branch_predictive_posteriors,(-1,Ns))        
-                            # a [K' x Ns] tensor of predictive posteriors
-                            # K' = K x (Sh (+1?))
-        
-        # Compute EFE and predicted priors for next action for each potential posterior
-        trial_end_scalar = 1.0
-        next_prior,efe = mapped_efe_compute(qpi[t],branch_posterior,t,trial_end_scalar)
-            # Branched priors : [K' x Ns] 
-                    
-        density_tree.append(branch_densities)
-        efe_tree.append(efe)
-    
-        previous_prior = next_prior
-    
-    
-    # # Tree collapsing :
-    # # Compute the EFE under the possible states seen here !
-    # efe_carry = efe_tree[Th-1]
-    carry_efe = jnp.zeros_like(efe_tree[Th-1])
-    for t in range(Th-1,0,-1):
-        densities = jnp.reshape(density_tree[t],(-1,exploration_step_size))
-            # marginalized EFEs depend on outcomes for timesteps > 1
-        
-        efes = jnp.reshape(efe_tree[t]+carry_efe,(-1,exploration_step_size))
-            # The EFE also comprises the subsequent timesteps
-        marginalized_efe = (efes*densities).sum(axis=-1)
-        
-        carry_efe = marginalized_efe
-    
-    total_efe = carry_efe+efe_tree[0]*density_tree[0]
-    return total_efe[0]
-  
 
 ### Compute log policy posteriors --------------------------------------------------------------------------------
-# @partial(jit, static_argnames=['Np','Th','gamma'])
-def policy_posterior(current_timestep,Th,filter_end_of_trial,
-                     qs,vecA,vecB,vecC,vecE,vecA_novel,vecB_novel,
+def policy_posterior(rngkey,current_timestep,Th,filter_end_of_trial,
+                     qs,vecA,vecB,vecC,vecE,
+                     vecA_novel,vecB_novel,
                      planning_options):
     Np = vecB.shape[-1]
     Ns = qs.shape[-1]
@@ -488,11 +408,15 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     # Extract all the options from the planning_options
     efe_compute_a_nov = planning_options["a_novelty"]
     efe_compute_b_nov = planning_options["b_novelty"]
-    other_option = planning_options["old_novelty_computation"]
+    old_efe_computation = planning_options["old_novelty_computation"]
     
-    Ph = planning_options["plantree_action_horizon"]
+    N_action_branches = planning_options["N_action_branches"] 
+        # Should the 1st always be Np ?
+    action_sample_temperature = planning_options["plantree_gumbel_action_sample_temp"]
     
-    Sh = planning_options["plantree_state_horizon"]
+    N_state_branches = planning_options["N_state_branches"]
+    state_sample_temperature = planning_options["plantree_gumbel_state_sample_temp"]
+    
     explore_remaining_paths = planning_options["explore_joint_remaining"]
         # When Sh action paths have been explored, do we also explore the remaining
         # joint state distribution as a last branch ?
@@ -501,24 +425,26 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     # _______________________________________________________________________________________________________
     # Checking the tree architecture : the tree structure is static and is constrained by the (Np,Ns) system
     # This should be implemented by an encompassing class
-    Sh = min(Ns,Sh)  # Sh cannot be bigger than Ns
-    if Sh==0:
+    N_state_branches = min(Ns,N_state_branches)  # Sh cannot be bigger than Ns
+    if N_state_branches==0:
         explore_remaining_paths = True
-    if (Sh >= Ns - 1)and explore_remaining_paths:
+    if (N_state_branches >= Ns - 1) and explore_remaining_paths:
             # Can't explore remaining paths if they are already all explored :)
-        Sh = Ns
+        N_state_branches = Ns
         explore_remaining_paths = False
         
-    Ph = max(1,min(Np,Ph))  # Ph cannot be bigger than Np or smaller than 1
+    N_action_branches = max(1,min(Np,N_action_branches))  # Ph cannot be bigger than Np or smaller than 1
     # _______________________________________________________________________________________________________
     
     prep_qs = jnp.expand_dims(qs,axis=-2)
-    EFE_per_action,last_action_posterior,predictive_state_posterior,N_efe_computed_history = compute_EFE(prep_qs,current_timestep,
-                    vecA,vecB,vecC,vecE,
-                    vecA_novel,vecB_novel,
-                    filter_end_of_trial,
-                    Th,Sh,Ph,
-                    option_a_nov=efe_compute_a_nov,option_b_nov=efe_compute_b_nov,
-                    additional_options_planning=other_option,explore_remaining_paths=explore_remaining_paths)
+    EFE_per_action,last_action_posterior,predictive_state_posterior = compute_EFE(rngkey,prep_qs,current_timestep,
+            vecA,vecB,vecC,vecE,
+            vecA_novel,vecB_novel,
+            filter_end_of_trial,
+            Th,
+            N_action_branches,action_sample_temperature,
+            N_state_branches,state_sample_temperature,explore_remaining_paths,
+            option_a_nov=efe_compute_a_nov,option_b_nov=efe_compute_b_nov,
+            additional_options_planning=old_efe_computation)
 
     return EFE_per_action,last_action_posterior

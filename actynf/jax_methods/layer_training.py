@@ -38,8 +38,8 @@ from actynf.jax_methods.shape_tools import to_log_space,vectorize_weights,get_ve
 
 
 def training_step(trial_rng_key,T,
-            pa,pb,pd,c,e,
-            A_vec,B_vec,D_vec,U, 
+            pa,pb,pd,c,e,u,
+            A_vec,B_vec,D_vec,
             planning_options = DEFAULT_PLANNING_OPTIONS,
             action_selection_options = DEFAULT_ACTION_SELECTION_OPTIONS,
             learning_options = DEFAULT_LEARNING_OPTIONS):
@@ -65,11 +65,10 @@ def training_step(trial_rng_key,T,
     Returns:
         _type_: _description_
     """
-    
     # Vectorize the model weights : 
-    trial_a,trial_b,trial_d = vectorize_weights(pa,pb,pd,U)
+    trial_a,trial_b,trial_d = vectorize_weights(pa,pb,pd,u)
     trial_c,trial_e = to_log_space(c,e)
-    trial_a_nov,trial_b_nov = get_vectorized_novelty(pa,pb,U,compute_a_novelty=True,compute_b_novelty=True)
+    trial_a_nov,trial_b_nov = get_vectorized_novelty(pa,pb,u,compute_a_novelty=True,compute_b_novelty=True)
     
     
     # T timesteps happen below : 
@@ -86,10 +85,13 @@ def training_step(trial_rng_key,T,
     # Then, we update the parameters of our HMM model at this level
     # We use the raw weights here !
     a_post,b_post,c_post,d_post,e_post,qs_post = learn_after_trial(obs_vect_arr,qs_arr,u_vect_arr,
-                                            pa,pb,c,pd,e,U,
+                                            pa,pb,c,pd,e,u,
                                             learn_what=learning_options["bool"],
                                             learn_rates=learning_options["rates"],
-                                            post_trial_smooth=learning_options["smooth_states"])
+                                            post_trial_smooth=learning_options["smooth_states"],
+                                            assume_linear_state_space=learning_options["assume_linear_state_space"],
+                                            generalize_fadeout_function=learning_options["generalize_fadeout_function"]
+                                            )
     
     return_tuple = ( obs_darr,obs_arr,obs_vect_arr,
                     true_s_darr,true_s_arr,true_s_vect_arr,
@@ -103,13 +105,13 @@ def training_step(trial_rng_key,T,
 def synthetic_training(rngkey,
             Ntrials,T,
             A,B,D,U,
-            a0,b0,c,d0,e,
+            a0,b0,c,d0,e,u,
             planning_options = DEFAULT_PLANNING_OPTIONS,
             action_selection_options = DEFAULT_ACTION_SELECTION_OPTIONS,
             learning_options = DEFAULT_LEARNING_OPTIONS):
     normA,normB,normD = vectorize_weights(A,B,D,U)
         # These weights are the same across the whole training
-    
+
     def _scan_training(carry,key):
         key,trial_key = jr.split(key)
         
@@ -121,8 +123,8 @@ def synthetic_training(rngkey,
         u_d_arr,u_arr,u_vect_arr,
         qs_arr,qs_post,qpi_arr,efes,
         a_post,b_post,c_post,d_post,e_post) = training_step(trial_key,T,
-            pa,pb,pd,c,e,
-            normA,normB,normD,U,
+            pa,pb,pd,c,e,u,
+            normA,normB,normD,
             planning_options = planning_options,
             action_selection_options=action_selection_options,
             learning_options = learning_options)
@@ -148,16 +150,16 @@ def synthetic_training(rngkey,
 
 def synthetic_training_multi_subj(rngkeys_for_all_subjects,
             Ntrials,T,
-            a0,b0,c,d0,e,
             A,B,D,U,
+            a0,b0,c,d0,e,u,
             planning_options = DEFAULT_PLANNING_OPTIONS,
             action_selection_options = DEFAULT_ACTION_SELECTION_OPTIONS,
             learning_options = DEFAULT_LEARNING_OPTIONS):
 
     map_this_function = partial(synthetic_training,
             Ntrials=Ntrials,T=T,
-            a0=a0,b0=b0,c=c,d0=d0,e=e,
             A=A,B=B,D=D,U=U,
+            a0=a0,b0=b0,c=c,d0=d0,e=e,u=u,
             planning_options = planning_options, 
             action_selection_options=action_selection_options,
             learning_options = learning_options)
@@ -167,7 +169,7 @@ def synthetic_training_multi_subj(rngkeys_for_all_subjects,
 
 # Models used for fitting !
 def empirical(obs_vect,act_vect,
-        pa0,pb0,c,pd0,e,U,
+        pa0,pb0,c,pd0,e,u,
         planning_options = DEFAULT_PLANNING_OPTIONS,
         learning_options = DEFAULT_LEARNING_OPTIONS):
     """,
@@ -191,9 +193,9 @@ def empirical(obs_vect,act_vect,
         (obs_trial,act_trial) = data_trial
         
         
-        trial_a,trial_b,trial_d = vectorize_weights(pre_a,pre_b,pre_d,U)
+        trial_a,trial_b,trial_d = vectorize_weights(pre_a,pre_b,pre_d,u)
         trial_c,trial_e = to_log_space(c,e)
-        trial_a_nov,trial_b_nov = get_vectorized_novelty(pre_a,pre_b,U,compute_a_novelty=True,compute_b_novelty=True)
+        trial_a_nov,trial_b_nov = get_vectorized_novelty(pre_a,pre_b,u,compute_a_novelty=True,compute_b_novelty=True)
         
         # Empirical based state + action posterior for the whole trial
         qs_arr,qpi_arr = empirical_trial(obs_trial,act_trial,
@@ -203,11 +205,11 @@ def empirical(obs_vect,act_vect,
                                 planning_options=planning_options)
 
         # NO ACTION SELECTION HERE ! We're using empirical observations 
-        # to compute the parameters evolution instead
+        # to compute the evolution of model parameters instead
         
         # # Then, we update the parameters of our HMM model at this level
         a_post,b_post,_,d_post,_,qs_post = learn_after_trial(obs_trial,qs_arr,act_trial,
-                                                 pre_a,pre_b,c,pre_d,e,U,
+                                                 pre_a,pre_b,c,pre_d,e,u,
                                                  learn_what=learning_options["bool"],
                                                  learn_rates=learning_options["rates"],
                                                  post_trial_smooth=learning_options["smooth_states"])

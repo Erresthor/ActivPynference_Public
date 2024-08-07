@@ -26,20 +26,21 @@ from .layer_infer_state import compute_state_posterior
 
 from .layer_plan_classic import policy_posterior as policy_posterior_classic
 from .layer_plan_sophisticated import policy_posterior as policy_posterior_sophisticated
+from .layer_plan_sophisticated_differentiable import policy_posterior as policy_posterior_gumbel
 
 from .layer_pick_action import sample_action
 
 EOT_FILTER_CST = 2
     # How many more planned trials are in the filter (in excess of Th) 
     # (Goal : avoid the planner looping back
-    # and finding 1.0 instead of 0.0 when overflowing)
+    # and finding 1.0 instead of 0.0 when overflowing) (this does NOT result in additionnal computations)
 
 # Compute the posteriors for each timestep during the trial : 
 def compute_step_posteriors(t,prior,observation,
                             a,b,c,e,
                             a_novel,b_novel,
                             Th,filter_end_of_trial,
-                            planning_options=DEFAULT_PLANNING_OPTIONS):   
+                            rngkey=None,planning_options=DEFAULT_PLANNING_OPTIONS):   
     # State inference for the current timestep
     qs,F = compute_state_posterior(prior,observation,a)
             
@@ -59,6 +60,7 @@ def compute_step_posteriors(t,prior,observation,
                                              a,b,c,e,
                                              a_novel,b_novel,
                                              planning_options)
+        
     elif planning_options["method"]=="gradient":
         filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST] # ?
         # Policy planning
@@ -67,6 +69,13 @@ def compute_step_posteriors(t,prior,observation,
                                              a,b,c,e,
                                              a_novel,b_novel,
                                              planning_options)
+    elif planning_options["method"]=="sophisticated_gumbel":
+        
+        rngkey,rng_planning = jr.split(rngkey)
+        efe,raw_qpi = policy_posterior_gumbel(rng_planning,t,Th,filter_end_of_trial,
+                    qs,a,b,c,e,
+                    a_novel,b_novel,
+                    planning_options)
     else : 
         raise NotImplementedError("Not implemented planning method : " + str(planning_options["method"])) 
     return qs,raw_qpi,efe
@@ -91,7 +100,6 @@ def get_filter_eot(T,Th):
             # -1 because we're not accounting for the present state 
         return jax.nn.one_hot(end_of_trial_scale - k - 1,Th+EOT_FILTER_CST).sum(axis=-2)
     return vmap(filter_for)(jnp.arange(0,T-1,1))
-
 
 # Run the actual trials :
 def synthetic_trial(rngkey,T,
@@ -128,7 +136,6 @@ def synthetic_trial(rngkey,T,
     rngkey, init_key = jr.split(rngkey)
     
     Th = planning_options["horizon"]
-    
     # Initialize process
     [s_0_d,s_0_idx,s_0_vect],[o_0_d,o_0_idx,o_0_vect] = initial_state_and_obs(init_key,A,D)
     
@@ -141,7 +148,7 @@ def synthetic_trial(rngkey,T,
                          # It returns the process and model statistics
         (key,t,filter_end_of_trial) = xs
         
-        key,key_agent,key_process = jr.split(key,3)  # For random generations
+        key,key_agent_plan,key_agent_select,key_process = jr.split(key,4)  # For random generations
         
         # Saved states from previous process tick and model update (t-1) --------
         true_s,observation,prior = carry
@@ -151,11 +158,12 @@ def synthetic_trial(rngkey,T,
         
         # State & policy inference
         # jax.debug.print("observations: {}", observation)
-        qs,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel,Th,filter_end_of_trial,planning_options)
+        qs,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel,Th,filter_end_of_trial,
+                                                 key_agent_plan,planning_options)
         # jax.debug.print("efe: {}", efe)
         
         # Action sampling
-        u_d,u_idx,u_vect = sample_action(raw_qpi,action_selection_options,rng_key=key_agent)
+        u_d,u_idx,u_vect = sample_action(raw_qpi,action_selection_options,rng_key=key_agent_select)
         
         # Prior for next timestep
         new_prior = jnp.einsum("iju,j,u->i",b_norm,qs,u_vect)

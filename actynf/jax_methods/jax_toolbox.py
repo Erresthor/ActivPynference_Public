@@ -13,6 +13,12 @@ from itertools import product
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 
+def none_like_tree(target):
+    return tree_map(lambda x: None, target)
+
+def zero_like_tree(target):
+    return tree_map(lambda x: jnp.zeros_like(x), target)
+
 def tensorify(*args):
     """ A very ugly function that transforms numpy arrays into jax tensors, while conserving list structures."""
     all_results = []

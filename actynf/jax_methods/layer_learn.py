@@ -191,11 +191,7 @@ def backwards_pass(hist_obs_vect,hist_u_vect,loc_a,loc_b):
 
 def smooth_posterior_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
           pa,pb,pd,U, filter_type="two_filter"):
-    """
-    Not yet implemented !!
-    TODO : Implement a Forwards-Backwards smoother here !
-    For now, the smoothing does not change the state posteriors !
-    """
+
     smoothed_posterior = hist_qs
     if filter_type=="two_filter":
         loc_a,loc_b,loc_d = vectorize_weights(pa,pb,pd,U)

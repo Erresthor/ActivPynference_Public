@@ -38,7 +38,6 @@ class learning_parameters :
         
         
         self.generalize_fadeout_function = DEFAULT_FADEOUT_FUNCTION
-        
         self.generalize_fadeout_function_temperature = 0.0
             # Generalization occurs relative to the position of the
             # actual inference

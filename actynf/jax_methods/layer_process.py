@@ -12,9 +12,7 @@ import numpyro.distributions as distr
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 
-from .jax_toolbox import _normalize,_jaxlog,random_split_like_tree
-
-
+from .jax_toolbox import _normalize,_jaxlog,random_split_like_tree,none_like_tree
 
 # STATES __________________________________________________________________________________________
 def sample_initial_state(rngkey,D):
@@ -121,10 +119,6 @@ def check_fixed_outcome(potential_tensor,t):
         return True
     except :
         return False
-
-
-def none_like_tree(target):
-    return tree_map(lambda x: None, target)
 
 def fetch_outcome(rngkey,
             t,previous_s_vect,previous_u_vect,

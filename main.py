@@ -1,4 +1,4 @@
-from actynf.jax_methods.jax_toolbox import spm_wnorm,_normalize
+from actynf.jaxtynf.jax_toolbox import spm_wnorm,_normalize
 import jax
 import jax.numpy as jnp
 

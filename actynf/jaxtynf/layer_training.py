@@ -34,7 +34,7 @@ from .layer_trial import empirical as empirical_trial
 
 from .layer_learn import learn_after_trial
 
-from actynf.jax_methods.shape_tools import to_log_space,vectorize_weights,get_vectorized_novelty
+from actynf.jaxtynf.shape_tools import to_log_space,vectorize_weights,get_vectorized_novelty
 
 
 def training_step(trial_rng_key,T,

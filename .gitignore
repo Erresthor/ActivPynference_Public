@@ -12,6 +12,7 @@ dist/
 *.egg-info/
 docs/build_*
 
+
 # misc
 .DS_Store
 
@@ -23,6 +24,7 @@ my_projects/
 # raw outputs & data storage
 data/*
 simulation_outputs/
+data_downloaded
 
 # Compilation
 .pypirc

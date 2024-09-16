@@ -95,7 +95,7 @@ def bruteforce_treesearch(initial_t,Th,
     
     This method does NOT create separate branches for each plausible hidden state. Instead,
     it uses the prior over the subsequent state given the action directly. This is not 
-    sufficient when trying to resolve uncertainty.
+    sufficient in paradigms that require planning to resolve uncertainty (e.g. T-maze).
     
     """  
     assert Th>=2,"Temporal horizon for planning should be >=2"

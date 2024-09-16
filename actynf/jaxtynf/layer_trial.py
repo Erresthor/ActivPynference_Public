@@ -83,14 +83,16 @@ def compute_step_posteriors(t,prior,observation,
 
 # Ensure that timesteps outside the trial range are ignored :
 def get_filter_eot(T,Th):
-    """_summary_ : returns T-1 filters returning 1.0 if we are within the trial horizon, and 0.0 if we are not.
+    """_summary_ : 
+    To ensure that our trials always perform fixed-shape computations, we use a family of filters. 
+    The EOT (End Of Trial) filter is a tensor array which returns 1.0 if we are planning within the trial horizon, and 0.0 if we are not.
 
     Args:
         T (_type_): Trial duration (timestep)
         Th (_type_): Temporal horizon
 
     Returns:
-        _type_: a tensor array [T-1 , Th + V] of filters with 1.0 where the trial is still ongoing 
+        _type_: a tensor array [T-1 , Th + EOT_FILTER_CST] of filters with 1.0 where the trial is still ongoing 
                 and 0.0 where its computations should not be performed.
                 Being  at the end of the trial means that the EFE computations should return G(tau) = E.
     """     

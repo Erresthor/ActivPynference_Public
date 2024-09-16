@@ -164,7 +164,7 @@ def act_hmm_free_energy(o, qs ,qu, A, B, D,
     negHpu = (qu*_jaxlog(pu)).sum(axis=0)
 
     # 4. LIKELIHOODS !
-    # Compute the log expextations of the parameters under their 
+    # Compute the log expectations of the parameters under their 
     # respective Dirichlet distribution once only :
     logA = _logexpect_dirichlet_list(A) # A list of logA for each observation modality
     logB = _logexpect_dirichlet(B) # A single logB tensor

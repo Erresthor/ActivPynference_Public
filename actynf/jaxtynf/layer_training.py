@@ -86,12 +86,13 @@ def training_step(trial_rng_key,T,
     # We use the raw weights here !
     a_post,b_post,c_post,d_post,e_post,qs_post = learn_after_trial(obs_vect_arr,qs_arr,u_vect_arr,
                                             pa,pb,c,pd,e,u,
-                                            learn_what=learning_options["bool"],
-                                            learn_rates=learning_options["rates"],
-                                            post_trial_smooth=learning_options["smooth_states"],
-                                            assume_linear_state_space=learning_options["assume_linear_state_space"],
-                                            generalize_fadeout_function=learning_options["generalize_fadeout_function"]
-                                            )
+                                            method = learning_options["method"],
+                                            learn_what = learning_options["bool"],
+                                            learn_rates = learning_options["rates"],
+                                            generalize_state_function=learning_options["state_generalize_function"],
+                                            generalize_action_table=learning_options["action_generalize_table"],
+                                            cross_action_extrapolation_coeff=learning_options["cross_action_extrapolation_coeff"],
+                                            em_iter = learning_options["em_iterations"])
     
     return_tuple = ( obs_darr,obs_arr,obs_vect_arr,
                     true_s_darr,true_s_arr,true_s_vect_arr,
@@ -167,7 +168,7 @@ def synthetic_training_multi_subj(rngkeys_for_all_subjects,
     return mapped_over_subjects
 
 
-# Models used for fitting !
+# Likelihood function (used for fitting !)
 def empirical(obs_vect,act_vect,
         pa0,pb0,c,pd0,e,u,
         planning_options = DEFAULT_PLANNING_OPTIONS,

@@ -63,28 +63,24 @@ def compute_step_posteriors(t,prior,observation,
         
     elif planning_options["method"]=="gradient":
         raise NotImplementedError("Gradient not yet implemented :(")
-        filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST] # ?
-        # Policy planning
-        efe,raw_qpi = policy_posterior_classic(t,Th,filter_end_of_trial,
-                                             qs,
-                                             a,b,c,e,
-                                             a_novel,b_novel,
-                                             planning_options)
+    
     elif planning_options["method"]=="sophisticated_gumbel":
-        
         rngkey,rng_planning = jr.split(rngkey)
         efe,raw_qpi = policy_posterior_gumbel(rng_planning,t,Th,filter_end_of_trial,
                     qs,a,b,c,e,
                     a_novel,b_novel,
                     planning_options)
+    elif planning_options["method"]=="fixed_path_number":
+        raise NotImplementedError("Scanable planning not yet implemented :(")
     else : 
-        raise NotImplementedError("Not implemented planning method : " + str(planning_options["method"])) 
-    return qs,raw_qpi,efe
+        raise NotImplementedError("Planning method not yet implemented : " + str(planning_options["method"])) 
+    return qs,F,raw_qpi,efe
 
 # Ensure that timesteps outside the trial range are ignored :
 def get_filter_eot(T,Th):
     """_summary_ : 
-    To ensure that our trials always perform fixed-shape computations, we use a family of filters. 
+    To ensure that our trials always perform fixed-shape computations, we use a family of filters with value 0 when the value should not 
+    used for the (EFE) computation.  
     The EOT (End Of Trial) filter is a tensor array which returns 1.0 if we are planning within the trial horizon, and 0.0 if we are not.
 
     Args:
@@ -104,7 +100,10 @@ def get_filter_eot(T,Th):
         return jax.nn.one_hot(end_of_trial_scale - k - 1,Th+EOT_FILTER_CST).sum(axis=-2)
     return vmap(filter_for)(jnp.arange(0,T-1,1))
 
-# Run the actual trials :
+
+
+
+# Run full synthetic trials (including the process response)
 def synthetic_trial(rngkey,T,
               A,B,D,
               a_norm,b_norm,c,d_norm,e,
@@ -161,7 +160,7 @@ def synthetic_trial(rngkey,T,
         
         # State & policy inference
         # jax.debug.print("observations: {}", observation)
-        qs,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel,Th,filter_end_of_trial,
+        qs,F,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel,Th,filter_end_of_trial,
                                                  key_agent_plan,planning_options)
         # jax.debug.print("efe: {}", efe)
         
@@ -338,7 +337,7 @@ def _depr_synthetic_trial_set_vals(rngkey,T,
     
     return jnp.stack(qss),jnp.stack(qpis),jnp.stack(efes),true_states,true_obs
 
-# A prefilled partial for parrallelization, modify this depending on you needs
+# A prefilled partial for parrallelization, modify this depending on your needs
 def _partial_synthetic_trial(key,T,
                 vecA,vecB,vecD,
                 veca,vecb,vecc,vecd,vece,
@@ -369,7 +368,7 @@ def empirical(obs_vect,act_vect,
         emp_prior = carry
         (observation_t,observed_action_t_vect,filter_t,t) = data_t
         
-        qs,raw_qpi,efe = compute_step_posteriors(t,emp_prior,observation_t,
+        qs,F,raw_qpi,efe = compute_step_posteriors(t,emp_prior,observation_t,
                                                  a_norm,b_norm,c,e,
                                                  a_novel,b_novel,
                                                  Th,filter_t,

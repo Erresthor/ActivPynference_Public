@@ -57,14 +57,18 @@ def build_maze(maze_array,start_idx,end_idx,dirac_goal=False,p_transition=1.0):
     Nu = u.shape[0]
 
     B = np.zeros((Ns,Ns,Nu))
+    
     for from_x in range(maze_array.shape[0]):
         for from_y in range(maze_array.shape[1]):
             s = sub2ind(maze_array.shape,(from_x,from_y))
             for u_ix in range(Nu):
                 try :
                     ss = sub2ind(maze_array.shape,(from_x + u[u_ix,0] ,from_y + u[u_ix,1]))
-                    B[ss,s,u_ix] = p_transition
-                    B[s,s,u_ix] = 1 - p_transition
+                    if s!= ss :
+                        B[ss,s,u_ix] = p_transition
+                        B[s,s,u_ix] = 1 - p_transition
+                    else : 
+                        B[s,s,u_ix] = 1
                 except:
                     B[s,s,u_ix] = 1
     b = [B]
@@ -88,12 +92,8 @@ def build_maze(maze_array,start_idx,end_idx,dirac_goal=False,p_transition=1.0):
     return a,b,c,d,e,U
 
 
-# Actynf layer building
-def get_maze_process_layer(maze_array,start_idx,end_idx,
-                            T,Th,dirac_goal=False,seed=None):
-    a,b,c,d,e,U = build_maze(maze_array,start_idx,end_idx,dirac_goal=dirac_goal)
-    maze_process = layer("maze_environment","process",a,b,c,d,e,U,T,Th,in_seed=seed)
-    return maze_process
+
+
 
 def build_maze_model(maze_array,start_idx,end_idx,
                      initial_tile_confidence=1.0,
@@ -127,8 +127,11 @@ def build_maze_model(maze_array,start_idx,end_idx,
             for u_ix in range(Nu):
                 try :
                     ss = sub2ind(maze_array.shape,(from_x + u[u_ix,0] ,from_y + u[u_ix,1]))
-                    B[ss,s,u_ix] = p_transition
-                    B[s,s,u_ix] = 1 - p_transition
+                    if s!= ss :
+                        B[ss,s,u_ix] = p_transition
+                        B[s,s,u_ix] = 1 - p_transition
+                    else : 
+                        B[s,s,u_ix] = 1
                 except:
                     B[s,s,u_ix] = 1
     b = [B]
@@ -141,7 +144,7 @@ def build_maze_model(maze_array,start_idx,end_idx,
         if dirac_goal:
             c2[c_ix] = -1.0*rs
         else :
-            c2[c_ix] = -1.0*rs*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))# - 1.0
+            c2[c_ix] = -1.0*rs*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))
     if dirac_goal:
         c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = rs
     c = [c1,c2]
@@ -152,6 +155,13 @@ def build_maze_model(maze_array,start_idx,end_idx,
     U = np.expand_dims(np.array(range(Nu)),-1)
     e = np.ones(U.shape)
     return a,b,c,d,e,U
+
+# Actynf layer
+def get_maze_process_layer(maze_array,start_idx,end_idx,
+                            T,Th,dirac_goal=False,seed=None):
+    a,b,c,d,e,U = build_maze(maze_array,start_idx,end_idx,dirac_goal=dirac_goal)
+    maze_process = layer("maze_environment","process",a,b,c,d,e,U,T,Th,in_seed=seed)
+    return maze_process
 
 def get_maze_model_layer(maze_array,start_idx,end_idx,
                          T,Th,initial_tile_confidence=1.0,rs=1.0,la=-2,

@@ -32,23 +32,13 @@ def sample_next_state(rngkey,s_previous,B,u_vect):
     
     return new_s_d,new_s_idx,new_s_vect
 
-def sample_state(key,t,previous_s_vect,previous_u_vect,
-                 B,D):
-    """ 
-    Sample the next state in the HMM. If this is the first timestep, sample from the D matrix. 
-    Static parameter t (obviously)
-    """
-    key, state_key = jr.split(key)
-    if t==0:
-        new_s_d,new_s_idx,new_s_vect = sample_initial_state(state_key,D)
-    else :
-        new_s_d,new_s_idx,new_s_vect = sample_next_state(state_key,previous_s_vect,B,previous_u_vect)
-    return new_s_d,new_s_idx,new_s_vect
+
 
 # EMISSIONS ______________________________________________________________________________________
 def sample_observation(rngkey,A,s) :
     """ Old version """
     Nos = tree_map(lambda x : x.shape[-2],A)
+    
     def compute_o_d_mod(A_m):
         o_mod_d = A_m@s
         return o_mod_d
@@ -66,7 +56,37 @@ def sample_observation(rngkey,A,s) :
     new_o_vect = tree_map(vectorize_o_mod,new_o_idx,Nos)
     return new_o_d,new_o_idx,new_o_vect
 
+# STATES + EMISSIONS _____________________________________________________________________________
+def initial_state_and_obs(rngkey,A,D):
+    rngkey,d_key,a_key = jr.split(rngkey,3)
 
+    s_d,s_idx,s_vect = sample_initial_state(d_key,D)
+    o_d,o_idx,o_vect = sample_observation(a_key,A,s_vect)
+    return [s_d,s_idx,s_vect],[o_d,o_idx,o_vect]
+
+def process_update(rngkey,s_previous,A,B,u_vect):
+    rngkey,s_key,o_key = jr.split(rngkey,3)
+    
+    new_s_d,new_s_idx,new_s_vect = sample_next_state(s_key,s_previous,B,u_vect)
+    
+    new_o_d,new_o_idx,new_o_vect = sample_observation(o_key,A,new_s_vect)
+    
+    return [new_s_d,new_s_idx,new_s_vect],[new_o_d,new_o_idx,new_o_vect]
+
+
+# MANAGING USER DEFINED OUTCOMES ________________________________________________________________
+def sample_state(key,t,previous_s_vect,previous_u_vect,
+                 B,D):
+    """ 
+    Sample the next state in the HMM. If this is the first timestep, sample from the D matrix. 
+    Static parameter t (obviously)
+    """
+    key, state_key = jr.split(key)
+    if t==0:
+        new_s_d,new_s_idx,new_s_vect = sample_initial_state(state_key,D)
+    else :
+        new_s_d,new_s_idx,new_s_vect = sample_next_state(state_key,previous_s_vect,B,previous_u_vect)
+    return new_s_d,new_s_idx,new_s_vect
 
 def sample_emission_modality(rngkey,A_m,s):
     No_m = A_m.shape[-2]
@@ -88,26 +108,6 @@ def sample_emission(rngkey,A,s):
     return mapped_o_d,mapped_o_idx,mapped_o_vect
     # return mapped_o_d,mapped_o_idx,mapped_o_vect
 
-
-# STATES + EMISSIONS _____________________________________________________________________________
-def initial_state_and_obs(rngkey,A,D):
-    rngkey,d_key,a_key = jr.split(rngkey,3)
-
-    s_d,s_idx,s_vect = sample_initial_state(d_key,D)
-    o_d,o_idx,o_vect = sample_observation(a_key,A,s_vect)
-    return [s_d,s_idx,s_vect],[o_d,o_idx,o_vect]
-
-def process_update(rngkey,s_previous,A,B,u_vect):
-    rngkey,s_key,o_key = jr.split(rngkey,3)
-    
-    new_s_d,new_s_idx,new_s_vect = sample_next_state(s_key,s_previous,B,u_vect)
-    
-    new_o_d,new_o_idx,new_o_vect = sample_observation(o_key,A,new_s_vect)
-    
-    return [new_s_d,new_s_idx,new_s_vect],[new_o_d,new_o_idx,new_o_vect]
-
-
-# MANAGING USER DEFINED OUTCOMES ________________________________________________________________
 def check_fixed_outcome(potential_tensor,t):
     """ 
     Does not work with scan ! 
@@ -162,7 +162,8 @@ def fetch_outcome(rngkey,
     return [new_s_d,new_s_idx,new_s_vect],[new_o_d,new_o_idx,new_o_vect]
 
 
-# BASED ON PYRO, TO BE COMPLETED !!
+# BASED ON PYRO
+# Useful for inference when no action can be seen ?
 def process_update_pyro(s_previous,A,B,u_vect):
     """ 
     TODO : Rewrite this to incorporate with the functions above !

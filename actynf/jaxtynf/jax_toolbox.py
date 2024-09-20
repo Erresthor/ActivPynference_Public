@@ -53,6 +53,7 @@ def _normalize_single_tensor(u, axis=0, eps=1e-15):
 # From the dynamax github :
 def _normalize(u, axis=0, eps=1e-15,tree=False):
     """Normalizes the values within the axis in a way that they sum up to 1.
+    Source ; https://github.com/probml/dynamax/blob/main/dynamax/hidden_markov_model/inference.py#L58
 
     Args:
         u: Input array to normalize.
@@ -73,7 +74,8 @@ def _normalize(u, axis=0, eps=1e-15,tree=False):
 def _condition_on(probs, ll, eps = 1e-10):
     """Condition on new emissions, given in the form of log likelihoods
     for each discrete state, while avoiding numerical underflow.
-
+    Source ; https://github.com/probml/dynamax/blob/main/dynamax/hidden_markov_model/inference.py#L58
+    
     Args:
         probs(k): prior for state k
         ll(k): log likelihood for state k

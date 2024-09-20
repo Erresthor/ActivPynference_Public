@@ -69,7 +69,6 @@ def compute_efe_node(t,
 
     return qs_pi_tplus,trial_end_scalar*jnp.sum(EFE_pi_tplus,axis=-1) + vecE
 
-
 def path_heuristic(visited_state_densities,visited_efes):
     """Returns a scalar value that is used as an heuristic to decide if this path should be
     explored further or not. Higher values promise higher neg EFE and are thus more sought-after.

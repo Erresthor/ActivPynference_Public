@@ -343,10 +343,10 @@ def compute_EFE(rngkey,qs_current,start_t,
         Map a K x Ph tensor of EFE onto a K x Np space using a K x Ph x Np mapping rule.
         Unexplored action paths should have a very low EFE !
         Difference with argsort based tree pruning : here, the same branch can be selected twice !
-        
         """ 
         
-        # Project _efes to the Full action space ,normalized by the total density
+        # Project _efes to the Full action space,
+        # normalized by the total density
         # of the branch selected: 
         norm_projected_efe = jnp.einsum("abc,ab->ac",_children_ut,_efe_children)/jnp.sum(_children_ut+_eps,axis=-2)
         

@@ -152,6 +152,7 @@ def compute_EFE(t,Th,filter_end_of_trial,
     # Collapse ! We've moved forward in the tree, let's move backwards and perform successive summations 
     # of EFEs given the predictive action posterior!
     # _________________________________________________________________________________
+    
     # I would like to derive a scan based version of this, but i don't know how to ...
     expected_fe_next_step = jnp.full_like(efe_tree[...,0],jnp.sum(E*jax.nn.softmax(E)))
     for k in range(Th,1,-1):

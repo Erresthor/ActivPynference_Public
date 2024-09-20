@@ -24,9 +24,12 @@ def get_planning_options(
 
 
 def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr_b=1.0,lr_d=1.0,
-                         run_smoother=False,
-                         assume_linear_state_space=False,gen_fadeout_func = (lambda x : jnp.exp(-x))):
+                         method="vanilla+backwards",
+                         state_generalize_function = None,
+                         action_generalize_table = None,
+                         cross_action_extrapolation_coeff = 0.0,em_iterations=4):
     return {
+        "method":method, # "vanilla+backwards","vanilla" or "em"
         "bool":{
             "a":learn_a,
             "b":learn_b,
@@ -41,9 +44,10 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr
             "d":lr_d,
             "e":0.0
         },
-        "smooth_states":run_smoother,
-        "assume_linear_state_space":assume_linear_state_space,
-        "generalize_fadeout_function" : gen_fadeout_func
+        "state_generalize_function" : state_generalize_function,
+        "action_generalize_table" : action_generalize_table,
+        "cross_action_extrapolation_coeff" : cross_action_extrapolation_coeff,
+        "em_iterations" : 4
     }
 
 def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=None):
@@ -59,3 +63,8 @@ DEFAULT_PLANNING_OPTIONS = get_planning_options(2)
 DEFAULT_LEARNING_OPTIONS = get_learning_options()
 
 DEFAULT_ACTION_SELECTION_OPTIONS = get_action_selection_options()
+
+
+
+
+

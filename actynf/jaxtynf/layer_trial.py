@@ -4,8 +4,6 @@ import numpy as np
 import time
 import copy
 import matplotlib.pyplot as plt
-import arviz as az
-import corner  
 
 from functools import partial
 from itertools import product
@@ -39,7 +37,7 @@ EOT_FILTER_CST = 2
 def compute_step_posteriors(t,prior,observation,
                             a,b,c,e,
                             a_novel,b_novel,
-                            Th,filter_end_of_trial,
+                            filter_end_of_trial,
                             rngkey=None,planning_options=DEFAULT_PLANNING_OPTIONS):   
     # State inference for the current timestep
     qs,F = compute_state_posterior(prior,observation,a)
@@ -47,7 +45,7 @@ def compute_step_posteriors(t,prior,observation,
     
     if planning_options["method"]=="sophisticated":
         # filter_end_of_trial = filter_end_of_trial[1:]
-        efe,raw_qpi = policy_posterior_sophisticated(t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_sophisticated(t,filter_end_of_trial,
                                             qs,
                                             a,b,c,e,
                                             a_novel,b_novel,
@@ -55,7 +53,7 @@ def compute_step_posteriors(t,prior,observation,
     elif planning_options["method"]=="classic":
         filter_end_of_trial = filter_end_of_trial[:-EOT_FILTER_CST]
         # Policy planning
-        efe,raw_qpi = policy_posterior_classic(t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_classic(t,filter_end_of_trial,
                                              qs,
                                              a,b,c,e,
                                              a_novel,b_novel,
@@ -66,7 +64,7 @@ def compute_step_posteriors(t,prior,observation,
     
     elif planning_options["method"]=="sophisticated_gumbel":
         rngkey,rng_planning = jr.split(rngkey)
-        efe,raw_qpi = policy_posterior_gumbel(rng_planning,t,Th,filter_end_of_trial,
+        efe,raw_qpi = policy_posterior_gumbel(rng_planning,t,filter_end_of_trial,
                     qs,a,b,c,e,
                     a_novel,b_novel,
                     planning_options)

@@ -13,7 +13,6 @@ from jax import lax,vmap, jit
 import tensorflow_probability.substrates.jax.distributions as tfd
 
 from functools import partial
-from fastprogress.fastprogress import progress_bar
 
 from .jax_toolbox import _normalize
 from .shape_tools import vectorize_weights

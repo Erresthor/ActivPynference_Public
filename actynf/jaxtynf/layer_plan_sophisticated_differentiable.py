@@ -398,7 +398,7 @@ def compute_EFE(rngkey,qs_current,start_t,
 
 
 ### Compute log policy posteriors --------------------------------------------------------------------------------
-def policy_posterior(rngkey,current_timestep,Th,filter_end_of_trial,
+def policy_posterior(rngkey,current_timestep,filter_end_of_trial,
                      qs,vecA,vecB,vecC,vecE,
                      vecA_novel,vecB_novel,
                      planning_options):
@@ -406,6 +406,8 @@ def policy_posterior(rngkey,current_timestep,Th,filter_end_of_trial,
     Ns = qs.shape[-1]
     
     # Extract all the options from the planning_options
+    Th = planning_options["horizon"]
+    
     efe_compute_a_nov = planning_options["a_novelty"]
     efe_compute_b_nov = planning_options["b_novelty"]
     old_efe_computation = planning_options["old_novelty_computation"]

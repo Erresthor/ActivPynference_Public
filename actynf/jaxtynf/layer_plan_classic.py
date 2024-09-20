@@ -176,7 +176,7 @@ def compute_EFE(t,Th,filter_end_of_trial,
 
 ### Compute log policy posteriors --------------------------------------------------------------------------------
 # @partial(jit, static_argnames=['Np','Th','gamma'])
-def policy_posterior(current_timestep,Th,filter_end_of_trial,
+def policy_posterior(current_timestep,filter_end_of_trial,
                      qs,A,B,C,E,A_novel,B_novel,
                      planning_options):
     Np = B.shape[-1]
@@ -184,6 +184,7 @@ def policy_posterior(current_timestep,Th,filter_end_of_trial,
     efe_compute_a_nov = planning_options["a_novelty"]
     efe_compute_b_nov = planning_options["b_novelty"]
     old_efe_computation = planning_options["old_novelty_computation"]
+    Th = planning_options["horizon"]
     
     EFE_per_action,last_action_posterior,predictive_state_posterior = compute_EFE(current_timestep,Th,filter_end_of_trial,
                                                         qs,

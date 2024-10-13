@@ -128,6 +128,9 @@ def get_emission_priors(Nos,Ns,
         
         if type[modality]=="ori":
             emission_builder = lambda x,y: laterality_feedback(x,y,prior_noise_m,n_out_m)
+            
+            
+            # If intensity is 0, the laterality feedback should be random ?
         else :
             if l_erd_int :
                 emission_builder = lambda x,y: intensity_feedback_l_erd(x,y,prior_noise_m,n_out_m)
@@ -224,7 +227,8 @@ def build_full_transition_mapping_with_drift(actions,p_effect,p_lows,Ns,rest_sta
     
     
 
-def get_transition_priors(Ns,p_drift,p_effect,action_ranges,resting_states,
+def get_transition_priors(Ns,p_drift,p_effect,
+                          action_ranges,resting_states,
                           stickinesses,flat_strengths):
     
     # # action_ranges = [jnp.array([-2,-1,0,1,2]),jnp.array([-2,-1,0,1,2])]

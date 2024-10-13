@@ -134,7 +134,7 @@ def EM_jax_one_trial(vec_emission_hist,emission_bool_hist,
                                                                             "two_filter",None)
             # A Ntrials x Ntimesteps x Ns tensor of smoothed state posteriors !
 
-        delta_a,delta_b,_,delta_d,_ = get_parameter_update_iteration(vec_emission_hist,vec_transition_history,
+        delta_a,delta_b,_,delta_d,_ = get_parameter_update_iteration(vec_emission_hist,vec_transition_history,vec_action_hist,
                                                             emission_bool_hist,action_bool_hist,
                                                             smoothed_posteriors_it)
         
@@ -213,7 +213,7 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
                                     "one_filter",hist_qs)
         
         # learning a requires the states to be in vectorized mode
-        da,db,dc,dd,de = get_parameter_update(hist_obs_vect,u_hist_all_f,
+        da,db,dc,dd,de = get_parameter_update(hist_obs_vect,u_hist_all_f,hist_u_vect,
                                 emission_bool_hist,action_bool_hist,
                                 hist_qs_loc,
                                 Ns,Nu,
@@ -225,9 +225,9 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
         final_a = update_prior(pa,da,learn_rates["a"],learn_what["a"])
         final_b = update_prior(pb,db,learn_rates["b"],learn_what["b"])
         final_d = update_prior(pd,dd,learn_rates["d"],learn_what["d"])
+        final_e = update_prior(pe,de,learn_rates["e"],learn_what["e"])
         
-        
-        return final_a,final_b,pc,final_d,pe,hist_qs_loc
+        return final_a,final_b,pc,final_d,final_e,hist_qs_loc
         
     else : 
         raise NotImplementedError("Learning method {} has not been implemented.".format(method))

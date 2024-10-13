@@ -72,6 +72,8 @@ def compute_step_posteriors(t,prior,observation,
         raise NotImplementedError("Scanable planning not yet implemented :(")
     else : 
         raise NotImplementedError("Planning method not yet implemented : " + str(planning_options["method"])) 
+    
+    
     return qs,F,raw_qpi,efe
 
 # Ensure that timesteps outside the trial range are ignored :
@@ -158,7 +160,8 @@ def synthetic_trial(rngkey,T,
         
         # State & policy inference
         # jax.debug.print("observations: {}", observation)
-        qs,F,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel,Th,filter_end_of_trial,
+        qs,F,raw_qpi,efe = compute_step_posteriors(t,prior,observation,a_norm,b_norm,c,e,a_novel,b_novel
+                                                   ,filter_end_of_trial,
                                                  key_agent_plan,planning_options)
         # jax.debug.print("efe: {}", efe)
         
@@ -369,8 +372,8 @@ def empirical(obs_vect,act_vect,
         qs,F,raw_qpi,efe = compute_step_posteriors(t,emp_prior,observation_t,
                                                  a_norm,b_norm,c,e,
                                                  a_novel,b_novel,
-                                                 Th,filter_t,
-                                                 planning_options)
+                                                 filter_t,
+                                                 None,planning_options)
         
         # action_t_vect = action_t
         next_emp_prior = jnp.einsum("iju,j,u->i",b_norm,qs,observed_action_t_vect)

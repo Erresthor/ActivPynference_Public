@@ -43,8 +43,6 @@ def _compute_log_likelihood_multi_mod(A, o_d, timedim=False):
 # Utils :
 def get_log_likelihood_one_observation(o_m,a_m,obs_m_filter=None): 
     # For 2D observation matrices (flattened state space)
-    print(o_m.shape)
-    print(a_m.shape)
     if obs_m_filter is None:
         return _jaxlog(jnp.einsum("ij,i->j",a_m,o_m))
     return _jaxlog(jnp.einsum("ij,i->j",a_m,o_m))*obs_m_filter
@@ -58,7 +56,7 @@ def get_log_likelihood_one_timestep(o,a,obs_filter=None):
         obs_filter (_type_, optional): A list of binary tensors indivating if this observation was indeed seen by the agent. Defaults to None (all observations were seen).
 
     Returns:
-        _type_: A  Nmodalities x  Ns tensor of log likelihoods for this timestep, given a.
+        ll_each_mod: A  Nmodalities x  Ns tensor of log likelihoods for this timestep, given a.
     """
     if obs_filter is None :
         ll_one_mod = partial(get_log_likelihood_one_observation,obs_m_filter=None)
@@ -74,7 +72,7 @@ def get_log_likelihood_all_timesteps(o,a,obs_filter=None):
     Assuming a_m is a matrix of shape Noutcome[modality] x num_states and o_d list of dims of shape  T x Noutcome[modality]
     Each element of o is assumed to be defined along a number of timesteps, and the function will map 
     likelihoods across this dimension.
-    Obs_filters is a list of binary (1 or 0) values indivating wether or not the observation for this modality was available to the
+    Obs_filters is a list of binary (1 or 0) values indicating wether or not the observation for this modality was available to the
     agent.
     """
     ll_each_mod,ll_all_mod = vmap(get_log_likelihood_one_timestep,in_axes=(0,None,0))(o,a,obs_filter) # T x Nmodalities x  Ns,T x Ns
@@ -85,9 +83,10 @@ def get_log_likelihood_all_timesteps(o,a,obs_filter=None):
 @jax.jit
 def compute_state_posterior(state_prior,new_obs,A,obs_filter=None):
     # TODO : introduce more complex state inference methods : Fixed Point Iteration, Variational Filtering, Message Passing 
-    # (If we want to use factorized representations during planning ?)
+    # (If we want to use factorized representations during planning / hierarchical representations ?)
+    
+    # Simple bayesian filter :
     ll_each_mod,ll_all_mod = get_log_likelihood_one_timestep(new_obs,A,obs_filter)
-
     posterior,log_norm = _condition_on(state_prior,ll_all_mod)
     
     # Here, log_norm is the ELBO / negative FE of our model given the data

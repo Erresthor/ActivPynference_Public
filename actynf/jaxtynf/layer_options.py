@@ -23,7 +23,8 @@ def get_planning_options(
     }
 
 
-def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr_b=1.0,lr_d=1.0,
+def get_learning_options(learn_a = False,learn_b=False,learn_d=False,learn_e=False,
+                         lr_a=1.0,lr_b=1.0,lr_d=1.0,lr_e=1.0,
                          method="vanilla+backwards",
                          state_generalize_function = None,
                          action_generalize_table = None,
@@ -35,14 +36,14 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,lr_a=1.0,lr
             "b":learn_b,
             "c":False,  # Not yet implemented
             "d":learn_d,
-            "e":False   # Not yet implemented
+            "e":learn_e
         },
         "rates":{
             "a":lr_a,
             "b":lr_b,
             "c":0.0,
             "d":lr_d,
-            "e":0.0
+            "e":lr_e
         },
         "state_generalize_function" : state_generalize_function,
         "action_generalize_table" : action_generalize_table,

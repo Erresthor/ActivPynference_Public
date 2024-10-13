@@ -42,8 +42,8 @@ def get_delta_b_factor(hist_u,hist_qs,hist_u_bool):
 
 def get_delta_b(hist_u_tree,hist_qs_tree,hist_u_bool,
                 state_generalize_function=None,action_generalize_table=None,cross_action_extrapolation_coeff=0.1):
-    # Dirichlet weight updating
     
+    # Dirichlet weight updating
     get_delta_b_factor_fitlered = partial(get_delta_b_factor,hist_u_bool=hist_u_bool)
     raw_db = tree_map(get_delta_b_factor_fitlered,hist_u_tree,hist_qs_tree)
     
@@ -74,16 +74,14 @@ def get_delta_d(hist_qs_tree):
 # Compute parameter update terms depending on options.
 # This is operated at the trial level !
 # meant to be vectorized along the trial dimension for the first 5 arguments.
-def get_parameter_update(hist_obs_vect,hist_factor_action_vect,
+def get_parameter_update(hist_obs_vect,hist_factor_action_vect,hist_u_vect,
                          hist_obs_bool,hist_factor_action_bool,
                         smoothed_posteriors,
                         Ns,Nu,
                         state_generalize_function=None,action_generalize_table=None,cross_action_extrapolation_coeff=0.1):
     r"""
     - Ns is the hidden state space shape.
-    """    
-    print(smoothed_posteriors.shape)
-
+    """
     
     # Warning ! When we missed observations or actions, we can't use it to 
     # update our parameters ! 
@@ -106,7 +104,7 @@ def get_parameter_update(hist_obs_vect,hist_factor_action_vect,
     # (but should probably be guided by hierarchical processes anyways)... 
     delta_c = tree_map(lambda x : jnp.zeros((x.shape[-1])),hist_obs_vect)
     
-    delta_e = jnp.zeros((Nu,))
+    delta_e = hist_u_vect # jnp.zeros((Nu,))
         
     return delta_a,delta_b,delta_c,delta_d,delta_e
 

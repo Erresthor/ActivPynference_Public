@@ -178,11 +178,30 @@ def extrapolate_deltab(db_all_timesteps,
         db_all_timesteps = db_all_timesteps + extrapolated_other_states
     
     return db_all_timesteps
+
+
+
+if __name__ == "__main__":
+    db = jnp.expand_dims(jnp.array([
+        [0,0,0],
+        [10,0,0],
+        [0,9,1]
+    ]),-1)
     
     
-#     
-#     db_gen_across_states = generalize_across_states(db_all_timesteps,generalize_state_function)
+    lmbda = -1.0
+    
+    state_gen_func = lambda x : jnp.exp(lmbda*x)
+    
+    extrp_db = generalize_across_states(db,state_gen_func,
+                            return_extrapolated_only = True)
+    
+    print(extrp_db[...,0])
     
     
+    extrp_db = extrapolate_deltab(db,
+                       generalize_state_function=state_gen_func,
+                       generalize_action_table=None,cross_action_extrapolation_coeff=0.1,option_clip=False)
     
-#     return pb + lr_b*gen_db
+    
+    print(extrp_db[...,0])

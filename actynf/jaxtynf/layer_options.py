@@ -48,7 +48,7 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,learn_e=Fal
         "state_generalize_function" : state_generalize_function,
         "action_generalize_table" : action_generalize_table,
         "cross_action_extrapolation_coeff" : cross_action_extrapolation_coeff,
-        "em_iterations" : 4
+        "em_iterations" : em_iterations
     }
 
 def get_action_selection_options(selection_method="stochastic",alpha = 16,gamma=None):

@@ -28,13 +28,17 @@ def update_prior(prior,delta,lr=1.0,learn_bool=True):
             return _prior_k+_lr_k*_delta_k
         else :
             return _prior_k
-        
-    if type(learn_bool) != list:
-        learn_bool = [learn_bool for k in prior]
-    if type(lr) != list :
-        lr = [lr for k in prior]
     
-    return tree_map(_update_function_element,prior,delta,lr,learn_bool)
+    if type(prior)==list:
+        if type(learn_bool) != list:
+            learn_bool = [learn_bool for k in prior]
+        
+        if type(lr) != list :
+            lr = [lr for k in prior]
+        
+        return tree_map(_update_function_element,prior,delta,lr,learn_bool)
+    else :
+        return _update_function_element(prior,delta,lr,learn_bool)
         
 
 # _______________________________________________________________________________________

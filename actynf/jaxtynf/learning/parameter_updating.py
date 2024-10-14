@@ -104,7 +104,7 @@ def get_parameter_update(hist_obs_vect,hist_factor_action_vect,hist_u_vect,
     # (but should probably be guided by hierarchical processes anyways)... 
     delta_c = tree_map(lambda x : jnp.zeros((x.shape[-1])),hist_obs_vect)
     
-    delta_e = hist_u_vect # jnp.zeros((Nu,))
+    delta_e = jnp.sum(hist_u_vect,axis=0) # jnp.zeros((Nu,))
         
     return delta_a,delta_b,delta_c,delta_d,delta_e
 

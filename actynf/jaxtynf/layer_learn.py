@@ -20,6 +20,8 @@ from .shape_tools import vectorize_weights
 from .learning.parameter_updating import get_parameter_update
 from .learning.smoothing import smooth_trial
 
+from .learning.parameter_updating import get_delta_a,get_delta_b,get_delta_d
+from .shape_tools import to_source_space
 
 def update_prior(prior,delta,lr=1.0,fr=0.0,learn_bool=True):
     
@@ -64,7 +66,10 @@ def vectorize_factorwise_allowable_actions(_u,_B):
     
 def posterior_transition_index_factor(transition_dict,posterior):
     def posterior_transition_factor(allowable_action_factor):
-        return jnp.einsum("ij,ti->tj",allowable_action_factor,posterior)
+        if posterior.ndim == 2:
+            return jnp.einsum("ij,ti->tj",allowable_action_factor,posterior)
+        else :
+            return jnp.einsum("ij,i->j",allowable_action_factor,posterior)
     return tree_map(posterior_transition_factor,transition_dict)
 # _______________________________________________________________________________________
 
@@ -247,41 +252,43 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
         raise NotImplementedError("Learning method {} has not been implemented.".format(method))
     
         
-def learn_during_trial(hist_obs_vect,hist_qs,hist_u_vect,
-          pa,pb,pc,pd,pe,U,
-          learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
-          learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
-          forget_rates = {"a":0.0,"b":0.0,"c":0.0,"d":0.0,"e":0.0},
-          generalize_state_function=None,generalize_action_table=None,
-          cross_action_extrapolation_coeff=0.1): 
+def learn_during_trial(last_obs_vect,previous_posterior_vect,new_posterior_vect,
+        last_u_vect,
+        pa,pb,pe,U,
+        learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
+        learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
+        forget_rates = {"a":0.0,"b":0.0,"c":0.0,"d":0.0,"e":0.0},
+        generalize_state_function=None,generalize_action_table=None,
+        cross_action_extrapolation_coeff=0.1): 
     """ 
     A basic weight updating scheme to ensure on policy (temporary) weight updating. 
     """
-       
     Nu,Nf = U.shape                                
     Ns = pa[0].shape[1:] # This is the shape of the hidden state space (fixed for this model)
-    
     
     # This is constant across trials (For each action, what is the encoded factor transition)
     # TODO : integrate into a class
     u_all = vectorize_factorwise_allowable_actions(U,pb)
     
     # This changes every trial : actual history of encoded factor transition 
-    u_hist_all_f = posterior_transition_index_factor(u_all,hist_u_vect)
+    last_u_vect_exp = jnp.expand_dims(last_u_vect,0)
+    u_hist_all_f = posterior_transition_index_factor(u_all,last_u_vect_exp)
         
-    # Assuming that we saw all actions & emissions :
-    emission_bool_hist = [jnp.ones(o_d.shape[:-1]) for o_d in hist_obs_vect]
-    action_bool_hist = jnp.ones_like(hist_u_vect[:,0])
-        
-    # learning a requires the states to be in vectorized mode
-    da,db,dc,dd,de = get_parameter_update(hist_obs_vect,u_hist_all_f,hist_u_vect,
-                            emission_bool_hist,action_bool_hist,
-                            hist_qs,
-                            Ns,Nu,
-                            state_generalize_function=generalize_state_function,
-                            action_generalize_table=generalize_action_table,
-                            cross_action_extrapolation_coeff=cross_action_extrapolation_coeff)
-
+    # Assuming that we saw the last actions & emissions :
+    
+    last_obs_vect_exp = [jnp.expand_dims(lov,0) for lov in last_obs_vect]
+    emission_bool_hist = [jnp.array([1.0]) for o_d in last_obs_vect]
+    action_bool_hist = jnp.array([1.0])
+    da = get_delta_a(last_obs_vect_exp,emission_bool_hist,jnp.expand_dims(new_posterior_vect,0),Ns)
+    
+    
+    posteriors= jnp.vstack((previous_posterior_vect,new_posterior_vect))
+    factorized_posteriors = vmap(lambda x : to_source_space(x,Ns))(posteriors)
+    db = get_delta_b(u_hist_all_f,factorized_posteriors,
+                     action_bool_hist,generalize_state_function,generalize_action_table,
+                     cross_action_extrapolation_coeff)
+    
+    de = last_u_vect
     final_a = update_prior(pa,da,learn_rates["a"],forget_rates["a"],learn_what["a"])
     final_b = update_prior(pb,db,learn_rates["b"],forget_rates["b"],learn_what["b"])
     final_e = update_prior(pe,de,learn_rates["e"],forget_rates["e"],learn_what["e"])

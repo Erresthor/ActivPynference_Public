@@ -2,7 +2,7 @@ import setuptools
 
 setuptools.setup(
     name='active_pynference',
-    version='0.1.8',    
+    version='0.1.43',    
     description='A Python implementation of an Active Inference engine using Sophisticated Inference.',
     url='https://github.com/Erresthor/ActivPynference_Public',
     author='Come Annicchiarico',
@@ -13,8 +13,7 @@ setuptools.setup(
     install_requires=['numpy',
                     'scipy',
                     'matplotlib',
-                    'pillow',
-                    'jax'
+                    'pillow'                
                     ],
     keywords=[
         "artificial intelligence",
@@ -25,8 +24,8 @@ setuptools.setup(
         "MDP",
         "Markov Decision Process",
         "Bayesian inference",
-        "Variational Inference",
-        "Reinforcement Learning"
+        "variational inference",
+        "reinforcement learning"
     ],
     classifiers=[
         'Development Status :: 4 - Beta',

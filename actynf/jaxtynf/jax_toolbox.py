@@ -13,11 +13,23 @@ from itertools import product
 
 import tensorflow_probability.substrates.jax.distributions as tfd
 
+
+# To work with pytrees:
 def none_like_tree(target):
     return tree_map(lambda x: None, target)
 
 def zero_like_tree(target):
     return tree_map(lambda x: jnp.zeros_like(x), target)
+
+def random_split_like_tree(rng_key, target=None, treedef=None):
+    """
+    From : https://github.com/google/jax/discussions/9508
+    """
+    if treedef is None:
+        treedef = jax.tree_util.tree_structure(target)
+    keys = jax.random.split(rng_key, treedef.num_leaves)
+    return jax.tree_util.tree_unflatten(treedef, keys)
+
 
 def tensorify(*args):
     """ A very ugly function that transforms numpy arrays into jax tensors, while conserving list structures."""
@@ -132,15 +144,6 @@ def spm_wnorm(A,eps=1e-10):
     avg = 1. / A
     wA = norm - avg
     return wA
-
-def random_split_like_tree(rng_key, target=None, treedef=None):
-    """
-    From : https://github.com/google/jax/discussions/9508
-    """
-    if treedef is None:
-        treedef = jax.tree_util.tree_structure(target)
-    keys = jax.random.split(rng_key, treedef.num_leaves)
-    return jax.tree_util.tree_unflatten(treedef, keys)
 
 def convert_to_one_hot_list(list_of_idxs,list_of_shapes):
     mapped_func = (lambda x_idx,x_shape : jax.nn.one_hot(x_idx,x_shape))

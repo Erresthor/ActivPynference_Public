@@ -117,14 +117,14 @@ def generalize_across_actions(db_all_timesteps,gen_table,
 # CROSS STATES GENERALIZATION ___________________________________________________________________________________
 
 # To generalize action mappings in linear state spaces
-def weighted_padded_roll(matrix,generalize_fadeout):
+def weighted_padded_roll(matrix,generalize_fadeout,roll_axes=[-1,-2]):
     assert matrix.ndim == 2,"Weighted Padded Roll only implemented for 2D arrays"
     K = matrix.shape[0]
     roll_limit = K
     
     padded_matrix = jnp.pad(matrix,((K,K),(K,K)),mode="constant",constant_values=0)
      
-    rolling_func = lambda k : jnp.roll(padded_matrix,k,[-1,-2])*generalize_fadeout(jnp.abs(k))
+    rolling_func = lambda k : jnp.roll(padded_matrix,k,roll_axes)*generalize_fadeout(jnp.abs(k))
     
     all_rolled = vmap(rolling_func)(jnp.arange(-roll_limit,roll_limit+1))
     
@@ -134,7 +134,6 @@ def weighted_padded_roll(matrix,generalize_fadeout):
     new_db = all_rolled.sum(axis=-3)
     
     return new_db
-
 
 def generalize_across_states(db_all_timesteps,generalize_function,
                             return_extrapolated_only = True):

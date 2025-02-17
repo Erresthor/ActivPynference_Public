@@ -21,24 +21,32 @@ from .learning.parameter_updating import get_parameter_update
 from .learning.smoothing import smooth_trial
 
 
-def update_prior(prior,delta,lr=1.0,learn_bool=True):
+def update_prior(prior,delta,lr=1.0,fr=0.0,learn_bool=True):
     
-    def _update_function_element(_prior_k,_delta_k,_lr_k,_bool_k):
+    def _update_function_element(_prior_k,_delta_k,_lr_k,_fr_k,_bool_k):
         if _bool_k :
-            return _prior_k+_lr_k*_delta_k
+            return (1.0-_fr_k)*_prior_k+_lr_k*_delta_k
+        
         else :
             return _prior_k
     
     if type(prior)==list:
+        
+        # Ensure matching formats for tree_map :
         if type(learn_bool) != list:
             learn_bool = [learn_bool for k in prior]
         
         if type(lr) != list :
             lr = [lr for k in prior]
+            
+        if type(fr) != list :
+            fr = [fr for k in prior]
         
-        return tree_map(_update_function_element,prior,delta,lr,learn_bool)
+        return tree_map(_update_function_element,prior,delta,lr,fr,learn_bool)
     else :
-        return _update_function_element(prior,delta,lr,learn_bool)
+        
+        # Assuming all elements are scalar
+        return _update_function_element(prior,delta,lr,fr,learn_bool)
         
 
 # _______________________________________________________________________________________
@@ -69,6 +77,7 @@ def EM_jax_one_trial(vec_emission_hist,emission_bool_hist,
            N_iterations = 16,
            learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
            learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
+           forget_rates = {"a":0.0,"b":0.0,"c":0.0,"d":0.0,"e":0.0},
            state_generalize_function=None,action_generalize_table=None,cross_action_extrapolation_coeff=0.1):
     """EM algorithm for a HMM using a history of observations and actions for a single trial.
 
@@ -142,9 +151,9 @@ def EM_jax_one_trial(vec_emission_hist,emission_bool_hist,
                                                             emission_bool_hist,action_bool_hist,
                                                             smoothed_posteriors_it)
         
-        _new_a = update_prior(true_a_prior,delta_a,learn_rates["a"],learn_what["a"])
-        _new_b = update_prior(true_b_prior,delta_b,learn_rates["b"],learn_what["b"])
-        _new_d = update_prior(true_d_prior,delta_d,learn_rates["d"],learn_what["d"])
+        _new_a = update_prior(true_a_prior,delta_a,learn_rates["a"],forget_rates["a"],learn_what["a"])
+        _new_b = update_prior(true_b_prior,delta_b,learn_rates["b"],forget_rates["b"],learn_what["b"])
+        _new_d = update_prior(true_d_prior,delta_d,learn_rates["d"],forget_rates["d"],learn_what["d"])
         
         return (_new_a,_new_b,_new_d),(smoothed_posteriors_it,ll_trials_it)
 
@@ -167,6 +176,7 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
           method="vanilla",
           learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
           learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
+          forget_rates = {"a":0.0,"b":0.0,"c":0.0,"d":0.0,"e":0.0},
           generalize_state_function=None,generalize_action_table=None,
           cross_action_extrapolation_coeff=0.1,em_iter = 4): 
        
@@ -226,10 +236,10 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
                                 cross_action_extrapolation_coeff=cross_action_extrapolation_coeff)
         
         
-        final_a = update_prior(pa,da,learn_rates["a"],learn_what["a"])
-        final_b = update_prior(pb,db,learn_rates["b"],learn_what["b"])
-        final_d = update_prior(pd,dd,learn_rates["d"],learn_what["d"])
-        final_e = update_prior(pe,de,learn_rates["e"],learn_what["e"])
+        final_a = update_prior(pa,da,learn_rates["a"],forget_rates["a"],learn_what["a"])
+        final_b = update_prior(pb,db,learn_rates["b"],forget_rates["b"],learn_what["b"])
+        final_d = update_prior(pd,dd,learn_rates["d"],forget_rates["d"],learn_what["d"])
+        final_e = update_prior(pe,de,learn_rates["e"],forget_rates["e"],learn_what["e"])
         
         return final_a,final_b,pc,final_d,final_e,hist_qs_loc
         
@@ -237,7 +247,46 @@ def learn_after_trial(hist_obs_vect,hist_qs,hist_u_vect,
         raise NotImplementedError("Learning method {} has not been implemented.".format(method))
     
         
+def learn_during_trial(hist_obs_vect,hist_qs,hist_u_vect,
+          pa,pb,pc,pd,pe,U,
+          learn_what={"a":True,"b":True,"c":False,"d":True,"e":False},
+          learn_rates={"a":1.0,"b":1.0,"c":0.0,"d":1.0,"e":0.0},
+          forget_rates = {"a":0.0,"b":0.0,"c":0.0,"d":0.0,"e":0.0},
+          generalize_state_function=None,generalize_action_table=None,
+          cross_action_extrapolation_coeff=0.1): 
+    """ 
+    A basic weight updating scheme to ensure on policy (temporary) weight updating. 
+    """
+       
+    Nu,Nf = U.shape                                
+    Ns = pa[0].shape[1:] # This is the shape of the hidden state space (fixed for this model)
     
+    
+    # This is constant across trials (For each action, what is the encoded factor transition)
+    # TODO : integrate into a class
+    u_all = vectorize_factorwise_allowable_actions(U,pb)
+    
+    # This changes every trial : actual history of encoded factor transition 
+    u_hist_all_f = posterior_transition_index_factor(u_all,hist_u_vect)
+        
+    # Assuming that we saw all actions & emissions :
+    emission_bool_hist = [jnp.ones(o_d.shape[:-1]) for o_d in hist_obs_vect]
+    action_bool_hist = jnp.ones_like(hist_u_vect[:,0])
+        
+    # learning a requires the states to be in vectorized mode
+    da,db,dc,dd,de = get_parameter_update(hist_obs_vect,u_hist_all_f,hist_u_vect,
+                            emission_bool_hist,action_bool_hist,
+                            hist_qs,
+                            Ns,Nu,
+                            state_generalize_function=generalize_state_function,
+                            action_generalize_table=generalize_action_table,
+                            cross_action_extrapolation_coeff=cross_action_extrapolation_coeff)
+
+    final_a = update_prior(pa,da,learn_rates["a"],forget_rates["a"],learn_what["a"])
+    final_b = update_prior(pb,db,learn_rates["b"],forget_rates["b"],learn_what["b"])
+    final_e = update_prior(pe,de,learn_rates["e"],forget_rates["e"],learn_what["e"])
+    
+    return final_a,final_b,final_e    
     
 
 if __name__ == "__main__":

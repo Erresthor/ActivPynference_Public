@@ -44,8 +44,8 @@ def get_delta_b(hist_u_tree,hist_qs_tree,hist_u_bool,
                 state_generalize_function=None,action_generalize_table=None,cross_action_extrapolation_coeff=0.1):
     
     # Dirichlet weight updating
-    get_delta_b_factor_fitlered = partial(get_delta_b_factor,hist_u_bool=hist_u_bool)
-    raw_db = tree_map(get_delta_b_factor_fitlered,hist_u_tree,hist_qs_tree)
+    get_delta_b_factor_filtered = partial(get_delta_b_factor,hist_u_bool=hist_u_bool)
+    raw_db = tree_map(get_delta_b_factor_filtered,hist_u_tree,hist_qs_tree)
     
     
     # And possible generalization

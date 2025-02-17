@@ -25,6 +25,7 @@ def get_planning_options(
 
 def get_learning_options(learn_a = False,learn_b=False,learn_d=False,learn_e=False,
                          lr_a=1.0,lr_b=1.0,lr_d=1.0,lr_e=1.0,
+                         fr_a=0.0,fr_b=0.0,fr_d=0.0,fr_e=0.0,
                          method="vanilla+backwards",
                          state_generalize_function = None,
                          action_generalize_table = None,
@@ -38,12 +39,19 @@ def get_learning_options(learn_a = False,learn_b=False,learn_d=False,learn_e=Fal
             "d":learn_d,
             "e":learn_e
         },
-        "rates":{
+        "learning_rates":{
             "a":lr_a,
             "b":lr_b,
             "c":0.0,
             "d":lr_d,
             "e":lr_e
+        },
+        "forgetting_rates":{
+            "a":fr_a,
+            "b":fr_b,
+            "c":0.0,
+            "d":fr_d,
+            "e":fr_e
         },
         "state_generalize_function" : state_generalize_function,
         "action_generalize_table" : action_generalize_table,

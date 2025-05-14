@@ -48,7 +48,8 @@ of future states using a tree.
 
 import numpy as np
 
-from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax, prune_tree_auto
+from ..base.function_toolbox import normalize,spm_dot, nat_log,softmax
+from ..base.planning_helpers import prune_tree_auto
 from ..base.miscellaneous_toolbox import isField,flexible_copy
 
 def spm_forwards(O,P_t,U,layer_variables,t,
@@ -213,14 +214,13 @@ def spm_forwards(O,P_t,U,layer_variables,t,
     if (t<N): # t within temporal horizon
         u = softmax(np.sum(G,axis=1))
 
-        if (isField(cap_action_explo)):
-            idx_action_to_explore = prune_tree_auto(u,cap_action_explo,DETERMINISTIC_PRUNING,layer_RNG,plausible_threshold=plausible_threshold,
-                                                    deterministic_shuffle_between_equal_vals = True)
-            idx_action_to_explore = [i[0] for i in idx_action_to_explore] # Convert tuple to int
-            mask_action_not_explored = [not(i in idx_action_to_explore) for i in range(u.shape[0])]
-        else :
-            mask_action_not_explored = (u<plausible_threshold)
+
+        idx_action_to_explore = prune_tree_auto(u,layer_RNG,cap_action_explo,
+                                                plausible_threshold=plausible_threshold,
+                                                deterministic = DETERMINISTIC_PRUNING)[:,0]
         
+        
+        mask_action_not_explored = [not(i in idx_action_to_explore) for i in range(u.shape[0])]        
         u[mask_action_not_explored] = 0
         G[:,5][mask_action_not_explored] = -1000
 
@@ -231,27 +231,21 @@ def spm_forwards(O,P_t,U,layer_variables,t,
             if (u[action]>=plausible_threshold): #If this action is plausible
                 dist_state_to_explore = Q[action]
 
-                if (isField(cap_state_explo)):
-                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=plausible_threshold,
-                                                           deterministic_shuffle_between_equal_vals = True)
-                    idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
-                    if(idx_state_to_explore.size == 0):
-                        idx_state_to_explore = prune_tree_auto(dist_state_to_explore,cap_state_explo,DETERMINISTIC_PRUNING,plausible_threshold=(1.0/Q[action].shape[0]),
-                                                                deterministic_shuffle_between_equal_vals = True)
-                        idx_state_to_explore = np.array([i[0] for i in idx_state_to_explore]) # Convert tuple to int
-                else :
-                    idx_state_to_explore = np.where(dist_state_to_explore>plausible_threshold)[0] 
-                    if(idx_state_to_explore.size == 0):
-                        plausible_threshold = (1.0/Q[action].shape[0]) # dynamic threshold !
-                        idx_state_to_explore = np.where(dist_state_to_explore>plausible_threshold)[0] 
+                idx_state_to_explore = prune_tree_auto(dist_state_to_explore,layer_RNG,cap_state_explo,
+                                                        plausible_threshold=plausible_threshold,
+                                                        deterministic = DETERMINISTIC_PRUNING)[:,0]
+                if(idx_state_to_explore.size == 0):
+                    idx_state_to_explore = prune_tree_auto(dist_state_to_explore,layer_RNG,cap_state_explo,
+                                                        plausible_threshold=(1.0/Q[action].shape[0]),
+                                                        deterministic = DETERMINISTIC_PRUNING)[:,0]
 
                 K = np.zeros((Q[0].shape))
-                for index in idx_state_to_explore :
+                for index in idx_state_to_explore :                    
                     for modality in range (Nmod):
                         O[modality] = flatten_a[modality][:,index]
 
                     #prior over subsequent action under this hidden state
-                    #-------------------------------""---------------------------
+                    #----------------------------------------------------------
                     P_next_t = Q[action]
                     
 

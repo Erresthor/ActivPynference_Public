@@ -1,8 +1,6 @@
 import numpy as np
 
 from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
-from ..base.function_toolbox import normalize
-from .utils import check_prompt_shape,reorder_axes
 
 
 class link_function:

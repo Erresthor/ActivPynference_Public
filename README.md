@@ -9,19 +9,24 @@ This package started off as a simple Python port of the Wellcome Centre for Huma
 ![status](https://img.shields.io/badge/status-active-green)
 ![Static Badge](https://img.shields.io/badge/python->=3.10-blue?logo=python)
 ![License](https://img.shields.io/badge/license-MIT-yellow)
-![Accessibility](https://img.shields.io/badge/Accessible_on-TestPypi-orange?link=https%3A%2F%2Ftest.pypi.org%2Fproject%2Factive-pynference%2F)
+![Accessibility](https://img.shields.io/badge/Accessible_on-Pypi-green?link=https://pypi.org/project/active-pynference/)
 ![Publication](https://img.shields.io/badge/Published-No-red)
 
 
-What you can do using <b>active-pynference</b> :
-- Build your own Markov Decision Processes - based environments
-- Build Active-Inference models of those environments
-- <i>Link</i> those process and model together to simulate environments and various subject models structures
+What you can do using <b>actynf</b> :
+- Build your own synthetic environments based on Markov Decision Processes using the *layer* class.
+- Build Active-Inference models of those environments using the same *layer* class !
+- Build networks of *layers* by creating *links* between them ! 
 - Run simulations of agent behaviour & learning
 
+We recently introduced a **Jaxified** version of Sophisticated Inference. Now, you can also : 
+- JIT & Vectorize Sophisticated Inference simulations to make them faster !
+- Use Inference librairies such as [numpyro](https://num.pyro.ai/en/latest/index.html#introductory-tutorials) to perform Bayesian Inference on empirical data and fit these models !  
+
 What you cannot do (yet):
-- Use the classical policy comparison scheme (SPM12's MDP_VB_X)
-- Fit experimental data to find the optimal parameters
+- Build hierarchical planning networks : layers receiving their observations from lower rank layers AND trying to plan actions (work in progress !).
+- Perform structure learning
+- Run the classical Active Inference (Policy comparison) scheme ... But you can [here](https://github.com/infer-actively/pymdp/tree/master) !
 - Find [the answer to life the universe and everything](https://en.wikipedia.org/wiki/42_(number))
 
 
@@ -70,7 +75,7 @@ An agent is tasked with reaching a target cell in a complex "soft" maze. Contrar
 <!-- ![Image1](demos/local_resources/mazex/renders/maze_explor_0.1.png) -->
 
 In this plot, the background represents the agent's final perception of the maze, with each cell's background reflecting the agent belief about the state of a cell (adversive = dark cells, neutral = bright cells).
-We also plot the firstr 20 trajectories of the agent. The first ones are blue-ish, and the later ones are red-ish.
+We also plot the first 20 trajectories of the agent. The first ones are blue-ish, and the later ones are red-ish.
 
 <img src="demos/local_resources/mazex/renders/without_novelty_seeking.png" width="400">
 <!-- ![Image2](demos/local_resources/mazex/renders/without_novelty_seeking.png) -->

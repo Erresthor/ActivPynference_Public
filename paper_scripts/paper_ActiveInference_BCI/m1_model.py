@@ -114,12 +114,12 @@ def subject_model(T,Th,
                  T,Th)
     
     model_layer.learn_options.learn_a = learn_a
-
+    model_layer.hyperparams.a_novelty = learn_a
+    
     model_layer.learn_options.learn_b = True
+    model_layer.hyperparams.b_novelty = True
+    
     model_layer.learn_options.backwards_pass = False 
-        # Weither or not to perform a a posteriori 
-        # belief update using latter states inferences
-        # Seems bugged for now, be careful
 
     model_layer.learn_options.learn_c = False
     model_layer.learn_options.learn_d = True

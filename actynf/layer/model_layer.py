@@ -7,16 +7,16 @@ import copy
 from ..base.miscellaneous_toolbox import isField,listify,flexible_copy
 from ..base.function_toolbox import normalize ,spm_dot, spm_kron, spm_wnorm, nat_log , spm_psi, softmax,spm_dekron
 from ..base.function_toolbox import sample_distribution,spm_complete_margin
-from ..base.miscellaneous_toolbox  import flatten_last_n_dimensions,pop_by_id
+from ..base.miscellaneous_toolbox  import flatten_last_n_dimensions
 
 from ..enums import NO_MEMORY_DECAY,NO_STRUCTURE
 
 from .parameters.hyperparameters import hyperparameters
 from .parameters.learning_parameters import learning_parameters
-# from .spm_forwards import spm_forwards
 from .spm_forwards_decompose_G import spm_forwards
 from .layer_learn import learn_from_experience
 from .policy_tree import policy_tree_node
+from .model_avg_utils import kronecker_to_joint,joint_to_kronecker
 
 from .utils import dist_from_definite_outcome,minus1_in_arr
 from .layer_components import layer_output,layer_input
@@ -61,6 +61,10 @@ class layer_variables :
             b_complex_kron.append(1)
             for f in range(layer.Nf):
                 b_kron[k] = spm_kron(b_kron[k],b_norm[f][:,:,layer.U[k,f]])
+                
+                # Warning, this is only true for one factor state spaces.
+                # For multiple state factors : 
+                # - Either use the kronecker sum trick (see jax_methods/shape_tools.py)
                 b_complex_kron[k] = spm_kron(b_complex_kron[k],b_complexity[f][:,:,layer.U[k,f]])                
 
         # prior over initial states d/D
@@ -230,8 +234,11 @@ class mdp_layer :
     I am a MDP layer. I operate independently.
     This is a very generic class with generic components, which can be used both for generative process AND model.
     
+    Process :
     observations ----> [ layer ] ----> q_s and q_pi
 
+    
+    
     action + state ---> [ layer ] ---> observation / observation distr
 
     notable functions : 
@@ -240,7 +247,12 @@ class mdp_layer :
     
     
     NOTE : a layer is defined by a single action modality, but as many state factors & observation modalities as you want !
+    
+    
+    TODO : create separate classes for layer process and layer model
+    both inherinting from the basic prerun, postrun and tick methods !
     """
+    
     # Agent constructor
     def __init__(self,name,mode="model",
                  A = None,B=None,C=None,D=None,E=None,
@@ -252,7 +264,8 @@ class mdp_layer :
         self.name = name
         self.verbose = False
         self.debug = False
-
+        
+        # Network structure
         self.sources = []  # Where I get my information from !
         self.dependent = [] # Where I send my output !
 
@@ -264,13 +277,9 @@ class mdp_layer :
         self.RNG = None
         self.reseed()
 
+        # TODO : create children classes for each ?
         assert (mode == "model" or mode=="process"),"The layer should either be a process or a model ! (currently " + str(mode) + ")"
         self.layerMode = (layerMode.MODEL if mode=="model" else layerMode.PROCESS)
-
-        # self.update_frequency = 1 # ]0,1] 
-                # --> At most, you can be updated once every loop, at worst, only once in total$
-                # Could be a probability of being selected every loop, describe cognitive processes at different timescales
-                # To be implemented
         
         # Layer simulation parameters 
         self.t = 0          # The current time step, if t==T, the experience is over  
@@ -359,10 +368,7 @@ class mdp_layer :
     def check(self):
         if(self.name == '') :
             self.name = 'unnamed_layer'
-
-        
-        
-        
+ 
         pcmm = "" #potential_component_missing_message
         if not(isField(self.a)): pcmm += self.name +" : A not filled in " +  "\n"
         if not(isField(self.b)): pcmm += self.name +" : B not filled in " +  "\n"
@@ -488,61 +494,9 @@ class mdp_layer :
     
     def __str__(self):
         return "LAYER " + self.name + " : \n " + self.get_dimension_report() + "\n##################################################\n" + self.getCurrentMatrices() + "##################################################"
-      
-    # Utilitaries
-    def factorwise_action_model_average(self, action_distribution):
-        return_this_matrix_list = []
-        for factor in range(self.Nf):
-            sum_of_matrices = 0
-            for policy in range(self.Np):
-                action_K_done = self.U[policy,factor]
-                prob_action_K = action_distribution[policy]
-                sum_of_matrices += prob_action_K*self.var.b[factor][:,:,action_K_done]
-            return_this_matrix_list.append(normalize(sum_of_matrices))
-        return return_this_matrix_list
-
-    def kronecker_action_model_average(self, action_distribution, just_slice=False):
-        if (just_slice):
-            action_id = action_distribution
-            return self.var.b_kron[action_id]
-        else:
-            kron_b_arr = np.array(self.var.b_kron)
-            return np.average(kron_b_arr,axis=0,weights=action_distribution)
-
-    def get_factorwise_actions(self,at_time=0):
-        assert at_time<self.T-1,"Can't get kronecker form of hidden states at time " + at_time + " (Temporal horizon reached)"
-        return (self.U[self.STM.u[at_time],:]).tolist()
-
-    def get_kron_state_at_time(self,at_time=0):
-        assert at_time<self.T,"Can't get kronecker form of hidden states at time " + at_time + " (Temporal horizon reached)"
-        if (self.STM.is_value_exists("x_d",at_time)):
-            return self.joint_to_kronecker(self.STM.x_d[...,at_time])
-        else : 
-            return spm_kron(self.var.d)
-
-    def joint_to_kronecker(self,joint):
-        """ Warning ! For a single timestep."""
-        return joint.flatten('C')
-
-    def joint_to_kronecker_accross_time(self,joint):
-        return joint.reshape(-1, joint.shape[-1]) # I don't like it but I'm too lazy to change this
     
-    def kronecker_to_joint(self,x_kron):
-        return np.reshape(x_kron,self.Ns,'C')
     
-    def kronecker_to_joint_accross_time(self,x_kron):
-        return np.reshape(x_kron,self.Ns + [-1],'C')
-
-    def dekron_state(self,x_kron,at_time=0):
-        assert at_time<self.T,"Can't get kronecker form of hidden states at time " + at_time + " (Temporal horizon reached)"
-        return  spm_dekron(x_kron[at_time],tuple(self.Ns))
     
-    def get_total_number_of_hidden_states(self):
-        total = 1
-        for k in range(len(self.Ns)):
-            total = total*self.Ns[k]
-        return total
-
     # Ticks
     def use_inputs_to_populate_STM(self):
         """ 
@@ -553,16 +507,10 @@ class mdp_layer :
         """
         t = self.t 
         T = self.T
-
+                
         if(self.inputs.is_input_memory_empty()):
-            # print()
-            # print(self.name)
-            # print("MEMORY EMPTY")
-            if (t==0):
-                if (self.verbose):
-                    print("No inputs to this layer. This ought to be the initial step of the generative process.")
-            # This may be normal, if there is only one action possible : 
-            else : 
+            if (t>0):                    
+                # This may be normal, if there is only one action possible : 
                 only_one_action_possible = (self.U.shape[0]==1)
                 if only_one_action_possible:
                     self.STM.u[t-1] = 0
@@ -571,6 +519,7 @@ class mdp_layer :
                     return
                 else :  
                     raise ValueError("No valid inputs were detected for the layer at time "+str(t)+". The layer can't be updated.")
+        
         
         if (isField(self.inputs.val_o_d)):
             assert self.STM.o_d[...,t].shape == self.inputs.val_o_d.shape ,"Observation dist input size " + str(self.inputs.val_o_d.shape) + " should fit layer awaited outcome size " + str(self.STM.o_d[...,t].shape) + " ."
@@ -642,6 +591,9 @@ class mdp_layer :
                     U,list_U = dist_from_definite_outcome(self.inputs.val_u,[self.Np])
                     self.STM.u_d[:,t-1] = U
 
+    def get_predictions_from_outputs_to_STM(self):
+        raise NotImplementedError("Working on it !")
+    
     # Full trial mechanics
     def prime_model_functions(self):
         # Use inputs to initialize blocks :
@@ -679,9 +631,9 @@ class mdp_layer :
             else : 
                 o = sample_distribution(o_d,random_number_generator=self.RNG) # This is a tuple
                 o = np.asarray(o).astype(int)
-                # outputArray = np.asarray(inputTuple)
             x = self.STM.x[:,t]         # Input states stay the same
             x_d = self.STM.x_d[...,t]   # 
+            
         else :
             if (self.STM.is_value_exists("x_d",t)):
                 # The new states are preset in memory
@@ -708,18 +660,25 @@ class mdp_layer :
                     x_d_tprevious = self.STM.x_d[...,t-1]
                     u_d_tprevious = self.STM.u_d[...,t-1]
 
-                    # Factor by factor
-                    # transition_tprevious = self.action_model_average(u_d_tprevious)
-
                     # Joint form of factors & transitions : 
-                    kron_transition_tprevious = self.kronecker_action_model_average(u_d_tprevious)
-                    kron_form_x_d_tprevious = self.joint_to_kronecker(x_d_tprevious)
+                    kron_form_x_d_tprevious = joint_to_kronecker(x_d_tprevious)
+                    
+                    # TODO : use this everywhere, rather than the list
+                    kron_transitions = np.stack(self.var.b_kron,axis=-1)
+                    
+                    x_d_kron = np.einsum("iju,j,u->i",kron_transitions,kron_form_x_d_tprevious,u_d_tprevious)
+                    # print(x_d_kron)
 
-                    x_d_kron = np.dot(kron_transition_tprevious,kron_form_x_d_tprevious)
-                x_d = self.kronecker_to_joint(x_d_kron)
+                    # # Joint form of factors & transitions : 
+                    # kron_transition_tprevious = self.kronecker_action_model_average(u_d_tprevious)
+                    # kron_form_x_d_tprevious = self.joint_to_kronecker(x_d_tprevious)
+
+                    # x_d_kron = np.dot(kron_transition_tprevious,kron_form_x_d_tprevious)
+                # x_d = self.kronecker_to_joint(x_d_kron)
+                x_d = kronecker_to_joint(x_d_kron,self.Ns)
                 x = np.asarray(sample_distribution(x_d,random_number_generator=self.RNG)).astype(int)
-            # x and x_d are available : let's use them and a to 
-            # generate the corresponding 
+            # x and x_d are available : let's use them to
+            # generate the corresponding observations
             o = np.zeros((self.Nmod,))
 
 
@@ -754,7 +713,7 @@ class mdp_layer :
                     # a_matrix = self.var.a[modality]
                     # flattened_a = flatten_last_n_dimensions(a_matrix.ndim-1,a_matrix)
                     flattened_a_mat = self.var.a_kron[modality]
-                    qx = self.joint_to_kronecker(x_d)
+                    qx = joint_to_kronecker(x_d)  # Flatten the distribution
                     o_d_mod = np.dot(flattened_a_mat,qx)
                     o[modality] = sample_distribution(o_d_mod,random_number_generator=self.RNG)[0]
                     po_list.append(o_d_mod)
@@ -821,19 +780,20 @@ class mdp_layer :
 
         # Fetch priors over subsequent states
         if (t>0):
-            Q_t_previous = self.joint_to_kronecker(self.STM.x_d[...,t-1])
+            Q_t_previous = joint_to_kronecker(self.STM.x_d[...,t-1])
             last_action = self.STM.u[t-1]
             last_transition = self.var.b_kron[last_action]
             Q_t = np.dot(last_transition,Q_t_previous)
         else :
             Q_t = spm_kron(self.var.d)
         P = flexible_copy(Q_t) # Prior over current states 
+        
+        
+        
         if verbose :
             print("Prior Q --> " +str(np.round(Q_t,2)) + " -  Obs : " + str(list_O))
-        tree = policy_tree_node(0,P,self.U.shape[0],self.get_total_number_of_hidden_states())
+        # tree = policy_tree_node(0,P,self.U.shape[0],self.get_total_number_of_hidden_states())
 
-        forward_t = t
-        
         # The maximum horizon is the last timestep : T-1
         # Else, it is just the current time + temporal horizon :
         # If t horizon = 0, N = t, no loop
@@ -843,6 +803,7 @@ class mdp_layer :
         #                     self.T,min(self.T-1,t+self.T_horizon),tree,self.debug,self.RNG,
         #                     self.hyperparams.cap_state_explo,self.hyperparams.cap_action_explo,
         #                     layer_learn_options=self.learn_options)
+        forward_t = t
         G,Q  = spm_forwards(list_O,P,self.U,self.var,forward_t,
                             self.T,min(self.T-1,t+self.T_horizon),
                             self.hyperparams,self.learn_options,self.RNG)
@@ -852,7 +813,8 @@ class mdp_layer :
             print(G)
             if verbose : 
                 print("Post Q --->" + str(np.round(Q,2)))
-        return G,Q,time.time() - t0,tree
+
+        return G,Q
 
     def pick_action(self):
         """ 
@@ -861,53 +823,51 @@ class mdp_layer :
         """
         t = self.t 
 
-        if (t>=self.T-1) :
+        if (t>=self.T-1) : # If we are at the end of the trial
             # No action selection needed here
             return 
 
         Ru = softmax(self.hyperparams.alpha * nat_log(self.STM.u_d[:,t]))
         action_selected_tuple = sample_distribution(Ru,random_number_generator=self.RNG)
-        # print(Ru,action_selected_tuple[0])
         return action_selected_tuple,self.U[action_selected_tuple[0],:]
     
     def model_update(self):
         t = self.t
-        G,Q,prop_time,tree = self.belief_propagation()
-        # print(softmax(G))
+        G,Q = self.belief_propagation()
         # Update the STM with the inference results
         # Short term memory addition : 
         
-        self.STM.x_d[...,t] = self.kronecker_to_joint(Q)
-        
+        # self.STM.x_d[...,t] = self.kronecker_to_joint(Q)
+        self.STM.x_d[...,t] = kronecker_to_joint(Q,self.Ns)
         
         if (t<self.T-1):
             # # posterior_over_policy & precision
             softmax_posterior_u = softmax(np.sum(G,axis=1))
             self.STM.u_d[:,t] = softmax_posterior_u
             w = np.inner(softmax_posterior_u,nat_log(softmax_posterior_u))
+                # Policy posterior precision
 
             # Pick an action & save the result to STM
             u_idx, state_u_idx = self.pick_action()
             self.STM.u[t] = u_idx[0]
             self.STM.Gd[:,:,t] = G
-            self.STM.u[t]
-        return tree
-
+            
     def model_tick(self,
                    update_t_when_over=True,
                    clear_inputs_when_over=True):
         t = self.t
         self.use_inputs_to_populate_STM()
-        searchtree = self.model_update()
+        self.model_update()
         self.outputs.generate_outputs_from_STM(t,self.T,  # Outputs the results
                 x_d = self.STM.x_d,  #qs
-                u=self.STM.u,u_d = self.STM.u_d) #u, qu        
+                u=self.STM.u,u_d = self.STM.u_d) #u, qu 
+               
+        # print(self.outputs)
         
         if (update_t_when_over):
             self.t = t+1
         if(clear_inputs_when_over):
             self.clear_inputs()
-        return searchtree
 
     def model_learn(self):
         learn_from_experience(self)
@@ -962,17 +922,16 @@ class mdp_layer :
         self.get_inputs()
 
         if self.layerMode == layerMode.MODEL:
-            returns = self.model_tick(update_t_when_over,clear_inputs_when_over)
+            self.model_tick(update_t_when_over,clear_inputs_when_over)
         elif self.layerMode == layerMode.PROCESS : 
-            returns = self.process_tick(update_t_when_over,clear_inputs_when_over)
-        
-        return returns
+            self.process_tick(update_t_when_over,clear_inputs_when_over)
+    
     
     def postrun(self,verbose=False):
         if (verbose):
             print("Updating " + self.name +" 's beliefs")
         if self.layerMode == layerMode.MODEL:
-            returns = self.model_learn()
+            self.model_learn()
         elif self.layerMode == layerMode.PROCESS : 
             pass
         self.trials_with_this_seed += 1

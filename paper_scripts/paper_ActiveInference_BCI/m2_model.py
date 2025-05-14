@@ -3,7 +3,7 @@ import numpy as np
 import actynf
 from tools import gaussian_to_categorical
 
-# BUILD THE INFERENCE NETWORK
+# BUILD THE NETWORK
 def single_action_weights(Ns,No,
                         feedback_noise_std = 0.1,
                         N_up_actions= 1,N_useless_actions= 10,N_down_actions= 1,
@@ -121,6 +121,11 @@ def subject_model(T,Th,
     model_layer.learn_options.learn_c = False
     model_layer.learn_options.learn_d = True
     model_layer.learn_options.learn_e = False
+
+    # Compute novelty seeking terms
+    model_layer.hyperparams.a_novelty = True
+    model_layer.hyperparams.b_novelty = True
+
 
     model_layer.learn_options.assume_state_space_structure = learning_space_structure
     model_layer.learn_options.generalize_fadeout_function_temperature = gen_temp

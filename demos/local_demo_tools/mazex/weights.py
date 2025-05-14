@@ -29,7 +29,7 @@ def ind2sub(array_shape, ind):
     cols = (ind % array_shape[1]) # or numpy.mod(ind.astype('int'), array_shape[1])
     return rows, cols
 
-def build_maze(maze_array,start_idx,end_idx,dirac_goal=False):
+def build_maze(maze_array,start_idx,end_idx,dirac_goal=False,p_transition=1.0):
     flattened_maze = maze_array.flatten('F')
     
     Ns = flattened_maze.shape[0]
@@ -57,13 +57,18 @@ def build_maze(maze_array,start_idx,end_idx,dirac_goal=False):
     Nu = u.shape[0]
 
     B = np.zeros((Ns,Ns,Nu))
+    
     for from_x in range(maze_array.shape[0]):
         for from_y in range(maze_array.shape[1]):
             s = sub2ind(maze_array.shape,(from_x,from_y))
             for u_ix in range(Nu):
                 try :
                     ss = sub2ind(maze_array.shape,(from_x + u[u_ix,0] ,from_y + u[u_ix,1]))
-                    B[ss,s,u_ix] = 1
+                    if s!= ss :
+                        B[ss,s,u_ix] = p_transition
+                        B[s,s,u_ix] = 1 - p_transition
+                    else : 
+                        B[s,s,u_ix] = 1
                 except:
                     B[s,s,u_ix] = 1
     b = [B]
@@ -79,25 +84,22 @@ def build_maze(maze_array,start_idx,end_idx,dirac_goal=False):
         else :
             c2[c_ix] = -1.0*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))# - 1.0
     if dirac_goal:
-        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 0
+        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 100
     c = [c1,c2]
 
-    U = np.array(range(Nu))
+    U = np.expand_dims(np.array(range(Nu)),-1)
     e = np.ones(U.shape)
     return a,b,c,d,e,U
 
 
-# Actynf layer building
-def get_maze_process_layer(maze_array,start_idx,end_idx,
-                            T,Th,dirac_goal=False,seed=None):
-    a,b,c,d,e,U = build_maze(maze_array,start_idx,end_idx,dirac_goal=dirac_goal)
-    maze_process = layer("maze_environment","process",a,b,c,d,e,U,T,Th,in_seed=seed)
-    return maze_process
+
+
 
 def build_maze_model(maze_array,start_idx,end_idx,
                      initial_tile_confidence=1.0,
                      rs=1.0,la=-2,
-                     dirac_goal=False):
+                     dirac_goal=False,
+                     p_transition=1.0):
     flattened_maze = maze_array.flatten('F')
     
     Ns = flattened_maze.shape[0]
@@ -125,39 +127,51 @@ def build_maze_model(maze_array,start_idx,end_idx,
             for u_ix in range(Nu):
                 try :
                     ss = sub2ind(maze_array.shape,(from_x + u[u_ix,0] ,from_y + u[u_ix,1]))
-                    B[ss,s,u_ix] = 1
+                    if s!= ss :
+                        B[ss,s,u_ix] = p_transition
+                        B[s,s,u_ix] = 1 - p_transition
+                    else : 
+                        B[s,s,u_ix] = 1
                 except:
                     B[s,s,u_ix] = 1
     b = [B]
     
     Xtarget,Ytarget = end_idx[1],end_idx[0]
-    c1 = np.array([2,-la])
+    c1 = np.array([2,la])
     c2 = np.zeros((Ns,))
     for c_ix in range(Ns):
         x,y = ind2sub(maze_array.shape,c_ix)
         if dirac_goal:
             c2[c_ix] = -1.0*rs
         else :
-            c2[c_ix] = -1.0*rs*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))# - 1.0
+            c2[c_ix] = -1.0*rs*np.sqrt((Xtarget-x)*(Xtarget-x)+(Ytarget-y)*(Ytarget-y))
     if dirac_goal:
-        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = 0
+        c2[sub2ind(maze_array.shape,(Ytarget,Xtarget))] = rs
     c = [c1,c2]
     
     d = [np.ones((Ns,))]
     # d[0][start_pos] = 1
     
-    U = np.array(range(Nu))
+    U = np.expand_dims(np.array(range(Nu)),-1)
     e = np.ones(U.shape)
     return a,b,c,d,e,U
 
+# Actynf layer
+def get_maze_process_layer(maze_array,start_idx,end_idx,
+                            T,Th,dirac_goal=False,seed=None):
+    a,b,c,d,e,U = build_maze(maze_array,start_idx,end_idx,dirac_goal=dirac_goal)
+    maze_process = layer("maze_environment","process",a,b,c,d,e,U,T,Th,in_seed=seed)
+    return maze_process
+
 def get_maze_model_layer(maze_array,start_idx,end_idx,
                          T,Th,initial_tile_confidence=1.0,rs=1.0,la=-2,
-                         seed=None,dirac_goal=False,alpha=16):
+                         seed=None,dirac_goal=False,alpha=16,p_transition=1.0
+                         ):
     
     a,b,c,d,e,U = build_maze_model(maze_array,start_idx,end_idx,
                             initial_tile_confidence=initial_tile_confidence,
                             rs = rs,la = la,
-                            dirac_goal=dirac_goal)
+                            dirac_goal=dirac_goal,p_transition=p_transition)
     
     maze_model = layer("maze_model","model",
                     a,b,c,d,e,U,T,Th,in_seed=seed)
@@ -172,12 +186,12 @@ def get_maze_network(maze_array,start_idx,end_idx,
                      T,Th,seeds,
                      init_conf=1.0,rs=1.0,la=2,
                      dirac_goal=False,alpha=16,
-                     seek_a_novelty = False):
+                     seek_a_novelty = False,p_transition=1.0):
     proc = get_maze_process_layer(maze_array,start_idx,end_idx,
-                        T,Th,dirac_goal=dirac_goal,seed=seeds[0])
+                        T,Th,dirac_goal=dirac_goal,seed=seeds[0],p_transition=p_transition)
     model = get_maze_model_layer(maze_array,start_idx,end_idx,T,Th,
                         initial_tile_confidence=init_conf,rs=rs,la=la,
-                        seed=seeds[1],dirac_goal=dirac_goal,alpha=alpha)
+                        seed=seeds[1],dirac_goal=dirac_goal,alpha=alpha,p_transition=p_transition)
     model.hyperparams.a_novelty = seek_a_novelty
     
 

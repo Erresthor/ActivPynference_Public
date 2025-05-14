@@ -7,6 +7,8 @@ from scipy.spatial.distance import jensenshannon
 import matplotlib.pyplot as plt
 from scipy.ndimage import uniform_filter1d
 
+from actynf.jaxtynf.jax_toolbox import _normalize
+
 def to_list_of_one_hots(arr_of_indices,to_shape):
     L = []
     for k,dim in enumerate(to_shape):
@@ -241,7 +243,7 @@ def imshow_with_labels(ax,array2d,fontsize = 10,vmin=0,vmax=1,normmat = True,ove
         im = ax.imshow(actynf.normalize(array2d),vmin=vmin,vmax=vmax)
     else : 
         im = ax.imshow(array2d)
-    ax.set_axis_off()
+    # ax.set_axis_off()
 
     for i in range(array2d.shape[0]):
         for j in range(array2d.shape[1]):
@@ -501,6 +503,52 @@ def plot_trials_new(
     fig1.show()
 
 
+
+def plot_a(pA,norm=False):
+    
+    for modality,a in enumerate(pA):
+        
+        # # Plot the matrices if needed :
+        # print(feedback_matrix.shape)
+        fig,axs = plt.subplots(1,a.shape[1],sharey=True)
+        # fig.suptitle(sensor[modality] + "  - biomarker " +type[modality],y=0.75)
+        axs[0].set_ylabel("Feedback level")
+        for i,ax in enumerate(axs) : 
+            ax.set_title("Intensity = {}".format(i))
+            if norm : 
+                
+                ax.imshow(np.array(_normalize(a[:,i,:])[0]),vmin=0.0,vmax=1.0)
+            else :
+                ax.imshow(np.array(_normalize(a[:,i,:])[0]))#,vmin=0.0,vmax=1.0)
+            
+            ax.set_xlabel("Orientation")
+        # # fig.show()
+        fig.show()
+
+def plot_b(pB,norm=False):
+    for factor,b_f in enumerate(pB):
+        Nu = b_f.shape[-1]
+        fig,axes = plt.subplots(1,Nu)
+        fig.suptitle("Transitions changing factor {}".format(factor),y=0.85)
+        
+        for u in range(Nu):
+            ax = axes[u]
+            ax.set_title("{}".format(u) )
+            if norm : 
+                ax.imshow(_normalize(b_f[...,u])[0],vmin=0.0,vmax=1.0)
+            else :
+                ax.imshow(_normalize(b_f[...,u])[0])#,vmin=0.0,vmax=1.0)
+                
+                
+            # for major ticks
+            ax.set_xticks([])
+            # for minor ticks
+            ax.set_xticks([], minor=True)
+            # for major ticks
+            ax.set_yticks([])
+            # for minor ticks
+            ax.set_yticks([], minor=True)
+        fig.show()
 
 if __name__ == "__main__":
     X  = [0,1,2,9,8,7,6]

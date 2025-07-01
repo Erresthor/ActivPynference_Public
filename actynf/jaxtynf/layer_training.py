@@ -210,12 +210,24 @@ def empirical(obs_vect,act_vect,
         # to compute the evolution of model parameters instead
         
         # # Then, we update the parameters of our HMM model at this level
-        a_post,b_post,_,d_post,_,qs_post = learn_after_trial(obs_trial,qs_arr,act_trial,
-                                                 pre_a,pre_b,c,pre_d,e,u,
-                                                 learn_what=learning_options["bool"],
-                                                 learn_rates=learning_options["learning_rates"],
-                                                 forget_rates=learning_options["forgetting_rates"],
-                                                 post_trial_smooth=learning_options["smooth_states"])
+        # a_post,b_post,_,d_post,_,qs_post = learn_after_trial(obs_trial,qs_arr,act_trial,
+        #                                          pre_a,pre_b,c,pre_d,e,u,
+        #                                          learn_what=learning_options["bool"],
+        #                                          learn_rates=learning_options["learning_rates"],
+        #                                          forget_rates=learning_options["forgetting_rates"],
+        #                                          post_trial_smooth=learning_options["smooth_states"])
+        
+        a_post,b_post,c_post,d_post,e_post,qs_post = learn_after_trial(obs_trial,qs_arr,act_trial,
+                                            pre_a,pre_b,c,pre_d,e,u,
+                                            method = learning_options["method"],
+                                            learn_what = learning_options["bool"],
+                                            learn_rates=learning_options["learning_rates"],
+                                            forget_rates=learning_options["forgetting_rates"],
+                                            generalize_state_function=learning_options["state_generalize_function"],
+                                            generalize_action_table=learning_options["action_generalize_table"],
+                                            cross_action_extrapolation_coeff=learning_options["cross_action_extrapolation_coeff"],
+                                            em_iter = learning_options["em_iterations"])
+        
         return (a_post,b_post,d_post),(qs_arr,qs_post,qpi_arr,a_post,b_post,d_post)
     
     final_matrices,(training_qs_arr,training_qs_post,training_qpi_arr,training_a_post,training_b_post,training_d_post) = jax.lax.scan(_scan_training,(pa0,pb0,pd0),(obs_vect,act_vect))

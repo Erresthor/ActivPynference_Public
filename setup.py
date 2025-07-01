@@ -13,7 +13,12 @@ setuptools.setup(
     install_requires=['numpy',
                     'scipy',
                     'matplotlib',
-                    'pillow'                
+                    'pillow',
+                    'jax',
+                    'tensorflow.probability',
+                    'numpyro',
+                    'arviz',
+                    'fastprogress'                
                     ],
     keywords=[
         "artificial intelligence",
